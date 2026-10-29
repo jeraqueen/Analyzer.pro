@@ -59,28 +59,27 @@ async function handleAnalyze(request, env) {
   const present = validTfs.filter(tf => typeof charts[tf] === "string");
   if (!present.length) return json({ error: "Upload at least one chart screenshot." }, 400, cors);
 
-  const prompt = `You are a careful trading research assistant, not a broker and not an execution system. Analyze the user's screenshots for ${pair}. Treat screenshots as the only chart evidence; do not invent prices, indicators, candles, news, spreads, or market data. If price labels are unreadable, describe zones qualitatively and state that exact prices cannot be confirmed. Missing timeframes must be called out. Distinguish observations from interpretation. Never promise profit or present a qualitative confidence label as a probability. Prefer WAIT or NO TRADE when evidence is weak.
+  const prompt = `You are a careful forex chart research assistant, not a broker or execution system. Analyze screenshots for ${pair}. Screenshots are the only chart evidence. Do not invent prices, candles, indicators, live quotes, spreads, news, or backtest results. If a price is unreadable or unsupported, say NOT IDENTIFIABLE rather than guessing. Missing timeframes must be identified. Live news and live prices were not supplied. User direction: ${payload.direction || "Undecided / no trade"}. User-entered levels: ${JSON.stringify(payload.levels || {})}. Thesis: ${String(payload.thesis || "")}. Invalidation: ${String(payload.invalidation || "")}. Notes: ${JSON.stringify(payload.timeframeNotes || {})}. Uploaded timeframes: ${present.join(", ")}.
 
-Uploaded timeframes: ${present.join(", ")}. User-selected direction: ${payload.direction || "Undecided / no trade"}.
-User-entered levels: ${JSON.stringify(payload.levels || {})}.
-Thesis: ${String(payload.thesis || "")}
-Invalidation: ${String(payload.invalidation || "")}
-Timeframe notes: ${JSON.stringify(payload.timeframeNotes || {})}
-Primary session requested: New York. Current verified live market/news data was NOT supplied, so do not claim news or live prices were checked.
+Use these exact headings and put each trade level on its own clearly labelled line so the website can display it separately:
+1. EXECUTIVE VERDICT: LONG SETUP / SHORT SETUP / WAIT FOR CONFIRMATION / NO TRADE. State clearly whether a valid trigger is visible now.
+2. DIRECTION: LONG / SHORT / NONE.
+3. ENTRY ZONE: exact price or zone only if readable and justified; otherwise NOT IDENTIFIABLE. If conditional, label it CONDITIONAL.
+4. STOP LOSS: exact price and structural reason only if justified; otherwise NOT IDENTIFIABLE.
+5. TP1: target price and chart reason, or NOT IDENTIFIABLE.
+6. TP2: target price and chart reason, or NOT IDENTIFIABLE.
+7. TP3: target price and chart reason, or NOT IDENTIFIABLE.
+8. REWARD:RISK: TP1 reward:risk only if entry, SL and TP1 can be read and calculated; otherwise NOT CALCULATED.
+9. PATTERN: observed candidate structure or NONE IDENTIFIABLE. Explain confirmation status.
+10. ENTRY CONDITION: specific observable trigger or why it is not confirmed.
+11. INVALIDATION: what would disprove the setup; never invent a level.
+12. SETUP QUALITY SCORE: 0–100 based on image clarity, timeframe coverage, confluence and confirmed trigger. This is evidence completeness, NOT a probability of winning.
+13. TIMEFRAME EVIDENCE: H4, H1, M15 and M5 individually; state missing images, structure, key levels and conflicts.
+14. CONFLUENCE AND ALTERNATIVE: agreement/conflict, strongest candidate setup, and alternative scenario.
+15. RISK NOTES: sizing needs broker-verified pip/point value, contract size, account currency and costs. Never assume XAUUSD specifications.
+16. LIMITATIONS AND CHECKLIST: news was not checked; independently verify prices, spread, news, and the setup on the broker chart.
 
-Return these headings:
-1. EXECUTIVE VERDICT — LONG SETUP / SHORT SETUP / WAIT FOR CONFIRMATION / NO TRADE; say whether an entry trigger is visibly confirmed.
-2. TIMEFRAME EVIDENCE — H4, H1, M15 and M5 individually; identify missing images.
-3. CONFLUENCE AND CONFLICTS — explain agreement/disagreement.
-4. VISIBLE KEY LEVELS — separate readable exact prices from approximate zones.
-5. TRADE PLAN — only if supported: conditional entry/entry zone, confirmation required, stop-loss at structural invalidation, defensible TP1/TP2/TP3 if present, reward:risk when prices are readable, and setup cancellation rules. Otherwise explicitly do not force levels.
-6. ALTERNATIVE SCENARIO.
-7. RISK CHECK — position size requires broker-verified contract/pip value, account currency and costs. Do not assume XAUUSD contract specifications.
-8. SESSION AND NEWS LIMITATIONS.
-9. EVIDENCE QUALITY AND LIMITATIONS.
-10. PRE-TRADE CHECKLIST.
-
-Do not execute trades, issue guaranteed predictions, or pretend screenshots provide future information.`;
+Prefer WAIT or NO TRADE if evidence is weak. Never promise profit, describe a score as win probability, claim thousands of patterns were automatically detected, or execute trades.`;
 
   const parts = [{ text: prompt }];
   for (const tf of present) {
