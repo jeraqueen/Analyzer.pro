@@ -61,6 +61,8 @@ async function handleAnalyze(request, env) {
 
   const prompt = `Act as a practical XAUUSD/forex chart analyst. Analyze only what is visible in the uploaded screenshots for ${pair}. Evaluate LONG and SHORT setups, not just reversals. A strong bearish trend can offer a SHORT on a pullback to resistance, bearish rejection, or a confirmed support break and retest; a strong bullish trend can offer LONGs on pullbacks or confirmed breakouts. Never assume a reversal is required to trade with the trend.
 
+The user wants a direct, usable trading decision, not a long report that hides the action. ALWAYS put DIRECTION immediately after EXECUTIVE VERDICT and make it exactly one of: BUY, SELL, or WAIT / NO TRADE. Never omit it. Translate LONG to BUY and SHORT to SELL in the final DIRECTION line. BUY/SELL means a conditional scenario when the entry trigger is not yet met; explicitly label it WAITING FOR TRIGGER until confirmation occurs. If evidence is conflicting, weak, unreadable, or lacks defensible invalidation, choose WAIT / NO TRADE and explain what event would change that decision. Never label a trade ready unless the stated trigger is already visible. Do not invent confidence percentages or claim a win probability.
+
 The user wants the scan to rank the best one or two timeframes to watch. Always identify:
 - BEST TIMEFRAME TO WATCH: choose the most suitable uploaded timeframe for the clearest current structure and explain why.
 - SECOND-BEST TIMEFRAME: choose a second uploaded timeframe if it adds useful confirmation; if not, say why.
@@ -76,9 +78,9 @@ The user wants the scan to rank the best one or two timeframes to watch. Always 
 - Provide a SETUP QUALITY SCORE from 0-100 based on visible evidence, confluence, timeframe agreement, risk definition and trigger status. This is NOT win probability.
 - Do not force an immediate trade if no coherent risk-defined setup exists, but make the analysis useful by giving the best conditional scenario and requirements whenever chart structure supports it. Never promise profit or claim any strategy guarantees success.
 
-Use these exact headings and concise lines:
-EXECUTIVE VERDICT:
-DIRECTION:
+Use these exact headings and concise lines in this order, with the first two lines always present:
+EXECUTIVE VERDICT: (one short plain-language summary)
+DIRECTION: (exactly BUY, SELL, or WAIT / NO TRADE; add READY or WAITING FOR TRIGGER)
 BEST TIMEFRAME TO WATCH:
 SECOND-BEST TIMEFRAME:
 MARKET STRUCTURE:
