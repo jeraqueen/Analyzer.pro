@@ -14,8 +14,8 @@ function corsHeaders(request) {
   if (origin && origin !== ownOrigin) return null;
   return {
     "Access-Control-Allow-Origin": ownOrigin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, X-Analyzer-Token",
     "Vary": "Origin"
   };
 }
@@ -25,8 +25,17 @@ export async function onRequest(context) {
   const cors = corsHeaders(request);
   if (!cors) return json({ error: "Cross-origin requests are not allowed." }, 403);
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (request.method === "GET") {
+    const ready = Boolean(env.OPENAI_API_KEY && env.ANALYZER_ACCESS_TOKEN);
+    return json({ status: ready ? "ready" : "not_ready", error: ready ? undefined : "Configure both OPENAI_API_KEY and ANALYZER_ACCESS_TOKEN as Cloudflare Pages secrets, then redeploy." }, ready ? 200 : 503, cors);
+  }
   if (request.method !== "POST") return json({ error: "Use POST for chart analysis." }, 405, cors);
   if (!env.OPENAI_API_KEY) return json({ error: "The server is not configured yet. Add the OPENAI_API_KEY secret in Cloudflare Pages settings." }, 503, cors);
+  if (!env.ANALYZER_ACCESS_TOKEN) return json({ error: "The server is not protected yet. Add the ANALYZER_ACCESS_TOKEN secret in Cloudflare Pages settings." }, 503, cors);
+  const suppliedToken = request.headers.get("X-Analyzer-Token") || "";
+  if (suppliedToken.length !== env.ANALYZER_ACCESS_TOKEN.length || suppliedToken !== env.ANALYZER_ACCESS_TOKEN) {
+    return json({ error: "Unauthorized. Check the private analysis access token saved in this browser." }, 401, cors);
+  }
 
   const declaredSize = Number(request.headers.get("Content-Length") || 0);
   if (declaredSize > MAX_BODY_BYTES) return json({ error: "Request is too large. Upload smaller screenshots." }, 413, cors);
