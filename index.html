@@ -153,8 +153,9 @@ function renderTradeResult(raw){
   mark.textContent=direction==='BUY'?'BUY':direction==='SELL'?'SELL':'WAIT';
   mark.className='direction-mark '+(direction==='BUY'?'buy':direction==='SELL'?'sell':'wait');
   $('resultDirection').textContent=direction;
-  $('resultDirectionTitle').textContent=direction==='BUY'?'BUY scenario':direction==='SELL'?'SELL scenario':'WAIT — no confirmed trade';
-  $('resultDirectionReason').textContent=direction==='BUY'?'Look for the stated bullish entry trigger. Do not enter before the condition is met.':direction==='SELL'?'Look for the stated bearish entry trigger. Do not enter before the condition is met.':'No clear, risk-defined entry is confirmed. Follow the conditional scenario below or stay out.';
+  const waiting=/WAIT|NOT READY|NOT YET|WAITING|CONDITIONAL|BEFORE ENTRY|TRIGGER IS NOT MET/i.test(directionRaw);
+  $('resultDirectionTitle').textContent=direction==='BUY'?(waiting?'BUY setup · waiting for trigger':'BUY setup'):direction==='SELL'?(waiting?'SELL setup · waiting for trigger':'SELL setup'):'WAIT — no confirmed trade';
+  $('resultDirectionReason').textContent=direction==='BUY'?(waiting?'Bullish scenario only. Wait for the exact entry trigger below; do not enter early.':'Bullish direction identified. Verify the entry trigger and all levels on your broker chart.'):direction==='SELL'?(waiting?'Bearish scenario only. Wait for the exact entry trigger below; do not enter early.':'Bearish direction identified. Verify the entry trigger and all levels on your broker chart.'):'No clear, risk-defined entry is confirmed. Follow the conditional scenario below or stay out.';
   $('resultVerdict').textContent=extractSection(raw,['EXECUTIVE VERDICT','VERDICT']);
   $('resultBestTf').textContent=extractSection(raw,['BEST TIMEFRAME TO WATCH','BEST TIMEFRAME']);
   $('resultSecondTf').textContent=extractSection(raw,['SECOND-BEST TIMEFRAME','SECOND BEST TIMEFRAME']);
