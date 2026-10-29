@@ -114,8 +114,48 @@ $('clearReview').onclick=()=>{['noteH4','noteH1','noteM15','noteM5','entry','sto
 async function imageForBackend(inputId){const f=$(inputId).files?.[0];if(!f)return null;if(!f.type.startsWith('image/'))throw Error(inputId+': please choose an image file.');if(f.size>12*1024*1024)throw Error(inputId+': image is over 12 MB. Choose a smaller screenshot.');const source=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(Error('Could not read '+inputId));r.readAsDataURL(f)});return await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{const max=1500,scale=Math.min(1,max/Math.max(im.width,im.height)),w=Math.max(1,Math.round(im.width*scale)),h=Math.max(1,Math.round(im.height*scale)),c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');if(!ctx){reject(Error('Image compression is unavailable on this browser.'));return}ctx.drawImage(im,0,0,w,h);resolve(c.toDataURL('image/jpeg',.78))};im.onerror=()=>reject(Error('Could not decode '+inputId+' image.'));im.src=source})}
 let scanTimer=null,scanTick=0;
 function startScanAnimation(){clearInterval(scanTimer);scanTick=0;$('scanStage').classList.add('show');$('tradeResults').classList.remove('show');const labels=['Reading screenshots and timeframes…','Checking structure and pattern candidates…','Reviewing confluence and trade levels…'];scanTimer=setInterval(()=>{scanTick=Math.min(94,scanTick+Math.max(2,Math.round((94-scanTick)*.13)));$('scanProgress').style.width=scanTick+'%';$('scanCaption').textContent=labels[scanTick<35?0:scanTick<70?1:2]},500)}
-function extractSection(raw,labels){for(const label of labels){const re=new RegExp('(?:^|\\n)\\s*(?:\\d+[.)]\\s*)?'+label+'\\s*[:—-]\\s*([^\\n]+)','i');const m=raw.match(re);if(m)return m[1].trim()}return 'Not clearly identified — verify the full analysis.'}
-function renderTradeResult(raw){$('resultVerdict').textContent=extractSection(raw,['EXECUTIVE VERDICT','VERDICT']);$('resultBestTf').textContent=extractSection(raw,['BEST TIMEFRAME TO WATCH','BEST TIMEFRAME']);$('resultSecondTf').textContent=extractSection(raw,['SECOND-BEST TIMEFRAME','SECOND BEST TIMEFRAME']);$('resultSetupType').textContent=extractSection(raw,['SETUP TYPE']);$('resultRequirements').textContent=extractSection(raw,['ENTRY TRIGGER / REQUIREMENTS','ENTRY REQUIREMENTS','ENTRY TRIGGER']);$('resultEntry').textContent=extractSection(raw,['ENTRY ZONE','Entry zone','Entry / zone','Entry']);$('resultStop').textContent=extractSection(raw,['STOP LOSS','Stop-loss','Stop loss','SL']);$('resultTp1').textContent=extractSection(raw,['TP1','Take-profit 1','Take profit 1']);$('resultTp23').textContent=extractSection(raw,['TP2','Take-profit 2','Take profit 2'])+' / '+extractSection(raw,['TP3','Take-profit 3','Take profit 3']);$('resultRR').textContent=extractSection(raw,['REWARD:RISK','Reward:risk','Reward-to-risk','R:R']);$('resultPattern').textContent=extractSection(raw,['PATTERN','Pattern identified','Structure']);$('resultTrigger').textContent=extractSection(raw,['ENTRY CONDITION','ENTRY TRIGGER','Confirmation']);$('resultInvalidation').textContent=extractSection(raw,['INVALIDATION','Cancellation']);$('resultEvidence').textContent=raw;$('tradeResults').classList.add('show')}
+function extractSection(raw,labels){
+  const lines=String(raw||'').replace(/\\r/g,'').split('\\n').map(line=>line.trim());
+  const norm=s=>s.replace(/^#+\\s*/,'').replace(/^\\*{1,3}|\\*{1,3}$/g,'').replace(/^\\d+[.)]\\s*/,'').trim().toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const wanted=labels.map(norm);
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i].replace(/^#+\\s*/,'').replace(/^\\*{1,3}|\\*{1,3}$/g,'').trim();
+    const match=line.match(/^(.{2,100}?)\\s*[:—-]\\s*(.*)$/);
+    if(!match)continue;
+    const heading=norm(match[1]);
+    if(wanted.some(w=>heading===w)){
+      const value=match[2].replace(/^\\*{1,3}|\\*{1,3}$/g,'').trim();
+      if(value)return value;
+      for(let j=i+1;j<lines.length;j++){
+        const next=lines[j];
+        if(!next)continue;
+        if(/^#{1,6}\\s/.test(next)||/^\\*\\*[^*]+\\*\\*\\s*[:—-]/.test(next)||/^[A-Z][A-Z0-9 /:&()_-]{2,80}:$/.test(next))break;
+        return next.replace(/^[-*]\\s*/,'').trim();
+      }
+    }
+  }
+  return 'Not clearly identified — verify the full analysis.';
+}
+function renderTradeResult(raw){
+  $('resultVerdict').textContent=extractSection(raw,['EXECUTIVE VERDICT','VERDICT']);
+  $('resultBestTf').textContent=extractSection(raw,['BEST TIMEFRAME TO WATCH','BEST TIMEFRAME']);
+  $('resultSecondTf').textContent=extractSection(raw,['SECOND-BEST TIMEFRAME','SECOND BEST TIMEFRAME']);
+  const setup=extractSection(raw,['SETUP TYPE']);
+  $('resultSetupType').textContent=setup;
+  $('resultRequirements').textContent=extractSection(raw,['ENTRY TRIGGER / REQUIREMENTS','ENTRY REQUIREMENTS','ENTRY TRIGGER']);
+  $('resultEntry').textContent=extractSection(raw,['ENTRY ZONE','ENTRY / ZONE','ENTRY']);
+  $('resultStop').textContent=extractSection(raw,['STOP LOSS','STOP-LOSS','SL']);
+  $('resultTp1').textContent=extractSection(raw,['TP1','TAKE PROFIT 1','TAKE-PROFIT 1']);
+  $('resultTp23').textContent=extractSection(raw,['TP2','TAKE PROFIT 2','TAKE-PROFIT 2'])+' / '+extractSection(raw,['TP3','TAKE PROFIT 3','TAKE-PROFIT 3']);
+  $('resultRR').textContent=extractSection(raw,['REWARD RISK','REWARD:RISK','REWARD-TO-RISK','R:R']);
+  let pattern=extractSection(raw,['PATTERN','PATTERN IDENTIFIED']);
+  if(pattern.startsWith('Not clearly identified'))pattern=setup;
+  $('resultPattern').textContent=pattern;
+  $('resultTrigger').textContent=extractSection(raw,['ENTRY CONDITION','ENTRY TRIGGER / REQUIREMENTS','ENTRY TRIGGER','CONFIRMATION']);
+  $('resultInvalidation').textContent=extractSection(raw,['INVALIDATION','CANCELLATION']);
+  $('resultEvidence').textContent=raw;
+  $('tradeResults').classList.add('show')
+}
 $('sendAI').onclick=async()=>{const url=data.settings?.backendUrl||'/api/analyze';try{const selected=['imgH4','imgH1','imgM15','imgM5'].filter(id=>$(id).files?.length).length;if(!selected)throw Error('Choose at least one screenshot first.');message($('analysisMsg'),'Preparing screenshots…');$('sendAI').disabled=true;$('scanChartTop').disabled=true;$('scanChartTop').textContent='Scanning…';startScanAnimation();const charts={};for(const [tf,id] of [['H4','imgH4'],['H1','imgH1'],['M15','imgM15'],['M5','imgM5']]){const image=await imageForBackend(id);if(image)charts[tf]=image}const payload={version:'fx-research-analysis-v3',pair:$('pair').value,direction:$('bias').value,levels:{entry:$('entry').value,stop:$('stop').value,target:$('target').value},thesis:$('thesis').value,invalidation:$('invalidate').value,timeframeNotes:{H4:$('noteH4').value,H1:$('noteH1').value,M15:$('noteM15').value,M5:$('noteM5').value},charts,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi'}};const bytes=JSON.stringify(payload);if(bytes.length>9*1024*1024)throw Error('Combined request is too large. Upload fewer or smaller screenshots.');const token=data.settings?.accessToken||'';if(!token){go('settings');throw Error('Enter and save the private access token in Settings first.')}const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body:bytes});const out=await r.json().catch(()=>({}));if(!r.ok)throw Error((out&&typeof out.error==='string'?out.error:'Backend returned HTTP '+r.status)+' (HTTP '+r.status+')');const raw=typeof out.text==='string'?out.text:JSON.stringify(out,null,2);$('aiResult').value=raw;renderTradeResult(raw);message($('analysisMsg'),'Scan complete. Verify every price against your live broker chart before considering any trade.','good');$('tradeResults').scrollIntoView({behavior:'smooth',block:'start'})}catch(e){message($('analysisMsg'),'Scan failed: '+e.message,'bad')}finally{clearInterval(scanTimer);$('scanProgress').style.width='100%';$('scanStage').classList.remove('show');$('sendAI').disabled=false;$('scanChartTop').textContent='Analyse my chart';updateUploadCount()}};
 $('anotherScan').onclick=()=>{['noteH4','noteH1','noteM15','noteM5','entry','stop','target','thesis','invalidate','aiResult'].forEach(id=>{if($(id))$(id).value=''});document.querySelectorAll('input[type=file][id^=img]').forEach(i=>i.value='');document.querySelectorAll('.preview').forEach(i=>i.classList.add('hidden'));$('tradeResults').classList.remove('show');$('scanStage').classList.remove('show');$('analysisMsg').classList.add('hidden');$('bias').selectedIndex=0;updateUploadCount();go('analyzer')};
 $('scoreChecklist').onclick=()=>{const n=[...document.querySelectorAll('#independentChecks input:checked')].length;$('checkScore').textContent=n+' / 8 checks';$('checkVerdict').textContent=n===8?'All process checks ticked — still verify live chart evidence.':n>=6?'Review remaining checks before considering a trade.':n>=4?'More confirmation needed.':'Insufficient checks; waiting is safer.'};
