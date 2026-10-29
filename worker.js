@@ -29,12 +29,12 @@ async function handleAnalyze(request, env) {
     return json({
       status: ready ? "ready" : "not_ready",
       provider: "Google Gemini",
-      error: ready ? undefined : "Configure GEMINI_API_KEY and ANALYZER_ACCESS_TOKEN as Cloudflare Pages secrets. Use the Gemini API free tier and do not enable paid billing."
+      error: ready ? undefined : "Configure GEMINI_API_KEY and ANALYZER_ACCESS_TOKEN as encrypted secrets on the analyzer-pro Worker. Use the Gemini API free tier and do not enable paid billing."
     }, ready ? 200 : 503, cors);
   }
   if (request.method !== "POST") return json({ error: "Use POST for chart analysis." }, 405, cors);
-  if (!env.GEMINI_API_KEY) return json({ error: "The server is not configured yet. Add the GEMINI_API_KEY secret in Cloudflare Pages settings." }, 503, cors);
-  if (!env.ANALYZER_ACCESS_TOKEN) return json({ error: "The server is not protected yet. Add the ANALYZER_ACCESS_TOKEN secret in Cloudflare Pages settings." }, 503, cors);
+  if (!env.GEMINI_API_KEY) return json({ error: "The server is not configured yet. Add the GEMINI_API_KEY secret in the analyzer-pro Worker's Settings → Variables and Secrets." }, 503, cors);
+  if (!env.ANALYZER_ACCESS_TOKEN) return json({ error: "The server is not protected yet. Add the ANALYZER_ACCESS_TOKEN secret in the analyzer-pro Worker's Settings → Variables and Secrets." }, 503, cors);
   const suppliedToken = request.headers.get("X-Analyzer-Token") || "";
   if (suppliedToken.length !== env.ANALYZER_ACCESS_TOKEN.length || suppliedToken !== env.ANALYZER_ACCESS_TOKEN) {
     return json({ error: "Unauthorized. Check the private analysis access token saved in this browser." }, 401, cors);
@@ -114,7 +114,7 @@ Do not execute trades, issue guaranteed predictions, or pretend screenshots prov
     if (!text) return json({ error: "The AI service returned no readable analysis. You may have reached the free-tier limit; wait and try again." }, 502, cors);
     return json({ text, model, provider: "Google Gemini" }, 200, cors);
   } catch {
-    return json({ error: "Could not reach the AI service. Check the Cloudflare Function and try again." }, 502, cors);
+    return json({ error: "Could not reach the AI service. Check the Cloudflare Worker and try again." }, 502, cors);
   }
 }
 
