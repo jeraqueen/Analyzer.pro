@@ -26,11 +26,15 @@ export async function onRequest(context) {
   if (!cors) return json({ error: "Cross-origin requests are not allowed." }, 403);
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (request.method === "GET") {
-    const ready = Boolean(env.OPENAI_API_KEY && env.ANALYZER_ACCESS_TOKEN);
-    return json({ status: ready ? "ready" : "not_ready", error: ready ? undefined : "Configure both OPENAI_API_KEY and ANALYZER_ACCESS_TOKEN as Cloudflare Pages secrets, then redeploy." }, ready ? 200 : 503, cors);
+    const ready = Boolean(env.GEMINI_API_KEY && env.ANALYZER_ACCESS_TOKEN);
+    return json({
+      status: ready ? "ready" : "not_ready",
+      provider: "Google Gemini",
+      error: ready ? undefined : "Configure GEMINI_API_KEY and ANALYZER_ACCESS_TOKEN as Cloudflare Pages secrets. Use the Gemini API free tier and do not enable paid billing."
+    }, ready ? 200 : 503, cors);
   }
   if (request.method !== "POST") return json({ error: "Use POST for chart analysis." }, 405, cors);
-  if (!env.OPENAI_API_KEY) return json({ error: "The server is not configured yet. Add the OPENAI_API_KEY secret in Cloudflare Pages settings." }, 503, cors);
+  if (!env.GEMINI_API_KEY) return json({ error: "The server is not configured yet. Add the GEMINI_API_KEY secret in Cloudflare Pages settings." }, 503, cors);
   if (!env.ANALYZER_ACCESS_TOKEN) return json({ error: "The server is not protected yet. Add the ANALYZER_ACCESS_TOKEN secret in Cloudflare Pages settings." }, 503, cors);
   const suppliedToken = request.headers.get("X-Analyzer-Token") || "";
   if (suppliedToken.length !== env.ANALYZER_ACCESS_TOKEN.length || suppliedToken !== env.ANALYZER_ACCESS_TOKEN) {
@@ -56,9 +60,7 @@ export async function onRequest(context) {
   const present = validTfs.filter(tf => typeof charts[tf] === "string");
   if (!present.length) return json({ error: "Upload at least one chart screenshot." }, 400, cors);
 
-  const content = [{
-    type: "input_text",
-    text: `You are a careful trading research assistant, not a broker and not an execution system. Analyze the user's screenshots for ${pair}. Treat screenshots as the only chart evidence; do not invent prices, indicators, candles, news, spreads, or market data. If price labels are unreadable, describe zones qualitatively and state that exact prices cannot be confirmed. Missing timeframes must be called out. Distinguish observations from interpretation. Never promise profit or present a qualitative confidence label as a probability. Prefer WAIT or NO TRADE when evidence is weak.
+  const prompt = `You are a careful trading research assistant, not a broker and not an execution system. Analyze the user's screenshots for ${pair}. Treat screenshots as the only chart evidence; do not invent prices, indicators, candles, news, spreads, or market data. If price labels are unreadable, describe zones qualitatively and state that exact prices cannot be confirmed. Missing timeframes must be called out. Distinguish observations from interpretation. Never promise profit or present a qualitative confidence label as a probability. Prefer WAIT or NO TRADE when evidence is weak.
 
 Uploaded timeframes: ${present.join(", ")}. User-selected direction: ${payload.direction || "Undecided / no trade"}.
 User-entered levels: ${JSON.stringify(payload.levels || {})}.
@@ -79,41 +81,39 @@ Return these headings:
 9. EVIDENCE QUALITY AND LIMITATIONS.
 10. PRE-TRADE CHECKLIST.
 
-Do not execute trades, issue guaranteed predictions, or pretend screenshots provide future information.`
-  }];
+Do not execute trades, issue guaranteed predictions, or pretend screenshots provide future information.`;
 
+  const parts = [{ text: prompt }];
   for (const tf of present) {
-    const dataUrl = charts[tf];
-    if (!/^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(dataUrl)) {
-      return json({ error: `The ${tf} screenshot is not a supported base64 image.` }, 400, cors);
-    }
-    if (dataUrl.length > 5 * 1024 * 1024) return json({ error: `The ${tf} screenshot is too large. Please upload a smaller image.` }, 413, cors);
-    content.push({ type: "input_text", text: `Next image is the ${tf} chart. Use it only as evidence for that timeframe.` });
-    content.push({ type: "input_image", image_url: dataUrl, detail: "high" });
+    const match = charts[tf].match(/^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+    if (!match) return json({ error: `The ${tf} screenshot is not a supported base64 image.` }, 400, cors);
+    if (charts[tf].length > 5 * 1024 * 1024) return json({ error: `The ${tf} screenshot is too large. Please upload a smaller image.` }, 413, cors);
+    const mimeType = match[1] === "jpg" ? "image/jpeg" : `image/${match[1]}`;
+    parts.push({ text: `Next image is the ${tf} chart. Use it only as evidence for that timeframe.` });
+    parts.push({ inlineData: { mimeType, data: match[2] } });
   }
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const model = env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: env.OPENAI_MODEL || "gpt-4.1-mini",
-        input: [{ role: "user", content }],
-        max_output_tokens: 2200
+        contents: [{ role: "user", parts }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 2200 }
       })
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const message = result?.error?.message || `AI provider returned HTTP ${response.status}`;
+      const message = result?.error?.message || `Gemini API returned HTTP ${response.status}`;
       return json({ error: message }, 502, cors);
     }
-    const text = (result.output || [])
-      .flatMap(item => item.content || [])
-      .filter(item => item.type === "output_text" && typeof item.text === "string")
-      .map(item => item.text)
+    const text = (result.candidates?.[0]?.content?.parts || [])
+      .map(part => typeof part.text === "string" ? part.text : "")
+      .filter(Boolean)
       .join("\n").trim();
-    if (!text) return json({ error: "The AI service returned no readable analysis. Please try again." }, 502, cors);
-    return json({ text, model: env.OPENAI_MODEL || "gpt-4.1-mini" }, 200, cors);
+    if (!text) return json({ error: "The AI service returned no readable analysis. You may have reached the free-tier limit; wait and try again." }, 502, cors);
+    return json({ text, model, provider: "Google Gemini" }, 200, cors);
   } catch {
     return json({ error: "Could not reach the AI service. Check the Cloudflare Function and try again." }, 502, cors);
   }
