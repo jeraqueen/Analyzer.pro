@@ -59,27 +59,46 @@ async function handleAnalyze(request, env) {
   const present = validTfs.filter(tf => typeof charts[tf] === "string");
   if (!present.length) return json({ error: "Upload at least one chart screenshot." }, 400, cors);
 
-  const prompt = `You are a careful forex chart research assistant, not a broker or execution system. Analyze screenshots for ${pair}. Screenshots are the only chart evidence. Do not invent prices, candles, indicators, live quotes, spreads, news, or backtest results. If a price is unreadable or unsupported, say NOT IDENTIFIABLE rather than guessing. Missing timeframes must be identified. Live news and live prices were not supplied. User direction: ${payload.direction || "Undecided / no trade"}. User-entered levels: ${JSON.stringify(payload.levels || {})}. Thesis: ${String(payload.thesis || "")}. Invalidation: ${String(payload.invalidation || "")}. Notes: ${JSON.stringify(payload.timeframeNotes || {})}. Uploaded timeframes: ${present.join(", ")}.
+  const prompt = `Act as a practical XAUUSD/forex chart analyst. Analyze only what is visible in the uploaded screenshots for ${pair}. Evaluate LONG and SHORT setups, not just reversals. A strong bearish trend can offer a SHORT on a pullback to resistance, bearish rejection, or a confirmed support break and retest; a strong bullish trend can offer LONGs on pullbacks or confirmed breakouts. Never assume a reversal is required to trade with the trend.
 
-Use these exact headings and put each trade level on its own clearly labelled line so the website can display it separately:
-1. EXECUTIVE VERDICT: LONG SETUP / SHORT SETUP / WAIT FOR CONFIRMATION / NO TRADE. State clearly whether a valid trigger is visible now.
-2. DIRECTION: LONG / SHORT / NONE.
-3. ENTRY ZONE: exact price or zone only if readable and justified; otherwise NOT IDENTIFIABLE. If conditional, label it CONDITIONAL.
-4. STOP LOSS: exact price and structural reason only if justified; otherwise NOT IDENTIFIABLE.
-5. TP1: target price and chart reason, or NOT IDENTIFIABLE.
-6. TP2: target price and chart reason, or NOT IDENTIFIABLE.
-7. TP3: target price and chart reason, or NOT IDENTIFIABLE.
-8. REWARD:RISK: TP1 reward:risk only if entry, SL and TP1 can be read and calculated; otherwise NOT CALCULATED.
-9. PATTERN: observed candidate structure or NONE IDENTIFIABLE. Explain confirmation status.
-10. ENTRY CONDITION: specific observable trigger or why it is not confirmed.
-11. INVALIDATION: what would disprove the setup; never invent a level.
-12. SETUP QUALITY SCORE: 0–100 based on image clarity, timeframe coverage, confluence and confirmed trigger. This is evidence completeness, NOT a probability of winning.
-13. TIMEFRAME EVIDENCE: H4, H1, M15 and M5 individually; state missing images, structure, key levels and conflicts.
-14. CONFLUENCE AND ALTERNATIVE: agreement/conflict, strongest candidate setup, and alternative scenario.
-15. RISK NOTES: sizing needs broker-verified pip/point value, contract size, account currency and costs. Never assume XAUUSD specifications.
-16. LIMITATIONS AND CHECKLIST: news was not checked; independently verify prices, spread, news, and the setup on the broker chart.
+The user wants the scan to rank the best one or two timeframes to watch. Always identify:
+- BEST TIMEFRAME TO WATCH: choose the most suitable uploaded timeframe for the clearest current structure and explain why.
+- SECOND-BEST TIMEFRAME: choose a second uploaded timeframe if it adds useful confirmation; if not, say why.
+- SETUP TYPE: trend pullback, support/resistance bounce, breakout, break-and-retest, range trade, liquidity sweep/structure shift, or reversal only if evidenced.
+- TRADE PLAN: direction LONG/SHORT/WAIT; entry zone; stop placement; TP1/TP2/TP3; reward:risk if prices can be read; exact entry trigger; invalidation; and checklist of what must be true before entry.
+- IF NO TRIGGER NOW: still give the best CONDITIONAL setup and the exact chart event to wait for, when visible structure supports one. Do not return blank levels merely because price has not triggered yet.
+- If numeric prices are legible, use them. If not, give a clearly described structural zone and explicitly mark exact numeric price NOT IDENTIFIABLE. Never fabricate prices.
+- Evaluate H4/H1/M15/M5 separately; mention only timeframes actually uploaded. Use higher timeframes for directional context and lower ones for timing. A sensible default for intraday XAUUSD is H1/M15 for context/setup and M5 for trigger, but select based on the actual screenshots rather than blindly using a default.
+- Look for trend structure (higher highs/lows or lower highs/lows), support/resistance zones, pullbacks, range breakouts, retests, false breaks, engulfing/pin bars only if actually visible, triangles/flags/wedges/double tops/bottoms/head-and-shoulders only if supported, and liquidity sweeps / market structure shifts only when identifiable. These are candidate frameworks, not guaranteed signals.
+- Consider session volatility and economic news only if data is provided. News has not been checked unless explicitly supplied.
+- A strong trend is not enough on its own to enter immediately: avoid chasing extended candles; plan pullback/retest if appropriate.
+- Use the nearest defensible swing high/low or opposing structure for invalidation and targets. Calculate reward:risk only when entry, stop and target prices are clear. State what must be checked on the broker chart.
+- Provide a SETUP QUALITY SCORE from 0-100 based on visible evidence, confluence, timeframe agreement, risk definition and trigger status. This is NOT win probability.
+- Do not force an immediate trade if no coherent risk-defined setup exists, but make the analysis useful by giving the best conditional scenario and requirements whenever chart structure supports it. Never promise profit or claim any strategy guarantees success.
 
-Prefer WAIT or NO TRADE if evidence is weak. Never promise profit, describe a score as win probability, claim thousands of patterns were automatically detected, or execute trades.`;
+Use these exact headings and concise lines:
+EXECUTIVE VERDICT:
+DIRECTION:
+BEST TIMEFRAME TO WATCH:
+SECOND-BEST TIMEFRAME:
+MARKET STRUCTURE:
+SETUP TYPE:
+ENTRY ZONE:
+STOP LOSS:
+TP1:
+TP2:
+TP3:
+REWARD:RISK:
+ENTRY TRIGGER / REQUIREMENTS:
+INVALIDATION:
+SETUP QUALITY SCORE (NOT WIN PROBABILITY):
+TIMEFRAME-BY-TIMEFRAME REVIEW:
+CONFLUENCE:
+ALTERNATIVE SCENARIO:
+RISK AND PRE-TRADE CHECKLIST:
+LIMITATIONS:
+
+Context supplied by user: direction ${payload.direction || "Undecided"}. User-entered levels: ${JSON.stringify(payload.levels || {})}. Thesis: ${String(payload.thesis || "")}. Invalidation: ${String(payload.invalidation || "")}. Notes: ${JSON.stringify(payload.timeframeNotes || {})}. Uploaded timeframes: ${present.join(", ")}. Screenshots are the only chart evidence. Never invent prices, indicators, live quotes, spreads, or backtest results. No trade execution.`;
 
   const parts = [{ text: prompt }];
   for (const tf of present) {
