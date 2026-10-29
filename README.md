@@ -8,12 +8,16 @@
 
 ## Required Cloudflare setup before AI analysis can work
 
-1. Confirm this repository is deployed as a **Cloudflare Pages project connected to GitHub**, with the repository root as the build output directory (the site currently has a root `index.html`). Pages Functions are deployed from the root `functions/` directory.
+1. Confirm this repository is deployed as a **Cloudflare Pages project connected to GitHub**, with the repository root as the build output directory and no build command required for this plain HTML project. Pages Functions are deployed from the root `functions/` directory.
 2. In Cloudflare Dashboard → **Workers & Pages** → your Pages project → **Settings → Variables and Secrets**, add an encrypted secret named `OPENAI_API_KEY`. Use an API key from your OpenAI API account. ChatGPT subscriptions and API billing are separate.
-3. Optionally add a non-secret variable `OPENAI_MODEL` with a vision-capable model available in your API account (default: `gpt-4.1-mini`).
-4. Redeploy the Pages project after adding the secret.
-5. Protect the site and `/api/analyze` with Cloudflare Access or another proper authentication/rate-limit control before using it privately. The function restricts cross-origin browser requests, but CORS alone is **not authentication** and does not stop direct requests. Do not leave a paid AI endpoint open to the public.
-6. Open the website → Settings & Backup. The backend endpoint defaults to `/api/analyze`. Use **Test backend** to check reachability; then upload screenshots and test an analysis. An OPTIONS check confirms reachability only, not that the API key, billing, model, or vision request is valid.
+3. Add a second encrypted secret named `ANALYZER_ACCESS_TOKEN`. Create a long, unique random token (at least 32 random characters) using a password manager or secure random generator. Do not reuse your OpenAI key or a normal password.
+4. Optionally add a non-secret variable `OPENAI_MODEL` with a vision-capable model available in your API account (default: `gpt-4.1-mini`).
+5. Redeploy the Pages project after setting the secrets.
+6. Open the deployed website → **Settings & Backup**. The endpoint defaults to `/api/analyze`. Paste the same `ANALYZER_ACCESS_TOKEN` value into **Private analysis access token**, then tap **Save connection**.
+7. Tap **Check backend readiness**. It should report that the backend is ready. This check does not spend AI credits. Then upload readable screenshots for H4, H1, M15 and M5 (at least one is required) and tap **Ask configured AI backend**. This real analysis request uses your OpenAI API account and may incur API charges.
+8. Keep the website and token private. The access token is stored in this browser's local storage so the website can send it with requests. Do not share the browser profile, export files containing settings, or paste the token into public places. If you think it has leaked, replace the `ANALYZER_ACCESS_TOKEN` secret in Cloudflare and update the token in the website settings.
+
+The endpoint checks its own origin and requires the private access token for AI analysis. This is an extra safeguard, not a replacement for Cloudflare Access if you want to restrict who can open the website. Do not put `OPENAI_API_KEY` in HTML, GitHub, or the website settings.
 
 ## Important safety and research notes
 
