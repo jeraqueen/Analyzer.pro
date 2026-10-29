@@ -55,52 +55,43 @@ async function handleAnalyze(request, env) {
   const pair = String(payload.pair || "").toUpperCase();
   if (!ALLOWED_PAIRS.has(pair)) return json({ error: "Unsupported instrument. Select a supported pair." }, 400, cors);
   const charts = payload.charts && typeof payload.charts === "object" ? payload.charts : {};
-  const validTfs = ["H4", "H1", "M15", "M5"];
+  const validTfs = ["D1", "H4", "H1", "M30", "M15", "M5"];
   const present = validTfs.filter(tf => typeof charts[tf] === "string");
   if (!present.length) return json({ error: "Upload at least one chart screenshot." }, 400, cors);
 
-  const prompt = `Act as a practical XAUUSD/forex chart analyst. Analyze only what is visible in the uploaded screenshots for ${pair}. Evaluate LONG and SHORT setups, not just reversals. A strong bearish trend can offer a SHORT on a pullback to resistance, bearish rejection, or a confirmed support break and retest; a strong bullish trend can offer LONGs on pullbacks or confirmed breakouts. Never assume a reversal is required to trade with the trend.
+  const prompt = `Act as a practical chart analyst for ${pair}, not a broker or execution system. Analyze all supplied screenshots together. Each image is labelled with its exact timeframe; never confuse their order. Screenshots are the only chart evidence. Never invent prices, indicators, candles, live quotes, spreads, news, or backtest results. If price labels are unreadable, say exact numeric prices are NOT IDENTIFIABLE and describe visible zones qualitatively.
 
-The user wants a direct, usable trading decision, not a long report that hides the action. ALWAYS put DIRECTION immediately after EXECUTIVE VERDICT and make it exactly one of: BUY, SELL, or WAIT / NO TRADE. Never omit it. Translate LONG to BUY and SHORT to SELL in the final DIRECTION line. BUY/SELL means a conditional scenario when the entry trigger is not yet met; explicitly label it WAITING FOR TRIGGER until confirmation occurs. If evidence is conflicting, weak, unreadable, or lacks defensible invalidation, choose WAIT / NO TRADE and explain what event would change that decision. Never label a trade ready unless the stated trigger is already visible. Do not invent confidence percentages or claim a win probability.
+The user wants the best-supported BUY or SELL scenario, not a default WAIT/NO TRADE. Compare both sides and select the stronger direction whenever the uploaded structure reasonably supports one. If the setup is valid but the trigger has not occurred, still choose BUY or SELL and label it WAITING FOR TRIGGER with the exact confirmation event. Reserve WAIT / NO TRADE for genuinely conflicting/weak/unreadable evidence, or when neither side has a defensible entry and invalidation. Never label a setup READY unless the trigger is visibly confirmed. Do not fabricate confidence or win probabilities.
 
-The user wants the scan to rank the best one or two timeframes to watch. Always identify:
-- BEST TIMEFRAME TO WATCH: choose the most suitable uploaded timeframe for the clearest current structure and explain why.
-- SECOND-BEST TIMEFRAME: choose a second uploaded timeframe if it adds useful confirmation; if not, say why.
-- SETUP TYPE: trend pullback, support/resistance bounce, breakout, break-and-retest, range trade, liquidity sweep/structure shift, or reversal only if evidenced.
-- TRADE PLAN: direction LONG/SHORT/WAIT; entry zone; stop placement; TP1/TP2/TP3; reward:risk if prices can be read; exact entry trigger; invalidation; and checklist of what must be true before entry. Explicitly name the timeframe for the setup, the timeframe for the entry trigger, the timeframe whose swing/structure defines the stop, and the timeframe/structure used for each target. Never leave the user guessing which chart to use.
-- IF NO TRIGGER NOW: still give the best CONDITIONAL setup and the exact chart event to wait for, when visible structure supports one. Do not return blank levels merely because price has not triggered yet.
-- If numeric prices are legible, use them. If not, give a clearly described structural zone and explicitly mark exact numeric price NOT IDENTIFIABLE. Never fabricate prices.
-- Evaluate H4/H1/M15/M5 separately; mention only timeframes actually uploaded. Use higher timeframes for directional context and lower ones for timing. A sensible default for intraday XAUUSD is H1/M15 for context/setup and M5 for trigger, but select based on the actual screenshots rather than blindly using a default.
-- Look for trend structure (higher highs/lows or lower highs/lows), support/resistance zones, pullbacks, range breakouts, retests, false breaks, engulfing/pin bars only if actually visible, triangles/flags/wedges/double tops/bottoms/head-and-shoulders only if supported, and liquidity sweeps / market structure shifts only when identifiable. These are candidate frameworks, not guaranteed signals.
-- Consider session volatility and economic news only if data is provided. News has not been checked unless explicitly supplied.
-- A strong trend is not enough on its own to enter immediately: avoid chasing extended candles; plan pullback/retest if appropriate.
-- Use the nearest defensible swing high/low or opposing structure for invalidation and targets. For every SL and TP level, state its basis timeframe (e.g. H1 swing high, M15 structure low, H4 support) and why that level is logical. State the execution timeframe separately from the higher-timeframe context. Calculate reward:risk only when entry, stop and target prices are clear; if it is approximate, state the assumptions. If the screenshots do not show enough structure to assign a timeframe confidently, say so rather than guessing.
-- Provide a SETUP QUALITY SCORE from 0-100 based on visible evidence, confluence, timeframe agreement, risk definition and trigger status. This is NOT win probability.
-- Do not force an immediate trade if no coherent risk-defined setup exists, but make the analysis useful by giving the best conditional scenario and requirements whenever chart structure supports it. Never promise profit or claim any strategy guarantees success.
+Uploaded timeframes: ${present.join(", ")}. Preferred complete set: D1, H4, H1, M30, M15, M5. Missing images must be called out. User direction preference: ${payload.direction || "Undecided"}. Levels: ${JSON.stringify(payload.levels || {})}. Thesis: ${String(payload.thesis || "")}. Invalidation: ${String(payload.invalidation || "")}. Notes: ${JSON.stringify(payload.timeframeNotes || {})}. No verified live price/news data is supplied.
 
-Use these exact headings and concise lines in this order, with the first two lines always present:
-EXECUTIVE VERDICT: (one short plain-language summary)
-DIRECTION: (exactly BUY, SELL, or WAIT / NO TRADE; add READY or WAITING FOR TRIGGER)
+Review D1 for major context/levels, H4 for dominant swing structure, H1 for intraday setup, M30 for intermediate confirmation, M15 for setup zone and M5 for entry trigger. Adjust to actual screenshots; never assume the timeframes agree. Evaluate continuation and pullback setups as well as reversals. A strong trend can support a continuation trade; do not insist on reversal. Avoid chasing an extended move.
+
+Use these headings in order:
+EXECUTIVE VERDICT:
+DIRECTION: (exactly BUY, SELL, or WAIT / NO TRADE; state READY or WAITING FOR TRIGGER)
 BEST TIMEFRAME TO WATCH:
 SECOND-BEST TIMEFRAME:
 MARKET STRUCTURE:
 SETUP TYPE:
+SETUP TIMEFRAME:
+ENTRY / EXECUTION TIMEFRAME:
 ENTRY ZONE:
-STOP LOSS:
-TP1:
-TP2:
-TP3:
-REWARD:RISK:
 ENTRY TRIGGER / REQUIREMENTS:
+STOP LOSS (PRICE + BASIS TIMEFRAME):
+TP1 (PRICE + BASIS TIMEFRAME):
+TP2 (PRICE + BASIS TIMEFRAME):
+TP3 (PRICE + BASIS TIMEFRAME):
+REWARD:RISK:
 INVALIDATION:
 SETUP QUALITY SCORE (NOT WIN PROBABILITY):
 TIMEFRAME-BY-TIMEFRAME REVIEW:
-CONFLUENCE:
+CONFLUENCE AND CONFLICTS:
 ALTERNATIVE SCENARIO:
 RISK AND PRE-TRADE CHECKLIST:
 LIMITATIONS:
 
-Context supplied by user: direction ${payload.direction || "Undecided"}. User-entered levels: ${JSON.stringify(payload.levels || {})}. Thesis: ${String(payload.thesis || "")}. Invalidation: ${String(payload.invalidation || "")}. Notes: ${JSON.stringify(payload.timeframeNotes || {})}. Uploaded timeframes: ${present.join(", ")}. Screenshots are the only chart evidence. Never invent prices, indicators, live quotes, spreads, or backtest results. No trade execution.`;
+Give evidence, not vague labels: identify the visible structure/candle/level and its timeframe. Explicitly name the setup timeframe, entry/execution timeframe, the swing/structure timeframe used for SL, and the basis timeframe plus structural reason for every TP. Use only defensible prices. If exact values cannot be read, mark them NOT IDENTIFIABLE rather than making them up; explain the structural zone instead. Calculate reward:risk only when prices are sufficiently clear. If an untriggered conditional BUY/SELL setup is reasonably supported, do not hide it behind WAIT. If evidence truly conflicts, neither direction is defensible, or risk cannot be defined, use WAIT / NO TRADE and explain the event needed to resolve it. Setup quality score is not win probability. No guaranteed results, fabricated live data, or trade execution.`;
 
   const parts = [{ text: prompt }];
   for (const tf of present) {
