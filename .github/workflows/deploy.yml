@@ -20,6 +20,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Validate website JavaScript
+        run: node -e "const fs=require('fs'),vm=require('vm'),html=fs.readFileSync('public/index.html','utf8'),m=html.match(/<script>([\\s\\S]*?)<\\/script>/);if(!m)throw Error('Website script not found');new vm.Script(m[1]);console.log('Website JavaScript syntax is valid')"
+
       - name: Deploy Worker and static assets
         uses: cloudflare/wrangler-action@v3
         with:
