@@ -144,6 +144,7 @@ document.querySelectorAll('input[type=file][id^=img]').forEach(inp=>inp.onchange
  if(!f.type.startsWith('image/')){alert('Choose an image file.');inp.value='';updateUploadCount();return}
  showUploadConfirm(inp,f);
 });
+const backBtn=$('confirmBack'); if(backBtn) backBtn.onclick=(e)=>{e.preventDefault();e.stopPropagation();if(confirmMode==='upload'&&pendingUploadInput){pendingUploadInput.value='';const im=$('prev'+pendingUploadInput.id.slice(3));im.removeAttribute('src');im.classList.add('hidden');} closeConfirm();$('confirmPreview').classList.remove('hidden');pendingUploadInput=null;pendingUploadFile=null;updateUploadCount();};
 $('confirmCancel').onclick=()=>{
  if(confirmMode==='upload'&&pendingUploadInput){pendingUploadInput.value='';const im=$('prev'+pendingUploadInput.id.slice(3));im.removeAttribute('src');im.classList.add('hidden');}
  $('confirmPreview').classList.remove('hidden');closeConfirm();pendingUploadInput=null;pendingUploadFile=null;updateUploadCount();
@@ -265,6 +266,7 @@ renderJournal();overview();
 </script>
 <div id="confirmOverlay" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
  <div id="confirmPanel">
+  <button id="confirmBack" type="button" aria-label="Go back" style="display:block;min-width:48px;min-height:46px;margin:0 0 12px;padding:8px 16px;border:1px solid #6b8296;border-radius:10px;background:#1b2d3d;color:#fff;font-size:20px;font-weight:700;cursor:pointer;touch-action:manipulation">← Back</button>
   <div class="eyebrow">Confirm before continuing</div>
   <h2 id="confirmTitle">Check your screenshot</h2>
   <p id="confirmIntro" class="muted">Make sure this is the correct chart and timeframe.</p>
