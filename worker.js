@@ -277,118 +277,12 @@ Give evidence, not vague labels: identify the visible structure/candle/level and
 
 
 
-async function sendPhoneAlert(env, title, body, priority = 5, tag = "alarm") {
-  if (!env.NTFY_TOPIC) throw new Error("Phone alert topic is not configured.");
-  const response = await fetch("https://ntfy.sh/" + encodeURIComponent(env.NTFY_TOPIC), {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "X-Title": title,
-      "X-Priority": String(priority),
-      "X-Tags": tag,
-      "X-Click": "https://analyzer-pro.fx77.workers.dev/"
-    },
-    body
-  });
-  if (!response.ok) {
-    const detail = (await response.text().catch(() => "")).trim();
-    const retryAfter = response.headers.get("Retry-After");
-    const suffix = detail ? " — " + detail.slice(0, 500) : "";
-    const retry = retryAfter ? " (Retry-After: " + retryAfter + ")" : "";
-    throw new Error("ntfy returned HTTP " + response.status + suffix + retry);
-  }
-  return true;
-}
-
-function alertAuthorized(request, env) {
-  const expected = env.ANALYZER_ACCESS_TOKEN || "";
-  const supplied = request.headers.get("X-Analyzer-Token") || "";
-  return Boolean(expected && supplied && supplied.length === expected.length && supplied === expected);
-}
-
-async function handlePhoneAlerts(request, env, action) {
-  const cors = corsHeaders(request);
-  if (!cors) return json({ error: "Cross-origin requests are not allowed." }, 403);
-  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-  if (!alertAuthorized(request, env)) return json({ error: "Unauthorized. Save your private Analyzer access token in Settings first." }, 401, cors);
-  if (!env.NTFY_TOPIC) return json({ error: "Phone alerts are not configured on the server." }, 503, cors);
-  if (action === "config" && request.method === "GET") {
-    return json({
-      topic: env.NTFY_TOPIC,
-      subscribeUrl: "https://ntfy.sh/" + encodeURIComponent(env.NTFY_TOPIC),
-      warning: "Subscribe to this private topic in the ntfy Android app. Keep the topic private."
-    }, 200, cors);
-  }
-  if (action === "test" && request.method === "POST") {
-    try {
-      await sendPhoneAlert(env, "Analyzer.pro · TEST ALERT", "Your phone notification connection is working. This is a test; your daily EAT alarms will arrive 5 minutes before and at each scheduled alarm.", 5, "white_check_mark");
-      return json({ ok: true, message: "Test notification accepted by ntfy. Check your subscribed phone." }, 200, cors);
-    } catch (error) {
-      return json({ error: "Could not send test notification: " + String(error?.message || error) }, 502, cors);
-    }
-  }
-  return json({ error: "Method not allowed." }, 405, cors);
-}
-
-async function runScheduledPhoneAlarms(controller, env) {
-  if (!env.NTFY_TOPIC) return;
-  const now = new Date(controller.scheduledTime || Date.now());
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Africa/Nairobi",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23"
-  }).formatToParts(now);
-  const clock = {};
-  for (const part of parts) clock[part.type] = part.value;
-  const minuteNow = Number(clock.hour) * 60 + Number(clock.minute);
-  const alarms = [
-    { id: "aud", pair: "AUDUSD", hour: 2, minute: 45, window: "Asian/Tokyo watch starts 03:00 EAT" },
-    { id: "gold-london", pair: "XAUUSD", hour: 10, minute: 45, window: "London watch starts 11:00 EAT" },
-    { id: "gold-ny", pair: "XAUUSD", hour: 15, minute: 15, window: "New York watch starts 15:30 EAT" },
-    { id: "btc-overlap", pair: "BTCUSD", hour: 15, minute: 15, window: "London–New York overlap watch starts 15:30 EAT" }
-  ];
-  const jobs = [];
-  for (const alarm of alarms) {
-    const target = alarm.hour * 60 + alarm.minute;
-    const warning = (target + 1435) % 1440;
-    if (minuteNow === warning) {
-      jobs.push(sendPhoneAlert(
-        env,
-        "Analyzer.pro · " + alarm.pair + " in 5 minutes",
-        "Prepare your " + alarm.pair + " chart now. Scheduled alert: " + String(alarm.hour).padStart(2, "0") + ":" + String(alarm.minute).padStart(2, "0") + " EAT. " + alarm.window + ". This is a time reminder, not a trade signal.",
-        4,
-        "alarm_clock"
-      ));
-    }
-    if (minuteNow === target) {
-      jobs.push(sendPhoneAlert(
-        env,
-        "🔔 Analyzer.pro · " + alarm.pair + " ALARM",
-        "Your scheduled " + alarm.pair + " watch starts now. " + alarm.window + ". Open Analyzer.pro, check your chart and wait for your strategy confirmation. Time alone is not an entry signal.",
-        5,
-        "rotating_light,alarm_clock"
-      ));
-    }
-  }
-  if (jobs.length) await Promise.allSettled(jobs);
-}
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/analyze") {
       return handleAnalyze(request, env);
     }
-    if (url.pathname === "/api/alerts/config") {
-      return handlePhoneAlerts(request, env, "config");
-    }
-    if (url.pathname === "/api/alerts/test") {
-      return handlePhoneAlerts(request, env, "test");
-    }
     return env.ASSETS.fetch(request);
-  },
-  async scheduled(controller, env, ctx) {
-    ctx.waitUntil(runScheduledPhoneAlarms(controller, env));
   }
 };
