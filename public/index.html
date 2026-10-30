@@ -422,6 +422,19 @@ main{width:100%;max-width:100%;padding:12px 12px calc(96px + env(safe-area-inset
 }
 @media(max-width:360px){.home-market-grid{grid-template-columns:1fr}.home-market-card{padding:12px}.home-time{font-size:10px}}
 @media(max-width:700px){html,body{max-width:100%;overflow-x:clip}main,.page,.grid,.card{min-width:0;width:100%;max-width:100%}.card{overflow-wrap:anywhere}.header-actions .menu-toggle{flex:0 0 42px}}
+
+/* Decision dashboard hierarchy: readable metrics, consistent percentages, mobile-first layout */
+.confidence-meter{height:7px;overflow:hidden;border-radius:99px;background:#35362e;border:1px solid #4a4a3d;margin:10px 0 14px}
+.confidence-meter span{display:block;width:0;height:100%;border-radius:99px;background:linear-gradient(90deg,#b7aa8d,#a8d2b1);transition:width .45s ease}
+#confidenceGate .trade-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+#confidenceGate .trade-tile{min-width:0;padding:15px;border-radius:13px;display:flex;flex-direction:column;gap:7px}
+#confidenceGate .trade-tile .label{font-size:10px;line-height:1.4;letter-spacing:.09em;text-transform:uppercase;color:#b8b6a8}
+#confidenceGate .trade-tile .value{font-family:'Space Grotesk',sans-serif;font-size:clamp(17px,2.5vw,23px);font-weight:800;line-height:1.3;overflow-wrap:anywhere;color:#f1efe8}
+#confidenceGate #metricSignal{color:#d6c18e}
+#confidenceGate #metricUncertainty,#confidenceGate #metricVolatility,#confidenceGate #metricData,#confidenceGate #metricTiming{font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700}
+#confidenceGate .trade-tile.entry{grid-column:span 2}
+@media(max-width:600px){#confidenceGate .trade-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#confidenceGate .trade-tile{padding:11px}#confidenceGate .trade-tile.entry{grid-column:1/-1}#confidenceGate #metricTiming{font-size:14px}}
+
 </style></head><body>
 <div class="splash" id="welcomeSplash" aria-label="Loading Analyzer.pro"><div class="splash-inner"><div class="splash-logo">FTA</div><div class="splash-kicker">PROFESSIONAL TRADING WORKSPACE</div><div class="splash-title">FOREX TOOL ANALYZER</div><div class="splash-sub">Market structure · Trade planning · Risk control</div><div class="splash-chart" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="splash-markets"><span>EUR / USD</span><span>MT5 DEMO</span><span>25 STRATEGIES</span></div><div class="splash-line"><i></i></div><p class="muted small" style="margin-top:13px">Preparing your trading workspace…</p></div></div>
 <header><div class="brand"><div class="logo">A</div><div><h1>Analyzer.pro</h1><div class="muted small">Forex majors · Gold · Bitcoin</div></div></div><div class="header-actions"><span class="pill" id="clock">EAT · …</span><button id="menuToggle" class="menu-toggle" aria-label="Open tools menu" aria-expanded="false">☰</button></div></header>
@@ -461,11 +474,11 @@ main{width:100%;max-width:100%;padding:12px 12px calc(96px + env(safe-area-inset
 </section>
 <div class="field" style="margin-top:10px"><label>Full AI analysis</label><textarea id="aiResult" style="min-height:140px" placeholder="The full explanation appears here after scanning."></textarea></div><div id="scanStage" class="scan-stage"><div class="scan-orb"></div><h3 style="text-align:center">Scanning chart evidence…</h3><p id="scanCaption" class="muted small" style="text-align:center">Reading chart structure</p><div class="scan-track"><span id="scanProgress"></span></div><p class="muted small" style="text-align:center">Visual progress while the analysis request runs. Not a guarantee of a profitable signal.</p></div><section id="confidenceGate" class="card hidden" style="margin-top:14px;border:1px solid #b99b67;background:linear-gradient(135deg,#28251c,#171b16)">
 <div class="eyebrow">Scan complete · quick decision dashboard</div>
-<h2 id="confidenceHeadline" style="font-size:clamp(30px,7vw,42px);color:var(--gold);margin:8px 0">SETUP CONFIDENCE —</h2>
+<h2 id="confidenceHeadline" style="font-size:clamp(30px,7vw,42px);color:var(--gold);margin:8px 0">SETUP CONFIDENCE —</h2><div class="confidence-meter" aria-hidden="true"><span id="confidenceMeterFill"></span></div>
 <p id="confidenceExplanation" class="muted small">Evidence alignment score; not a proven win probability.</p>
 <div class="trade-grid" style="margin:14px 0">
 <div class="trade-tile"><div class="label">Signal strength</div><div class="value" id="metricSignal">—</div></div>
-<div class="trade-tile"><div class="label">Estimated win probability</div><div class="value" id="metricWin">—</div></div>
+<div class="trade-tile"><div class="label">Historical win probability</div><div class="value" id="metricWin">NOT CALIBRATED</div></div>
 <div class="trade-tile"><div class="label">Market uncertainty</div><div class="value" id="metricUncertainty">—</div></div>
 <div class="trade-tile"><div class="label">Volatility</div><div class="value" id="metricVolatility">—</div></div>
 <div class="trade-tile"><div class="label">Data quality</div><div class="value" id="metricData">—</div></div>
@@ -691,6 +704,7 @@ async function revealConfidence(raw){
   const confidence=getSetupConfidence(raw),gate=$('confidenceGate'),headline=$('confidenceHeadline'),explanation=$('confidenceExplanation');
   if(!gate||!headline||!explanation)return;
   headline.textContent=confidence.score===null?'SETUP CONFIDENCE: UNAVAILABLE':'SETUP CONFIDENCE: '+confidence.score+'%';
+  const meter=$('confidenceMeterFill');if(meter)meter.style.width=(confidence.score===null?0:confidence.score)+'%';
   explanation.textContent=confidence.score===null?'The AI did not return a readable evidence score. Treat it as unavailable, not zero.':'Rating: '+confidence.rating+'. This measures chart evidence and rule alignment, not a statistically proven probability of winning.';
   $('metricSignal').textContent=extractMetric(raw,['SIGNAL STRENGTH','DIRECTIONAL SIGNAL STRENGTH']);
   $('metricWin').textContent=extractMetric(raw,['ESTIMATED WIN PROBABILITY','WIN PROBABILITY ESTIMATE','MODEL-ESTIMATED WIN PROBABILITY']);
