@@ -158,7 +158,7 @@ body.results-fullscreen{overflow:hidden}
  </div>
  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="primary" id="entryWatchStart" type="button">Start candle alarm</button><button class="secondary" id="entryWatchStop" type="button">Stop alarm</button></div>
  <div class="entry-watch-status" id="entryWatchStatus" style="margin-top:10px" role="status">The alarm marks a candle close only. It does not confirm a BUY or SELL entry.</div>
-</div><div class="field" style="margin-top:10px"><label>Full AI analysis</label><textarea id="aiResult" style="min-height:140px" placeholder="The full explanation appears here after scanning."></textarea></div><div id="scanStage" class="scan-stage"><div class="scan-orb"></div><h3 style="text-align:center">Scanning chart evidence…</h3><p id="scanCaption" class="muted small" style="text-align:center">Reading chart structure</p><div class="scan-track"><span id="scanProgress"></span></div><p class="muted small" style="text-align:center">Visual progress while the analysis request runs. Not a guarantee of a profitable signal.</p></div><div id="tradeResults" class="trade-results"><div class="direction-hero"><div id="resultDirectionMark" class="direction-mark wait">WAIT</div><div class="direction-copy"><div class="eyebrow">Trading decision · evidence-based</div><h3 id="resultDirectionTitle">WAIT — confirmation needed</h3><p id="resultVerdict" class="muted">Review result</p><p id="resultDirectionReason" class="small">The chart must support a clear direction and defined risk before considering an entry.</p></div></div><p class="muted small">A BUY/SELL label is a scenario, not a guarantee. Confirm prices and conditions on your broker chart.</p><div class="trade-grid" style="margin-bottom:8px"><div class="trade-tile"><div class="label">Direction</div><div class="value" id="resultDirection">WAIT / NO TRADE</div></div><div class="trade-tile entry"><div class="label">Best timeframe to watch</div><div class="value" id="resultBestTf">See analysis</div></div><div class="trade-tile"><div class="label">Second-best timeframe</div><div class="value" id="resultSecondTf">See analysis</div></div><div class="trade-tile"><div class="label">Setup type</div><div class="value" id="resultSetupType">See analysis</div></div><div class="trade-tile"><div class="label">Setup timeframe</div><div class="value" id="resultSetupTf">See analysis</div></div><div class="trade-tile"><div class="label">Entry / execution timeframe</div><div class="value" id="resultEntryTf">See analysis</div></div><div class="trade-tile"><div class="label">Entry requirements</div><div id="resultRequirements" class="small">See analysis</div></div></div><div class="trade-grid"><div class="trade-tile entry"><div class="label">Entry / zone</div><div class="value" id="resultEntry">See analysis</div></div><div class="trade-tile stop"><div class="label">Stop loss</div><div class="value" id="resultStop">See analysis</div></div><div class="trade-tile target"><div class="label">Take profit 1</div><div class="value" id="resultTp1">See analysis</div></div><div class="trade-tile target"><div class="label">Take profit 2 / 3</div><div class="value" id="resultTp23">See analysis</div></div></div><div class="trade-grid" style="margin-top:8px"><div class="trade-tile"><div class="label">Reward : risk</div><div class="value" id="resultRR">Not calculated</div></div><div class="trade-tile"><div class="label">Pattern</div><div class="value" id="resultPattern">See analysis</div></div><div class="trade-tile"><div class="label">Entry trigger</div><div id="resultTrigger" class="small">See analysis</div></div><div class="trade-tile"><div class="label">Invalidation</div><div id="resultInvalidation" class="small">See analysis</div></div></div><details class="evidence-details"><summary><strong>Full analysis & supporting evidence</strong></summary><div id="resultEvidence" class="result-copy" style="margin-top:10px"></div></details><div class="scan-actions"><button class="primary" id="anotherScan">Scan another chart</button><button id="saveTradePlan">Save review to journal</button></div></div></div><button id="sendAI" class="hidden" type="button">Run analysis</button>
+</div><div class="field" style="margin-top:10px"><label>Full AI analysis</label><textarea id="aiResult" style="min-height:140px" placeholder="The full explanation appears here after scanning."></textarea></div><div id="scanStage" class="scan-stage"><div class="scan-orb"></div><h3 style="text-align:center">Scanning chart evidence…</h3><p id="scanCaption" class="muted small" style="text-align:center">Reading chart structure</p><div class="scan-track"><span id="scanProgress"></span></div><p class="muted small" style="text-align:center">Visual progress while the analysis request runs. Not a guarantee of a profitable signal.</p></div><div id="tradeResults" class="trade-results"><div class="direction-hero"><div id="resultDirectionMark" class="direction-mark wait">WAIT</div><div class="direction-copy"><div class="eyebrow">Trading decision · evidence-based</div><h3 id="resultDirectionTitle">WAIT — confirmation needed</h3><p id="resultVerdict" class="muted">Review result</p><p id="resultDirectionReason" class="small">The chart must support a clear direction and defined risk before considering an entry.</p></div></div><p class="muted small">A BUY/SELL label is a scenario, not a guarantee. Confirm prices and conditions on your broker chart.</p><div class="trade-grid" style="margin-bottom:8px"><div class="trade-tile"><div class="label">Direction</div><div class="value" id="resultDirection">WAIT / NO TRADE</div></div><div class="trade-tile entry"><div class="label">Best timeframe to watch</div><div class="value" id="resultBestTf">See analysis</div></div><div class="trade-tile"><div class="label">Second-best timeframe</div><div class="value" id="resultSecondTf">See analysis</div></div><div class="trade-tile"><div class="label">Setup type</div><div class="value" id="resultSetupType">See analysis</div></div><div class="trade-tile"><div class="label">Setup timeframe</div><div class="value" id="resultSetupTf">See analysis</div></div><div class="trade-tile"><div class="label">Entry / execution timeframe</div><div class="value" id="resultEntryTf">See analysis</div></div><div class="trade-tile"><div class="label">Entry requirements</div><div id="resultRequirements" class="small">See analysis</div></div></div><div class="trade-grid"><div class="trade-tile entry"><div class="label">Entry / zone</div><div class="value" id="resultEntry">See analysis</div></div><div class="trade-tile stop"><div class="label">Stop loss</div><div class="value" id="resultStop">See analysis</div></div><div class="trade-tile target"><div class="label">Take profit 1</div><div class="value" id="resultTp1">See analysis</div></div><div class="trade-tile target"><div class="label">Take profit 2 / 3</div><div class="value" id="resultTp23">See analysis</div></div></div><div class="trade-grid" style="margin-top:8px"><div class="trade-tile"><div class="label">Reward : risk</div><div class="value" id="resultRR">Not calculated</div></div><div class="trade-tile"><div class="label">Pattern</div><div class="value" id="resultPattern">See analysis</div></div><div class="trade-tile"><div class="label">Entry trigger</div><div id="resultTrigger" class="small">See analysis</div></div><div class="trade-tile"><div class="label">Invalidation</div><div id="resultInvalidation" class="small">See analysis</div></div></div><div class="trade-grid" style="margin-top:8px"><div class="trade-tile"><div class="label">Market structure</div><div id="resultMarketStructure" class="small">Reading analysis…</div></div><div class="trade-tile"><div class="label">Setup quality (not win probability)</div><div id="resultQuality" class="small">Reading analysis…</div></div><div class="trade-tile"><div class="label">Timeframe-by-timeframe review</div><div id="resultTimeframeReview" class="small">Reading analysis…</div></div><div class="trade-tile"><div class="label">Confluence and conflicts</div><div id="resultConfluence" class="small">Reading analysis…</div></div><div class="trade-tile"><div class="label">Alternative scenario</div><div id="resultAlternative" class="small">Reading analysis…</div></div><div class="trade-tile"><div class="label">Risk and pre-trade checklist</div><div id="resultRiskChecklist" class="small">Reading analysis…</div></div><div class="trade-tile"><div class="label">Limitations</div><div id="resultLimitations" class="small">Reading analysis…</div></div></div><details class="evidence-details"><summary><strong>Full analysis & supporting evidence</strong></summary><div id="resultEvidence" class="result-copy" style="margin-top:10px"></div></details><div class="scan-actions"><button class="primary" id="anotherScan">Scan another chart</button><button id="saveTradePlan">Save review to journal</button></div></div></div><button id="sendAI" class="hidden" type="button">Run analysis</button>
 <div class="card" style="margin-top:14px"><div class="eyebrow">Beyond AI · independent checks</div><h3>Verify these before considering a trade</h3><p class="muted small">Tick only what you personally confirmed on your broker chart. This is a process checklist, not a prediction.</p><div class="pattern-checks" id="independentChecks"><label><input type="checkbox"> H4 and H1 agree</label><label><input type="checkbox"> Entry is near a key level</label><label><input type="checkbox"> Clear trigger candle/structure</label><label><input type="checkbox"> Stop is beyond invalidation</label><label><input type="checkbox"> Reward:risk at least 1:2</label><label><input type="checkbox"> Pattern is confirmed</label><label><input type="checkbox"> High-impact news checked</label><label><input type="checkbox"> Spread and costs checked</label></div><div class="between" style="margin-top:10px"><button id="scoreChecklist" class="primary">Check readiness</button><strong id="checkScore">0 / 8 checks</strong></div><p id="checkVerdict" class="muted small">This score measures checklist completion only, not win probability.</p></div><hr class="divider"><details><summary>Optional details (direction, entry, stop, target and thesis)</summary><div class="f3"><div class="field"><label>Direction</label><select id="bias"><option>Undecided / no trade</option><option>Long</option><option>Short</option></select></div><div class="field"><label>Entry price</label><input id="entry" type="number" step="any"></div><div class="field"><label>Stop price</label><input id="stop" type="number" step="any"></div><div class="field"><label>Target price</label><input id="target" type="number" step="any"></div><div class="field"><label>Thesis / catalyst</label><input id="thesis" placeholder="Why might this setup work?"></div><div class="field"><label>Invalidation condition</label><input id="invalidate" placeholder="What proves the idea wrong?"></div></div>
 <div class="row" style="margin-top:12px"><button class="primary" id="saveReview">Save review to journal</button><button id="clearReview">Clear notes and screenshots</button></div></details></div></div></section>
 <section class="page" id="risk"><div class="grid">
@@ -254,25 +254,41 @@ let scanTimer=null,scanTick=0;
 function startScanAnimation(){clearInterval(scanTimer);scanTick=0;document.body.classList.add('scan-fullscreen');document.body.classList.remove('results-fullscreen');$('scanStage').classList.add('show');$('tradeResults').classList.remove('show');const labels=['Reading screenshots and timeframes…','Checking structure and pattern candidates…','Reviewing confluence and trade levels…'];scanTimer=setInterval(()=>{scanTick=Math.min(94,scanTick+Math.max(2,Math.round((94-scanTick)*.13)));$('scanProgress').style.width=scanTick+'%';$('scanCaption').textContent=labels[scanTick<35?0:scanTick<70?1:2]},500)}
 function extractSection(raw,labels){
   const lines=String(raw||'').replace(/\r/g,'').split('\n').map(line=>line.trim());
-  const norm=s=>s.replace(/^#+\s*/,'').replace(/^\*{1,3}|\*{1,3}$/g,'').replace(/^\d+[.)]\s*/,'').trim().toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const clean=s=>String(s||'').replace(/^#{1,6}\s*/,'').replace(/^\*{1,3}/,'').replace(/\*{1,3}$/,'').replace(/^\d+[.)]\s*/,'').trim();
+  const norm=s=>clean(s).replace(/\*{1,3}$/,'').trim().toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const wanted=labels.map(norm);
+  const isHeading=line=>{
+    const x=clean(line);
+    if(!x)return false;
+    if(/^#{1,6}\s/.test(line))return true;
+    const bold=line.match(/^\*\*(.{2,100}?)\*\*\s*:?\s*(.*)$/);
+    if(bold&&(/^[A-Z0-9 /:&()_'’-]{2,100}$/.test(bold[1])||wanted.includes(norm(bold[1]))))return true;
+    const colon=line.match(/^(.{2,100}?)\s*:\s*(.*)$/);
+    if(colon&&(/^[A-Z0-9 /:&()_'’-]{2,100}$/.test(clean(colon[1]))||wanted.includes(norm(colon[1]))))return true;
+    return false;
+  };
   for(let i=0;i<lines.length;i++){
-    const line=lines[i].replace(/^#+\s*/,'').replace(/^\*{1,3}|\*{1,3}$/g,'').trim();
-    const match=line.match(/^(.{2,100}?)\s*[:—-]\s*(.*)$/);
-    if(!match)continue;
-    const heading=norm(match[1]);
-    if(wanted.some(w=>heading===w)){
-      const value=match[2].replace(/^\*{1,3}|\*{1,3}$/g,'').trim();
-      if(value)return value;
-      for(let j=i+1;j<lines.length;j++){
-        const next=lines[j];
-        if(!next)continue;
-        if(/^#{1,6}\s/.test(next)||/^\*\*[^*]+\*\*\s*[:—-]/.test(next)||/^[A-Z][A-Z0-9 /:&()_-]{2,80}:$/.test(next))break;
-        return next.replace(/^[-*]\s*/,'').trim();
-      }
+    let heading='',value='';
+    const line=lines[i];
+    const bold=line.match(/^\*\*(.{2,100}?)\*\*\s*:?\s*(.*)$/);
+    const colon=line.match(/^(?:#{1,6}\s*)?(.{2,100}?)\s*:\s*(.*)$/);
+    if(bold){heading=bold[1];value=bold[2]||''}
+    else if(colon){heading=clean(colon[1]);value=colon[2]||''}
+    else if(/^#{1,6}\s/.test(line)){heading=clean(line);value=''}
+    else continue;
+    if(!wanted.includes(norm(heading)))continue;
+    const parts=[];
+    if(value.trim())parts.push(value.trim());
+    for(let j=i+1;j<lines.length;j++){
+      const next=lines[j];
+      if(!next){if(parts.length&&parts[parts.length-1]!=='')parts.push('');continue}
+      if(isHeading(next))break;
+      parts.push(next.replace(/^[-*•]\s*/,'').trim());
     }
+    const result=parts.join('\n').trim();
+    if(result)return result;
   }
-  return 'Not clearly identified — verify the full analysis.';
+  return 'Not clearly identified in the supplied analysis.';
 }
 function renderTradeResult(raw){
   const directionRaw=extractSection(raw,['DIRECTION','TRADE DIRECTION','RECOMMENDED DIRECTION']);
@@ -294,24 +310,35 @@ function renderTradeResult(raw){
   const waiting=/WAIT|NOT READY|NOT YET|WAITING|CONDITIONAL|BEFORE ENTRY|TRIGGER IS NOT MET/i.test(directionRaw);
   $('resultDirectionTitle').textContent=direction==='BUY'?(waiting?'BUY setup · waiting for trigger':'BUY setup'):direction==='SELL'?(waiting?'SELL setup · waiting for trigger':'SELL setup'):'WAIT — no confirmed trade';
   $('resultDirectionReason').textContent=direction==='BUY'?(waiting?'Bullish scenario only. Wait for the exact entry trigger below; do not enter early.':'Bullish direction identified. Verify the entry trigger and all levels on your broker chart.'):direction==='SELL'?(waiting?'Bearish scenario only. Wait for the exact entry trigger below; do not enter early.':'Bearish direction identified. Verify the entry trigger and all levels on your broker chart.'):'No clear, risk-defined entry is confirmed. Follow the conditional scenario below or stay out.';
-  $('resultVerdict').textContent=extractSection(raw,['EXECUTIVE VERDICT','VERDICT']);
-  $('resultBestTf').textContent=extractSection(raw,['BEST TIMEFRAME TO WATCH','BEST TIMEFRAME']);
-  $('resultSecondTf').textContent=extractSection(raw,['SECOND-BEST TIMEFRAME','SECOND BEST TIMEFRAME']);
-  const setup=extractSection(raw,['SETUP TYPE']);
+  const get=(labels)=>extractSection(raw,labels);
+  $('resultVerdict').textContent=get(['EXECUTIVE VERDICT','VERDICT']);
+  $('resultBestTf').textContent=get(['BEST TIMEFRAME TO WATCH','BEST TIMEFRAME']);
+  $('resultSecondTf').textContent=get(['SECOND-BEST TIMEFRAME','SECOND BEST TIMEFRAME']);
+  const setup=get(['SETUP TYPE']);
   $('resultSetupType').textContent=setup;
-  $('resultSetupTf').textContent=extractSection(raw,['SETUP TIMEFRAME','TRADE SETUP TIMEFRAME']);
-  $('resultEntryTf').textContent=extractSection(raw,['ENTRY / EXECUTION TIMEFRAME','ENTRY TIMEFRAME','EXECUTION TIMEFRAME']);
-  $('resultRequirements').textContent=extractSection(raw,['ENTRY TRIGGER / REQUIREMENTS','ENTRY REQUIREMENTS','ENTRY TRIGGER']);
-  $('resultEntry').textContent=extractSection(raw,['ENTRY ZONE','ENTRY / ZONE','ENTRY']);
-  $('resultStop').textContent=extractSection(raw,['STOP LOSS','STOP-LOSS','SL']);
-  $('resultTp1').textContent=extractSection(raw,['TP1','TAKE PROFIT 1','TAKE-PROFIT 1']);
-  $('resultTp23').textContent=extractSection(raw,['TP2','TAKE PROFIT 2','TAKE-PROFIT 2'])+' / '+extractSection(raw,['TP3','TAKE PROFIT 3','TAKE-PROFIT 3']);
-  $('resultRR').textContent=extractSection(raw,['REWARD RISK','REWARD:RISK','REWARD-TO-RISK','R:R']);
-  let pattern=extractSection(raw,['PATTERN','PATTERN IDENTIFIED']);
+  $('resultSetupTf').textContent=get(['SETUP TIMEFRAME','TRADE SETUP TIMEFRAME']);
+  $('resultEntryTf').textContent=get(['ENTRY / EXECUTION TIMEFRAME','ENTRY TIMEFRAME','EXECUTION TIMEFRAME']);
+  $('resultRequirements').textContent=get(['ENTRY TRIGGER / REQUIREMENTS','ENTRY REQUIREMENTS','ENTRY TRIGGER']);
+  $('resultEntry').textContent=get(['ENTRY ZONE','ENTRY / ZONE','ENTRY']);
+  $('resultStop').textContent=get(['STOP LOSS','STOP-LOSS','SL']);
+  $('resultTp1').textContent=get(['TP1','TAKE PROFIT 1','TAKE-PROFIT 1']);
+  $('resultTp23').textContent='TP2: '+get(['TP2','TAKE PROFIT 2','TAKE-PROFIT 2'])+'\nTP3: '+get(['TP3','TAKE PROFIT 3','TAKE-PROFIT 3']);
+  $('resultRR').textContent=get(['REWARD:RISK','REWARD RISK','REWARD-TO-RISK','R:R']);
+  let pattern=get(['PATTERN','PATTERN IDENTIFIED','MARKET STRUCTURE']);
   if(pattern.startsWith('Not clearly identified'))pattern=setup;
   $('resultPattern').textContent=pattern;
-  $('resultTrigger').textContent=extractSection(raw,['ENTRY CONDITION','ENTRY TRIGGER / REQUIREMENTS','ENTRY TRIGGER','CONFIRMATION']);
-  $('resultInvalidation').textContent=extractSection(raw,['INVALIDATION','CANCELLATION']);
+  $('resultTrigger').textContent=get(['ENTRY CONDITION','ENTRY TRIGGER / REQUIREMENTS','ENTRY TRIGGER','CONFIRMATION']);
+  $('resultInvalidation').textContent=get(['INVALIDATION','CANCELLATION']);
+  const extras=[
+    ['resultMarketStructure',['MARKET STRUCTURE']],
+    ['resultQuality',['SETUP QUALITY SCORE (NOT WIN PROBABILITY)','SETUP QUALITY SCORE','QUALITY SCORE']],
+    ['resultTimeframeReview',['TIMEFRAME-BY-TIMEFRAME REVIEW','TIMEFRAME BY TIMEFRAME REVIEW','TIMEFRAME REVIEW']],
+    ['resultConfluence',['CONFLUENCE AND CONFLICTS','CONFLUENCES AND CONFLICTS','CONFLUENCE']],
+    ['resultAlternative',['ALTERNATIVE SCENARIO']],
+    ['resultRiskChecklist',['RISK AND PRE-TRADE CHECKLIST','RISK AND PRE TRADE CHECKLIST','PRE-TRADE CHECKLIST']],
+    ['resultLimitations',['LIMITATIONS']]
+  ];
+  for(const [id,labels] of extras){const el=$(id);if(el)el.textContent=get(labels)}
   $('resultEvidence').textContent=raw;
   $('tradeResults').classList.add('show');document.body.classList.remove('scan-fullscreen');document.body.classList.add('results-fullscreen');$('tradeResults').scrollTop=0;window.scrollTo({top:0,behavior:'smooth'})
 }
