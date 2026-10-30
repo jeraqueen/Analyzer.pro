@@ -95,6 +95,39 @@ const GLOBAL_STRATEGY_RULES = `GLOBAL STRATEGY RULES (internal decision logic):
 - No claimed win-rate bands: the supplied 65–78%, 60–70%, etc. are unverified user-provided estimates, not established facts. Never display them as proven probabilities. Require at least 200 historical trades per setup, realistic spread/slippage/fees, out-of-sample and walk-forward testing before estimating expectancy; demo forward-test before live use. Do not bench a strategy based on an arbitrary win-rate threshold alone; assess expectancy, drawdown and sample uncertainty.
 - USD-major strategies 76–100 are outside the platform's supported trade instruments. Do not recommend EURUSD, USDJPY, GBPUSD or DXY trades; DXY may only be contextual evidence if actually supplied. `;
 
+const SUPPLEMENTAL_STRATEGIES = {
+  XAUUSD: `ADDITIONAL XAUUSD SETUPS (candidate filters; NOT verified >75% win-rate systems):
+XAU-26 Liquidity Sweep + Reclaim (MR/VS): price sweeps a clearly marked prior-day/session high or low, then closes back inside and retests/rejects it. Enter after reclaim confirmation; stop beyond sweep extreme; target range midpoint first, opposite liquidity only if structure supports it.
+XAU-27 H4 Trend + H1 Higher-Low Pullback (PB): H4 trend has clear HH/HL (or LH/LL); H1 pullback reaches prior structure/EMA20–50 zone and prints rejection. Enter after trigger close; stop beyond swing; target next H4 swing, minimum planned 1.5R.
+XAU-28 Breakout Acceptance (BO): H1 closes beyond a multi-touch level, next candle holds outside and retest succeeds. Avoid wick-only breaks; stop behind retest; target measured range/next HTF level.
+XAU-29 Failed Breakdown Reclaim (MR): price trades below a well-defined range low, closes back above, then holds a retest. Buy only after reclaim; stop below sweep low; target range midpoint then high if momentum persists.
+XAU-30 Inside-Bar Compression + HTF Alignment (BO): H4 inside bar forms near a defined level; take only a confirmed break in H4 trend direction with follow-through/retest; stop beyond mother-bar opposite side; target next HTF level.
+XAU-31 Two-Leg Pullback Continuation (PB): strong H1 impulse aligned with H4; two-leg corrective move reaches broken structure, then a clear rejection/engulfing close. Stop beyond correction; target impulse high/next resistance.
+XAU-32 Range Failure at Value (MR): in verified low-ADX range, price rejects an outer boundary and re-enters; require room to midpoint greater than costs and risk. Stop beyond rejection; target midpoint.
+XAU-33 Post-News Structure Reset (VS/PB): do not fade news by clock alone. After blackout, wait for initial range, then trade only a confirmed reclaim/retest or continuation with spread normalised; stop beyond post-news swing.
+`,
+  BTCUSD: `ADDITIONAL BTCUSD SETUPS (candidate filters; NOT verified >75% win-rate systems):
+BTC-51 Prior-Day Sweep + Reclaim (MR/VS): sweep prior-day high/low and close back inside; require retest rejection and venue-consistent candles. Stop beyond sweep; target day-range midpoint.
+BTC-52 H4 Trend + H1 Pullback (PB): clear H4 HH/HL or LH/LL; H1 pullback to prior breakout level/EMA zone with rejection. Stop beyond swing; target next H4 swing; reduce size in high volatility.
+BTC-53 Consolidation Acceptance Break (BO): multi-session box with repeated tests; H1 close outside, successful retest, and expansion supported by actual volume if available. Stop back inside box; target box height/next HTF level.
+BTC-54 Failed Breakdown Reclaim (MR): price sweeps range low then closes and holds back above it; enter on retest, stop below sweep, target midpoint then range high.
+BTC-55 Funding/OI Divergence Filter (MR/VS): only when reliable same-venue funding and open-interest data exist; crowded positioning is context, never a standalone signal. Require price sweep/reclaim; structural stop; target VWAP/range midpoint.
+BTC-56 Weekend Range Rejection (MR): define actual rolling 24h range and verify spread/liquidity; fade boundary only after rejection/re-entry, never because it is weekend alone. Stop beyond extreme; target center.
+BTC-57 Impulse Base Retest (PB): strong displacement breaks structure, then price retests the impulse base/old level and holds. Stop beyond retest swing; target continuation swing; avoid late entries with poor R.
+BTC-58 Volatility Expansion After Squeeze (BO): verified low-range compression followed by close outside box and successful retest. Stop inside box; target measured box height; no trade if stop distance makes reward/risk poor.
+`,
+  AUDUSD: `ADDITIONAL AUDUSD SETUPS (candidate filters; NOT verified >75% win-rate systems):
+AUD-76 Prior-Day Sweep + Reclaim (MR/VS): sweep prior-day high/low, close back inside and reject retest. Stop beyond sweep; target daily range midpoint; avoid nearby scheduled AUD/USD news.
+AUD-77 H4 Trend + H1 Pullback (PB): H4 HH/HL or LH/LL; H1 pullback to prior structure/EMA20–50 with rejection. Stop beyond swing; target next H4 swing; require enough room after spread.
+AUD-78 Asian Box Acceptance Break (BO): mark 03:00–10:00 EAT range; H1/M15 close outside and retest holds with London participation. Stop back inside range; target 1–1.5× range only if structure supports.
+AUD-79 Failed Range Break (MR): break Asian/prior-day boundary fails and closes back inside; enter after retest rejection. Stop beyond false-break extreme; target midpoint/opposite edge.
+AUD-80 AUD/USD Relative-Strength Check (filter): compare only with actual AUDNZD/AUDJPY or verified broad-USD data if available. Use as confirmation, never as a standalone trade; correlations vary.
+AUD-81 Post-RBA Structure Reset (VS/PB): wait at least 30-minute blackout, then wait for spread normalisation and a confirmed break/retest or reclaim. No automatic spike fade.
+AUD-82 Multi-Timeframe Level Confluence (MR/PB): H4 support/resistance overlaps prior-day level and H1 rejection; enter only after trigger candle; stop beyond confluence swing; target next opposing level with positive net R.
+AUD-83 Compression-to-Expansion Retest (BO): narrow multi-session range breaks, closes outside and retests successfully; stop inside range; target range-height projection/next daily level.
+`
+};
+
 const MARKET_RESEARCH = {
   BTCUSD: "BTCUSD MARKET PROFILE: Bitcoin is a 24/7 market and has no single official global spot price. Treat the user's broker/exchange feed as execution truth; never combine levels from different venues as if identical. Analyze regime first: directional trend, balanced range, high-volatility expansion, or compression. Look for prior-day/week highs and lows, equal highs/lows, range edges, break-and-retest, failed breakouts, impulse/displacement and pullback quality. Consider Asia/Europe/US activity and US equity/ETF benchmark windows as volatility/liquidity context only, never as a directional signal by itself. If supplied by verified data, consider spot volume, futures basis, funding, open interest and liquidation events; do not invent these. Treat weekends, thin liquidity, exchange outages, major crypto regulatory/macro news, ETF flows and large scheduled US data as risk context. Do not assume a liquidity sweep must reverse; require a reclaim/rejection or follow-through candle on a stated timeframe.",
   AUDUSD: "AUDUSD MARKET PROFILE: AUDUSD is quoted as USD per AUD; a rising quote means AUD strength versus USD. Evaluate relative RBA versus Federal Reserve rate expectations, Australian/US inflation and employment, China/commodity-sensitive risk appetite, broad USD direction, iron ore/commodity context and equity-risk sentiment when verified data is available. These are context, not mechanical signals: correlations change by regime. Mark Asian-session structure and London/US overlap, and account for scheduled RBA/Fed decisions, CPI, jobs, GDP and major China releases. Prefer price confirmation (trend/swing structure, break-retest, pullback, rejection) over assuming a macro headline dictates the next candle. If no current calendar/news feed is available, explicitly say the event check was not performed.",
@@ -167,7 +200,9 @@ Uploaded timeframes: ${present.join(", ")}. Preferred complete set: H4, H1, M15,
 
 GLOBAL STRATEGY RULES: ${GLOBAL_STRATEGY_RULES}
 
-RELEVANT STRATEGY CATALOG: ${STRATEGY_LIBRARY[pair]}\n\nTHREE-MARKET OPERATING PLAYBOOK (use as a framework to evaluate, not as a mandatory signal):
+RELEVANT STRATEGY CATALOG: ${STRATEGY_LIBRARY[pair]}
+
+ADDITIONAL CANDIDATE SETUPS: ${SUPPLEMENTAL_STRATEGIES[pair]}\n\nTHREE-MARKET OPERATING PLAYBOOK (use as a framework to evaluate, not as a mandatory signal):
 - XAUUSD is the primary research focus. Prefer an Asian-range breakout only after a candle closes beyond the marked range and a retest holds, with H4/H1 structure aligned. Define the stop beyond the retest swing or structural invalidation. A range-height target is only a planning reference, not guaranteed; require visible structure and realistic costs. Skip an abnormally wide Asian range only if a trustworthy 20-day range baseline is actually supplied. Never invent it.
 - BTCUSD is the volatility-focused market and trades 24/7. Consider intraday VWAP mean reversion only if VWAP and volume are visible or supplied as reliable data. A 2-standard-deviation band must be calculated from actual session data; never infer it from a screenshot without the values. Wait for rejection/reclaim toward VWAP, use BTC-specific structure for the stop, reduce size for volatility, and treat weekends as a separate tested regime.
 - AUDUSD is the trend-confirmation / standalone trend market. Assess it independently. Its agreement with gold may add context, but correlations are unstable and do not prove a trade. Disagreement should trigger reassessment or skipping; do not automatically halve size unless that sizing rule has been tested.
