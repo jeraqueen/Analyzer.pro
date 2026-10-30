@@ -401,6 +401,7 @@ Never use the terms WAIT or WAITING in the user-facing verdict, title, or action
 - SELL SETUP — RECHECK IN [N] MINUTES; include the exact condition and exact screenshot timeframe to upload.
 - NO TRADE — SEND [timeframe] SCREENSHOT IN [N] MINUTES; explain why neither side is currently defensible or why the image is unusable.
 Always calculate the next relevant candle-close time in Africa/Nairobi (EAT) from the actual current time and timeframe. Do not invent a time. For the 15-minute mode, use M15 for setup, M5 for confirmation and M1 only for precise trigger timing; ask for the earliest screenshot that can materially change the decision, not a routine full set every time. A recheck timer is an instruction to upload a fresh screenshot and run a new analysis; it is never an instruction to enter automatically. If no defensible setup exists, NO TRADE is a valid answer—never manufacture BUY/SELL just to satisfy the format.
+`;
 
   const parts = [{ text: prompt }];
   for (const tf of present) {
