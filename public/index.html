@@ -754,7 +754,7 @@ function renderTradeResult(raw){
   ];
   for(const [id,labels] of extras){const el=$(id);if(el)el.textContent=get(labels)}
   $('resultEvidence').textContent=raw;
-  $('tradeResults').classList.add('show');document.body.classList.remove('scan-fullscreen');document.body.classList.add('results-fullscreen');$('tradeResults').scrollTop=0;window.scrollTo({top:0,behavior:'smooth'})
+  document.body.classList.remove('scan-fullscreen');
 }
 const modeDescriptions={intraday:'M15 setup → M5 confirmation → M1 entry trigger. Same-day plan; H1 is optional context.',scalp:'M15 setup → M5 confirmation → M1 entry trigger. Fast trades only; no daily, weekly or monthly charts.',swing:'W1/D1 context → H4 setup → H1 refinement. Multi-session trading plan.',position:'MN1/W1 context → D1 structure → H4 refinement. Longer-term trading plan.'};
 const timeframeModes={scalp:['M1','M5','M15'],intraday:['M1','M5','M15','M30','H1'],swing:['W1','D1','H4','H1'],position:['MN1','W1','D1','H4']};
