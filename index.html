@@ -10,6 +10,13 @@ nav{display:flex;gap:7px;overflow:auto;padding:10px 12px;border-bottom:1px solid
 @media(max-width:850px){.s8,.s7,.s6,.s5,.s4,.s3{grid-column:span 12}.tfgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.f3{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:500px){.f2,.f3,.tfgrid{grid-template-columns:1fr}.metric{font-size:22px}.card{padding:12px}}
 .scan-stage{display:none;margin-top:12px;padding:16px;border:1px solid #31506a;border-radius:14px;background:linear-gradient(135deg,#102536,#0d1827)}.scan-stage.show{display:block}.scan-orb{width:48px;height:48px;border-radius:50%;border:3px solid #29495c;border-top-color:var(--green);animation:spinScan 1s linear infinite;margin:4px auto 12px}.scan-track{height:6px;background:#263c50;border-radius:20px;overflow:hidden}.scan-track span{display:block;width:8%;height:100%;background:var(--green);transition:width .5s}.trade-results{display:none;margin-top:14px}.trade-results.show{display:block}.direction-hero{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:16px;padding:18px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(120deg,#162638,#101a28);margin:12px 0}.direction-mark{display:grid;place-items:center;min-width:104px;min-height:94px;border-radius:13px;background:#24364a;font-size:clamp(21px,4vw,30px);font-weight:950;letter-spacing:.02em}.direction-mark.buy{background:#12392f;border:1px solid #2d8a6c;color:#a9f3cf}.direction-mark.sell{background:#401f2a;border:1px solid #a94c5e;color:#ffc0c8}.direction-mark.wait{background:#352d1d;border:1px solid #8e7039;color:#ffe0a1}.direction-copy h3{font-size:19px;margin:0 0 5px}.direction-copy p{margin:3px 0}.trade-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.trade-tile{padding:12px;border:1px solid var(--line);border-radius:12px;background:#0c1825;min-width:0}.trade-tile .value{font-size:clamp(16px,3vw,23px);font-weight:850;overflow-wrap:anywhere}.trade-tile .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.trade-tile.entry{border-color:#448f78}.trade-tile.stop{border-color:#9c4b52}.trade-tile.target{border-color:#397b68}.result-copy{white-space:pre-wrap;overflow-wrap:anywhere;background:#0a1420;border:1px solid var(--line);padding:12px;border-radius:10px;max-height:420px;overflow:auto}.pattern-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.pattern-checks label{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);padding:9px;border-radius:9px;font-size:13px}.scan-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}@keyframes spinScan{to{transform:rotate(360deg)}}@media(max-width:700px){.trade-grid,.pattern-checks{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
+
+.photo-review-overlay{position:fixed;inset:0;z-index:99999;background:#05080d;display:none;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.photo-review-overlay.show{display:flex}
+.photo-review-top{height:58px;display:flex;justify-content:flex-end;align-items:center;padding:8px 14px;background:#05080d;flex-shrink:0}
+.photo-review-done{background:#9de0b2;color:#07151a;border:0;border-radius:9px;padding:9px 20px;font-size:16px;font-weight:800}
+.photo-review-image-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:auto;padding:8px}
+.photo-review-image{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
 </style></head><body>
 <header><div class="brand"><div class="logo">A</div><div><h1>Analyzer.pro</h1><div class="muted small">Upload a chart. Get an evidence-based review.</div></div></div><span class="pill" id="clock">Kenya time: …</span></header>
 <nav><button class="active" data-page="overview">Home</button><button data-page="analyzer">Analyse chart</button><button data-page="risk">Risk & lot size</button><button data-page="backtest">Strategy tester</button><button data-page="journal">Trade journal</button><button data-page="patterns">Patterns</button><button data-page="research">Learn</button><button data-page="settings">Settings</button></nav>
@@ -93,6 +100,7 @@ nav{display:flex;gap:7px;overflow:auto;padding:10px 12px;border-bottom:1px solid
 </div></section>
 <div class="footer">Market Compass / FX Lab · Research and education only · No guarantee of performance · No live trading or order execution</div></main>
 
+<div id="photoReviewOverlay" class="photo-review-overlay" aria-hidden="true"><div class="photo-review-top"><button type="button" id="photoReviewDone" class="photo-review-done">Done</button></div><div class="photo-review-image-wrap"><img id="photoReviewImage" class="photo-review-image" alt="Selected screenshot full-screen preview"></div></div>
 <script>
 'use strict';
 const $=id=>document.getElementById(id), STORE='fxResearchDesk_v2';
@@ -112,13 +120,19 @@ function overview(){$('journalCount').textContent=data.journal.length;$('totalR'
 setInterval(clock,1000);clock();
 function renderJournal(){const body=$('journalRows');if(!data.journal.length){body.innerHTML='<tr><td colspan="7" class="muted">No records yet.</td></tr>';return}body.innerHTML=data.journal.slice().reverse().map((j,i)=>`<tr><td>${esc(j.date)}</td><td>${esc(j.pair)}</td><td>${esc(j.side)}</td><td>${esc(j.levels||'—')}</td><td>${fmt(Number(j.r)||0)}R</td><td>${esc((j.thesis||'')+(j.lesson?' · '+j.lesson:''))}</td><td><button class="danger" data-delete="${data.journal.length-1-i}">Delete</button></td></tr>`).join('');body.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>{if(confirm('Delete this record?')){data.journal.splice(Number(b.dataset.delete),1);save()}})}
 function updateUploadCount(){const n=['imgD1','imgH4','imgH1','imgM30','imgM15','imgM5'].filter(id=>$(id).files?.length).length;$('uploadCount').textContent=n===0?'No screenshots selected yet':n+' screenshot'+(n===1?'':'s')+' ready to analyse';$('scanChartTop').disabled=n===0;$('scanChartTop').style.opacity=n===0?'.65':'1'}
+function closePhotoReview(){const overlay=$('photoReviewOverlay');overlay.classList.remove('show');overlay.setAttribute('aria-hidden','true');$('photoReviewImage').removeAttribute('src');document.body.style.overflow=''}
+$('photoReviewDone').onclick=closePhotoReview;
 document.querySelectorAll('input[type=file][id^=img]').forEach(inp=>inp.onchange=()=>{
- const f=inp.files?.[0],im=$('prev'+inp.id.slice(3));
- if(!f){im.removeAttribute('src');im.classList.add('hidden');updateUploadCount();return}
- if(!f.type.startsWith('image/')){alert('Choose an image file.');inp.value='';im.removeAttribute('src');im.classList.add('hidden');updateUploadCount();return}
- if(im.dataset.objectUrl)URL.revokeObjectURL(im.dataset.objectUrl);
- const objectUrl=URL.createObjectURL(f);im.dataset.objectUrl=objectUrl;im.src=objectUrl;im.classList.remove('hidden');updateUploadCount();
-});
+  const f=inp.files?.[0],im=$('prev'+inp.id.slice(3));
+  if(!f){im.removeAttribute('src');im.classList.add('hidden');updateUploadCount();return}
+  if(!f.type.startsWith('image/')){alert('Choose an image file.');inp.value='';im.removeAttribute('src');im.classList.add('hidden');updateUploadCount();return}
+  if(im.dataset.objectUrl)URL.revokeObjectURL(im.dataset.objectUrl);
+  const objectUrl=URL.createObjectURL(f);im.dataset.objectUrl=objectUrl;im.src=objectUrl;im.classList.remove('hidden');updateUploadCount();
+  $('photoReviewImage').src=objectUrl;
+  $('photoReviewOverlay').classList.add('show');
+  $('photoReviewOverlay').setAttribute('aria-hidden','false');
+  document.body.style.overflow='hidden';
+ });
 $('scanChartTop').onclick=()=>{if(!['imgD1','imgH4','imgH1','imgM30','imgM15','imgM5'].some(id=>$(id).files?.length))return;$('sendAI').click()};updateUploadCount();
 $('saveReview').onclick=()=>{const notes=['D1','H4','H1','M30','M15','M5'].map(t=>t+': '+$('note'+t).value).filter(t=>!t.endsWith(': ')).join(' | ');data.journal.push({date:new Date().toLocaleString('en-KE',{timeZone:'Africa/Nairobi'}),pair:$('pair').value,side:$('bias').value,levels:`Entry ${$('entry').value||'—'} / Stop ${$('stop').value||'—'} / Target ${$('target').value||'—'}`,r:0,thesis:$('thesis').value,lesson:[notes,$('invalidate').value?'Invalidation: '+$('invalidate').value:''].filter(Boolean).join(' | ')});save();message($('analysisMsg'),'Review saved locally as 0R. Add the actual result separately when known.','good')};
 $('clearReview').onclick=()=>{['noteD1','noteH4','noteH1','noteM30','noteM15','noteM5','entry','stop','target','thesis','invalidate','aiResult'].forEach(id=>$(id).value='');$('bias').selectedIndex=0;document.querySelectorAll('.preview').forEach(i=>i.classList.add('hidden'));document.querySelectorAll('input[type=file][id^=img]').forEach(i=>i.value='');updateUploadCount();$('analysisMsg').classList.add('hidden')};
