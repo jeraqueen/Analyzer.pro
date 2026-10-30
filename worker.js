@@ -188,7 +188,7 @@ async function handleAnalyze(request, env) {
   const pair = String(payload.pair || "").toUpperCase();
   if (!ALLOWED_PAIRS.has(pair)) return json({ error: "Unsupported instrument. Select a supported pair." }, 400, cors);
   const charts = payload.charts && typeof payload.charts === "object" ? payload.charts : {};
-  const validTfs = ["D1", "H4", "H1", "M30", "M15", "M5"];
+  const validTfs = ["MN1", "W1", "D1", "H4", "H1", "M30", "M15", "M5"];
   const present = validTfs.filter(tf => typeof charts[tf] === "string");
   if (!present.length) return json({ error: "Upload at least one chart screenshot." }, 400, cors);
 
@@ -196,7 +196,7 @@ async function handleAnalyze(request, env) {
 
 The user wants the best-supported BUY or SELL scenario, not a default WAIT/NO TRADE. Compare both sides and select the stronger direction whenever the uploaded structure reasonably supports one. If the setup is valid but the trigger has not occurred, still choose BUY or SELL and label it WAITING FOR TRIGGER with the exact confirmation event. Reserve WAIT / NO TRADE for genuinely conflicting/weak/unreadable evidence, or when neither side has a defensible entry and invalidation. Never label a setup READY unless the trigger is visibly confirmed. Do not fabricate confidence or win probabilities.
 
-Uploaded timeframes: ${present.join(", ")}. Preferred complete set: H4, H1, M15, M5, M30, D1. Missing images must be called out. User direction preference: ${payload.direction || "Undecided"}. Levels: ${JSON.stringify(payload.levels || {})}. Thesis: ${String(payload.thesis || "")}. Invalidation: ${String(payload.invalidation || "")}. Notes: ${JSON.stringify(payload.timeframeNotes || {})}. No verified live price/news data is supplied.\n\nMARKET-SPECIFIC RESEARCH FRAMEWORK: ${MARKET_RESEARCH[pair]}
+Uploaded timeframes: ${present.join(", ")}. Preferred complete set: MN1, W1, D1, H4, H1, M30, M15, M5. MN1 and W1 are higher-timeframe context; D1/H4 define the swing structure; H1/M30/M15 refine the setup; M5 is for execution. Weekly/monthly disagreement with the daily setup must be explicitly flagged and should reduce confidence or make the setup conditional, never be silently ignored. Missing images must be called out. User direction preference: ${payload.direction || "Undecided"}. Levels: ${JSON.stringify(payload.levels || {})}. Thesis: ${String(payload.thesis || "")}. Invalidation: ${String(payload.invalidation || "")}. Notes: ${JSON.stringify(payload.timeframeNotes || {})}. No verified live price/news data is supplied.\n\nMARKET-SPECIFIC RESEARCH FRAMEWORK: ${MARKET_RESEARCH[pair]}
 
 GLOBAL STRATEGY RULES: ${GLOBAL_STRATEGY_RULES}
 
@@ -211,7 +211,7 @@ ADDITIONAL CANDIDATE SETUPS: ${SUPPLEMENTAL_STRATEGIES[pair]}\n\nTHREE-MARKET OP
 - Evaluate results by instrument, setup and session in the journal. A 55% win rate with 2:1 average reward/risk has positive theoretical expectancy before costs, but does not guarantee green weeks. Three +2R winners and two -1R losers equal +4R over five trades (60% wins), not 55%. Never state that daily profit is mechanically assured.
 \nDEEP-RESEARCH DISCIPLINE: Treat established technical-analysis principles as testable hypotheses, not laws. Distinguish direct chart observations, context hypotheses and verified external facts. Do not claim to have researched live web/news, checked a calendar or reviewed historical candles unless that data is actually supplied. Never claim a setup is high-probability without validated backtest statistics for this same instrument, timeframe, costs and regime. Compare continuation, pullback and failed-break scenarios. Include spread/fees/slippage and structural invalidation in the decision. Disclose if high-impact event status is unknown.
 
-Review D1 for major context/levels, H4 for dominant swing structure, H1 for intraday setup, M30 for intermediate confirmation, M15 for setup zone and M5 for entry trigger. Adjust to actual screenshots; never assume the timeframes agree. Evaluate continuation and pullback setups as well as reversals. A strong trend can support a continuation trade; do not insist on reversal. Avoid chasing an extended move.
+Review MN1 for major long-term direction and major levels, W1 for the primary swing trend and weekly levels, D1 for daily context, H4 for dominant swing structure, H1 for intraday setup, M30 for intermediate confirmation, M15 for setup zone and M5 for entry trigger. Clearly state whether the timeframes align, conflict, or are mixed. Do not treat the monthly or weekly trend as an automatic trade signal. Adjust to actual screenshots; never assume the timeframes agree. Evaluate continuation and pullback setups as well as reversals. A strong trend can support a continuation trade; do not insist on reversal. Avoid chasing an extended move.
 
 Use these headings in order:
 EXECUTIVE VERDICT:
