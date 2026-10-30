@@ -528,7 +528,7 @@ const $=id=>document.getElementById(id), STORE='fxResearchDesk_v2', LAST_ANALYSI
 const emptyData=()=>({journal:[],settings:{backendUrl:'/api/analyze',accessToken:''}});
 function load(){try{const x=JSON.parse(localStorage.getItem(STORE)||'null');return x&&Array.isArray(x.journal)?{journal:x.journal,settings:{backendUrl:'/api/analyze',accessToken:'',...(x.settings||{})}}:emptyData()}catch(e){return emptyData()}}
 let data=load(),bars=[],results=[];
-const ALLOWED_MARKETS=['BTCUSD','AUDUSD','XAUUSD','EURUSD','GBPUSD','USDJPY','USDCAD','EURJPY'];
+const ALLOWED_MARKETS=['EURUSD'];
 data.journal=data.journal.filter(j=>ALLOWED_MARKETS.includes(String(j.pair||'').toUpperCase()));
 function save(){try{localStorage.setItem(STORE,JSON.stringify(data))}catch(e){alert('Could not save local data. Export a backup and check browser storage.')}renderJournal();overview()}
 function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
