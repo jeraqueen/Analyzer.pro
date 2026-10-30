@@ -145,8 +145,23 @@ body.results-fullscreen{overflow:hidden}
  <div class="session-row"><strong>BTCUSD · Bitcoin</strong><div><b>15:15 alarm → 15:30–19:00</b><br><span class="muted small">London–New York overlap watch. Bitcoin trades 24/7; weekends are optional only if your strategy supports them.</span></div></div>
  <div class="session-row"><strong>Preparation</strong><div><b>06:00–08:00</b><br><span class="muted small">Map the Asian range, previous-day high/low and key levels. Preparation first; no forced trades.</span></div></div>
  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="primary" type="button" id="enableEatAlarms">Enable daily EAT alarms</button><button type="button" class="secondary" id="stopEatRinging">Stop ringing</button><button type="button" class="secondary" id="disableEatAlarms">Turn alarms off</button></div>
- <div id="eatAlarmStatus" class="notice" role="status" style="margin-top:10px">Alarms are off. Keep this website open for scheduled alarms.</div>
+ <div id="eatAlarmStatus" class="notice" role="status" style="margin-top:10px">On-page alarms are off. Phone Alerts below can notify you when the website is closed.</div>
  <div class="entry-watch-status" id="eatNextAlarm" style="margin-top:8px">Next alert: enable alarms to calculate the next scheduled time.</div>
+ <div class="card" style="margin-top:12px;border-color:var(--gold);background:#211e16">
+  <div class="eyebrow">PHONE ALERTS · WORKS WHEN ANALYZER.PRO IS CLOSED</div>
+  <h3>Free Android notifications</h3>
+  <p class="muted small">Uses ntfy (free). It sends a warning 5 minutes before each EAT alarm and an urgent notification at the alarm time. Install the ntfy Android app, retrieve your private topic here, then subscribe to that topic in ntfy.</p>
+  <div class="row" style="margin-top:10px">
+   <button type="button" id="setupPhoneAlerts" class="primary">Get my private phone topic</button>
+   <button type="button" id="copyPhoneTopic" disabled>Copy topic</button>
+   <button type="button" id="openPhoneTopic" disabled>Open topic</button>
+   <button type="button" id="testPhoneAlerts" disabled>Send test notification</button>
+  </div>
+  <div id="phoneAlertInfo" class="notice" role="status" style="margin-top:10px">Save your private Analyzer access token in Settings before connecting phone alerts.</div>
+  <div id="phoneAlertTopic" class="small" style="margin-top:8px;overflow-wrap:anywhere"></div>
+  <p class="muted small">For a louder alert, configure ntfy's Priority 5 notification channel in Android settings and choose a sound/vibration. Android and battery settings can still affect delivery; this is not a guaranteed alarm-clock replacement.</p>
+  <p class="small"><a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener" style="color:var(--gold)">Install ntfy from Google Play</a> · <a href="https://docs.ntfy.sh/" target="_blank" rel="noopener" style="color:var(--gold)">ntfy setup guide</a></p>
+ </div>
 </section>
 <div class="entry-watch" id="entryWatch">
  <div class="entry-watch-head"><div><div class="eyebrow">ENTRY WATCH · CANDLE CLOSE</div><div class="entry-watch-title">Next candle checkpoint</div></div><span class="pill">No live price feed required</span></div>
@@ -407,7 +422,39 @@ function eatStopRinging(){eatRingActive=false;if(eatRingTimer){clearInterval(eat
 function eatNotify(item){const msg=item.pair+' · '+item.window+'. Open the chart and run Analyzer.pro. The session time alone is not an entry signal.';$('eatAlarmStatus').textContent='🔔 RINGING UNTIL YOU STOP IT: '+msg;$('eatAlarmStatus').className='notice good';eatStartRinging();if('Notification'in window&&Notification.permission==='granted')try{new Notification('Analyzer.pro · '+item.pair,{body:msg+' The alarm will keep ringing until you tap Stop ringing.',tag:'analyzer-'+item.id,requireInteraction:true})}catch(e){}}
 function eatNext(){const now=new Date();let best=null;for(const a of EAT_ALARMS){const t=new Date(now);t.setUTCHours(0,0,0,0);/* Build target from Nairobi calendar date, converted via UTC+3. Kenya has no DST. */const utc=Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate(),a.hour-3,a.minute,0);let target=new Date(utc);if(target<=now)target=new Date(utc+86400000);if(!best||target<best.target)best={item:a,target}}return best}
 function eatAlarmTick(){if(localStorage.getItem(EAT_ALARMS_KEY)!=='1')return;const now=new Date(),p=eatTimeParts(now),date=eatDateKey(now),key=date+'-'+String(p.hour).padStart(2,'0')+':'+String(p.minute).padStart(2,'0');for(const a of EAT_ALARMS){if(p.hour===a.hour&&p.minute===a.minute&&p.second<20){const fired=key+'-'+a.id;if(eatLastFired!==fired){eatLastFired=fired;eatNotify(a)}}}const next=eatNext();if(next){const ms=Math.max(0,next.target-now),m=Math.floor(ms/60000),h=Math.floor(m/60),mm=m%60;$('eatNextAlarm').textContent='Next alarm: '+next.item.pair+' at '+eatFormatTime(next.item.hour,next.item.minute)+' · in '+(h?h+'h ':'')+mm+'m (Kenya time).';}}
-async function eatEnable(){try{const C=window.AudioContext||window.webkitAudioContext;if(C){eatAudioContext=eatAudioContext||new C();if(eatAudioContext.state==='suspended')await eatAudioContext.resume()}}catch(e){}if('Notification'in window&&Notification.permission==='default'){try{await Notification.requestPermission()}catch(e){}}localStorage.setItem(EAT_ALARMS_KEY,'1');$('eatAlarmStatus').className='notice good';$('eatAlarmStatus').textContent='Daily EAT alarms enabled. Keep this website open; browser alarms may be paused if the phone sleeps or the browser is closed.';eatAlarmTick()}
+async function eatEnable(){try{const C=window.AudioContext||window.webkitAudioContext;if(C){eatAudioContext=eatAudioContext||new C();if(eatAudioContext.state==='suspended')await eatAudioContext.resume()}}catch(e){}if('Notification'in window&&Notification.permission==='default'){try{await Notification.requestPermission()}catch(e){}}localStorage.setItem(EAT_ALARMS_KEY,'1');$('eatAlarmStatus').className='notice good';$('eatAlarmStatus').textContent='On-page EAT alarms enabled. For alerts when Analyzer.pro is closed, set up Phone Alerts below.';eatAlarmTick()}
 function eatDisable(){eatStopRinging();localStorage.setItem(EAT_ALARMS_KEY,'0');$('eatAlarmStatus').className='notice';$('eatAlarmStatus').textContent='Daily EAT alarms are off.';$('eatNextAlarm').textContent='Next alert: alarms are off.'}
-if($('enableEatAlarms')){$('enableEatAlarms').addEventListener('click',eatEnable);$('stopEatRinging').addEventListener('click',eatStopRinging);$('disableEatAlarms').addEventListener('click',eatDisable);if(localStorage.getItem(EAT_ALARMS_KEY)==='1'){$('eatAlarmStatus').className='notice good';$('eatAlarmStatus').textContent='Daily EAT alarms enabled. Keep this website open; browser alarms may be paused if the phone sleeps or the browser is closed.'}eatAlarmTimer=setInterval(eatAlarmTick,10000);eatAlarmTick()}
+if($('enableEatAlarms')){$('enableEatAlarms').addEventListener('click',eatEnable);$('stopEatRinging').addEventListener('click',eatStopRinging);$('disableEatAlarms').addEventListener('click',eatDisable);if(localStorage.getItem(EAT_ALARMS_KEY)==='1'){$('eatAlarmStatus').className='notice good';$('eatAlarmStatus').textContent='On-page EAT alarms enabled. For alerts when Analyzer.pro is closed, set up Phone Alerts below.'}eatAlarmTimer=setInterval(eatAlarmTick,10000);eatAlarmTick()}
+
+let privatePhoneTopic = "";
+function phoneAlertToken(){return data.settings?.accessToken||""}
+async function setupPhoneAlerts(){
+ const token=phoneAlertToken();
+ if(!token){$('phoneAlertInfo').textContent='Open Settings, save your private Analyzer access token, then return here.';$('phoneAlertInfo').className='notice bad';return}
+ $('setupPhoneAlerts').disabled=true;$('phoneAlertInfo').textContent='Connecting to the alert service…';
+ try{
+  const r=await fetch('/api/alerts/config',{headers:{'X-Analyzer-Token':token}});
+  const out=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(out.error||'HTTP '+r.status);
+  privatePhoneTopic=out.topic;
+  $('phoneAlertTopic').innerHTML='<b>Private topic:</b> <code>'+esc(privatePhoneTopic)+'</code>';
+  $('copyPhoneTopic').disabled=false;$('openPhoneTopic').disabled=false;$('testPhoneAlerts').disabled=false;
+  $('phoneAlertInfo').className='notice good';
+  $('phoneAlertInfo').textContent='Topic ready. Install ntfy, add this exact topic in the app, and then send a test notification.';
+ }catch(e){$('phoneAlertInfo').className='notice bad';$('phoneAlertInfo').textContent='Setup failed: '+e.message}
+ finally{$('setupPhoneAlerts').disabled=false}
+}
+async function testPhoneAlerts(){
+ const token=phoneAlertToken();if(!token){$('phoneAlertInfo').textContent='Save your private Analyzer access token in Settings first.';return}
+ $('testPhoneAlerts').disabled=true;
+ try{const r=await fetch('/api/alerts/test',{method:'POST',headers:{'X-Analyzer-Token':token}});const out=await r.json().catch(()=>({}));if(!r.ok)throw new Error(out.error||'HTTP '+r.status);$('phoneAlertInfo').className='notice good';$('phoneAlertInfo').textContent=out.message||'Test sent. Check ntfy on your phone.'}
+ catch(e){$('phoneAlertInfo').className='notice bad';$('phoneAlertInfo').textContent='Test failed: '+e.message}
+ finally{$('testPhoneAlerts').disabled=false}
+}
+if($('setupPhoneAlerts')){
+ $('setupPhoneAlerts').addEventListener('click',setupPhoneAlerts);
+ $('copyPhoneTopic').addEventListener('click',async()=>{if(!privatePhoneTopic)return;try{await navigator.clipboard.writeText(privatePhoneTopic);$('phoneAlertInfo').textContent='Private topic copied. Paste it into ntfy.'}catch(e){$('phoneAlertInfo').textContent='Select and copy the topic shown above.'}});
+ $('openPhoneTopic').addEventListener('click',()=>{if(privatePhoneTopic)window.open('https://ntfy.sh/'+encodeURIComponent(privatePhoneTopic),'_blank','noopener')});
+ $('testPhoneAlerts').addEventListener('click',testPhoneAlerts);
+}
 </script></body></html>
