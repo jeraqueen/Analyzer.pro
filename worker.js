@@ -212,6 +212,44 @@ function corsHeaders(request) {
   };
 }
 
+function validateTradePlan(raw) {
+  let text = String(raw || "");
+  const head = text.slice(0, 3000).toUpperCase();
+  const side = /\bSELL NOW\b|\bSELL SETUP\b|^\s*DIRECTION\s*:\s*SELL\b|^\s*EXECUTIVE VERDICT\s*:\s*SELL\b/m.test(head) ? "SELL" :
+    /\bBUY NOW\b|\bBUY SETUP\b|^\s*DIRECTION\s*:\s*BUY\b|^\s*EXECUTIVE VERDICT\s*:\s*BUY\b/m.test(head) ? "BUY" : null;
+  if (!side) return text;
+
+  const getRange = () => {
+    const m = text.match(/^\s*ENTRY\s*\/\s*ZONE\s*:\s*(?:EURUSD\s*)?(1\.\d{4,6})\s*(?:-|–|to)\s*(1\.\d{4,6})/im);
+    if (m) return [(Number(m[1]) + Number(m[2])) / 2, Number(m[1]), Number(m[2])];
+    const one = text.match(/^\s*ENTRY\s*\/\s*ZONE\s*:\s*(?:EURUSD\s*)?(1\.\d{4,6})/im);
+    return one ? [Number(one[1]), Number(one[1]), Number(one[1])] : null;
+  };
+  const getPrice = (label) => {
+    const re = new RegExp("^\\s*" + label + "\\s*:\\s*(?:[^\\n]*?\\b)?(1\\.\\d{4,6})", "im");
+    const m = text.match(re);
+    return m ? Number(m[1]) : null;
+  };
+  const entry = getRange();
+  const sl = getPrice("STOP LOSS(?: \\(PRICE \\+ BASIS TIMEFRAME\\))?");
+  const tp1 = getPrice("TP1(?: \\(PRICE \\+ BASIS TIMEFRAME\\))?");
+  const tp2 = getPrice("TP2(?: \\(PRICE \\+ BASIS TIMEFRAME\\))?");
+  const tp3 = getPrice("TP3(?: \\(PRICE \\+ BASIS TIMEFRAME\\))?");
+  if (!entry || sl === null || tp1 === null || tp2 === null) return text;
+
+  const mid = entry[0], eps = 0.000001;
+  const bad = side === "BUY"
+    ? sl >= mid - eps || tp1 <= mid + eps || tp2 <= tp1 || (tp3 !== null && tp3 <= tp2)
+    : sl <= mid + eps || tp1 >= mid - eps || tp2 >= tp1 || (tp3 !== null && tp3 >= tp2);
+  if (!bad) return text;
+
+  const warning = "PLAN VALIDATION: INVALID — the proposed " + side + " direction conflicts with its entry, stop-loss or take-profit price geometry. Do not use these levels. The recommendation has been downgraded to NO TRADE until a consistent plan is generated.\n";
+  text = warning + text;
+  text = text.replace(/^\s*(?:EXECUTIVE VERDICT|DIRECTION)\s*:\s*.+$/im, "async function handleAnalyze(request, env) { — INVALID PRICE GEOMETRY; NO TRADE");
+  text = text.replace(/^\s*(?:BUY NOW|SELL NOW|BUY SETUP\s*[—-].*|SELL SETUP\s*[—-].*)$/im, "NO TRADE — INVALID PRICE GEOMETRY");
+  return text;
+}
+
 async function handleAnalyze(request, env) {
   const cors = corsHeaders(request);
   if (!cors) return json({ error: "Cross-origin requests are not allowed." }, 403);
@@ -455,7 +493,8 @@ Always calculate the next relevant candle-close time in Africa/Nairobi (EAT) fro
       .filter(Boolean)
       .join("\n").trim();
     if (!text) return json({ error: "The AI service returned no readable analysis. You may have reached the free-tier limit; wait and try again." }, 502, cors);
-    return json({ text, model, provider: "Google Gemini" }, 200, cors);
+    const checkedText = validateTradePlan(text);
+    return json({ text: checkedText, model, provider: "Google Gemini" }, 200, cors);
   } catch {
     return json({ error: "Could not reach the AI service. Check the Cloudflare Worker and try again." }, 502, cors);
   }
