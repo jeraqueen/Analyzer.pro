@@ -97,6 +97,17 @@ nav{display:flex;gap:7px;overflow:auto;padding:10px 12px;border-bottom:1px solid
 <div class="card s12"><h3>Known limitations</h3><ul><li>No live prices, economic calendar or news feed.</li><li>AI analysis requires the private Cloudflare Worker and valid server-side secrets.</li><li>The CSV test is a basic EMA crossover example, not a full multi-timeframe strategy. Intrabar tick order, realistic spread changes and broker-specific fills are not modeled.</li><li>No automatic broker connection, order execution or financial advice.</li><li>Lot sizing is only an estimate unless pip value, contract specs, conversion and lot step are verified.</li></ul></div>
 </div></section>
 <div class="footer">Market Compass / FX Lab · Research and education only · No guarantee of performance · No live trading or order execution</div></main>
+<div id="confirmOverlay" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+ <div id="confirmPanel">
+  <button id="confirmBack" type="button" aria-label="Go back" style="display:block;min-width:48px;min-height:46px;margin:0 0 12px;padding:8px 16px;border:1px solid #6b8296;border-radius:10px;background:#1b2d3d;color:#fff;font-size:20px;font-weight:700;cursor:pointer;touch-action:manipulation">← Back</button>
+  <div class="eyebrow">Confirm before continuing</div>
+  <h2 id="confirmTitle">Check your screenshot</h2>
+  <p id="confirmIntro" class="muted">Make sure this is the correct chart and timeframe.</p>
+  <img id="confirmPreview" alt="Screenshot selected for confirmation">
+  <div id="confirmSummary" class="confirm-list"></div>
+  <div class="confirm-actions"><button id="confirmCancel" class="danger" type="button">Cancel / Choose again</button><button id="confirmDone" class="primary" type="button">Done — confirm selection</button></div>
+ </div>
+</div>
 <script>
 'use strict';
 const $=id=>document.getElementById(id), STORE='fxResearchDesk_v2';
@@ -264,15 +275,5 @@ $('clearPatternPlan').onclick=()=>{$('patternPlan').textContent='Choose a contex
 
 renderJournal();overview();
 </script>
-<div id="confirmOverlay" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
- <div id="confirmPanel">
-  <button id="confirmBack" type="button" aria-label="Go back" style="display:block;min-width:48px;min-height:46px;margin:0 0 12px;padding:8px 16px;border:1px solid #6b8296;border-radius:10px;background:#1b2d3d;color:#fff;font-size:20px;font-weight:700;cursor:pointer;touch-action:manipulation">← Back</button>
-  <div class="eyebrow">Confirm before continuing</div>
-  <h2 id="confirmTitle">Check your screenshot</h2>
-  <p id="confirmIntro" class="muted">Make sure this is the correct chart and timeframe.</p>
-  <img id="confirmPreview" alt="Screenshot selected for confirmation">
-  <div id="confirmSummary" class="confirm-list"></div>
-  <div class="confirm-actions"><button id="confirmCancel" class="danger" type="button">Cancel / Choose again</button><button id="confirmDone" class="primary" type="button">Done — confirm selection</button></div>
- </div>
-</div>
+
 </body></html>
