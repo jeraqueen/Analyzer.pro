@@ -214,23 +214,24 @@ function corsHeaders(request) {
 
 function validateTradePlan(raw) {
   let text = String(raw || "");
-  const head = text.slice(0, 3000).toUpperCase();
-  const side = /\bSELL NOW\b|\bSELL SETUP\b|^\s*DIRECTION\s*:\s*SELL\b|^\s*EXECUTIVE VERDICT\s*:\s*SELL\b/m.test(head) ? "SELL" :
-    /\bBUY NOW\b|\bBUY SETUP\b|^\s*DIRECTION\s*:\s*BUY\b|^\s*EXECUTIVE VERDICT\s*:\s*BUY\b/m.test(head) ? "BUY" : null;
+  // Trust the explicit verdict first; do not infer direction from BUY/SELL discussion elsewhere.
+  const signalLine = text.match(/^\s*(?:\d+\.\s*)?(?:TRADING SIGNAL|EXECUTIVE VERDICT|DIRECTION)\s*:\s*([^\n]+)/im);
+  const verdict = signalLine ? signalLine[1].toUpperCase() : text.slice(0, 500).toUpperCase();
+  const side = /\b(?:BUY NOW|BUY SETUP)\b/.test(verdict) ? "BUY" :
+    /\b(?:SELL NOW|SELL SETUP)\b/.test(verdict) ? "SELL" : null;
   if (!side) return text;
 
-  const getRange = () => {
-    const m = text.match(/^\s*ENTRY\s*\/\s*ZONE\s*:\s*(?:EURUSD\s*)?(1\.\d{4,6})\s*(?:-|–|to)\s*(1\.\d{4,6})/im);
-    if (m) return [(Number(m[1]) + Number(m[2])) / 2, Number(m[1]), Number(m[2])];
-    const one = text.match(/^\s*ENTRY\s*\/\s*ZONE\s*:\s*(?:EURUSD\s*)?(1\.\d{4,6})/im);
-    return one ? [Number(one[1]), Number(one[1]), Number(one[1])] : null;
-  };
+  const rangeMatch = text.match(/^\s*(?:\d+\.\s*)?ENTRY\s*\/\s*ZONE\s*:\s*(?:EURUSD\s*)?(1\.\d{4,6})(?:\s*(?:-|–|to)\s*(1\.\d{4,6}))?/im);
+  const entry = rangeMatch
+    ? [rangeMatch[2] ? (Number(rangeMatch[1]) + Number(rangeMatch[2])) / 2 : Number(rangeMatch[1]),
+       Math.min(Number(rangeMatch[1]), Number(rangeMatch[2] || rangeMatch[1])),
+       Math.max(Number(rangeMatch[1]), Number(rangeMatch[2] || rangeMatch[1]))]
+    : null;
   const getPrice = (label) => {
-    const re = new RegExp("^\\s*" + label + "\\s*:\\s*(?:[^\\n]*?\\b)?(1\\.\\d{4,6})", "im");
+    const re = new RegExp("^\\s*(?:\\d+\\.\\s*)?" + label + "\\s*:\\s*(?:[^\\n]*?\\b)?(1\\.\\d{4,6})", "im");
     const m = text.match(re);
     return m ? Number(m[1]) : null;
   };
-  const entry = getRange();
   const sl = getPrice("STOP LOSS(?: \\(PRICE \\+ BASIS TIMEFRAME\\))?");
   const tp1 = getPrice("TP1(?: \\(PRICE \\+ BASIS TIMEFRAME\\))?");
   const tp2 = getPrice("TP2(?: \\(PRICE \\+ BASIS TIMEFRAME\\))?");
@@ -239,14 +240,14 @@ function validateTradePlan(raw) {
 
   const mid = entry[0], eps = 0.000001;
   const bad = side === "BUY"
-    ? sl >= mid - eps || tp1 <= mid + eps || tp2 <= tp1 || (tp3 !== null && tp3 <= tp2)
-    : sl <= mid + eps || tp1 >= mid - eps || tp2 >= tp1 || (tp3 !== null && tp3 >= tp2);
+    ? sl >= entry[1] - eps || tp1 <= mid + eps || tp2 <= tp1 || (tp3 !== null && tp3 <= tp2)
+    : sl <= entry[2] + eps || tp1 >= mid - eps || tp2 >= tp1 || (tp3 !== null && tp3 >= tp2);
   if (!bad) return text;
 
-  const warning = "PLAN VALIDATION: INVALID — the proposed " + side + " direction conflicts with its entry, stop-loss or take-profit price geometry. Do not use these levels. The recommendation has been downgraded to NO TRADE until a consistent plan is generated.\n";
+  const warning = "PLAN VALIDATION: INVALID — the proposed " + side + " direction conflicts with its entry, stop-loss or take-profit price geometry. Do not use these levels. The recommendation has been downgraded to NO TRADE until a consistent plan is generated.\\n";
   text = warning + text;
-  text = text.replace(/^(\s*(?:TRADING SIGNAL|EXECUTIVE VERDICT|DIRECTION)\s*:\s*).+$/im, "$1NO TRADE — INVALID PRICE GEOMETRY");
-  text = text.replace(/^\s*(?:BUY NOW|SELL NOW|BUY SETUP\s*[—-].*|SELL SETUP\s*[—-].*)$/im, "NO TRADE — INVALID PRICE GEOMETRY");
+  text = text.replace(/^(\\s*(?:\\d+\\.\\s*)?(?:TRADING SIGNAL|EXECUTIVE VERDICT|DIRECTION)\\s*:\\s*).+$/im, "$1NO TRADE — INVALID PRICE GEOMETRY");
+  text = text.replace(/^\\s*(?:\\d+\\.\\s*)?(?:BUY NOW|SELL NOW|BUY SETUP\\s*[—-].*|SELL SETUP\\s*[—-].*)$/im, "NO TRADE — INVALID PRICE GEOMETRY");
   return text;
 }
 
