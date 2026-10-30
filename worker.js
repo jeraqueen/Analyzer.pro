@@ -1,5 +1,5 @@
 const MAX_BODY_BYTES = 9 * 1024 * 1024;
-const ALLOWED_PAIRS = new Set(["BTCUSD", "AUDUSD", "XAUUSD"]);
+const ALLOWED_PAIRS = new Set(["BTCUSD", "AUDUSD", "XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "USDCAD", "EURJPY"]);
 
 const STRATEGY_LIBRARY = {
   XAUUSD: `XAUUSD CANDIDATE STRATEGIES (screen all; only select those supported by uploaded charts and verified data):
@@ -93,7 +93,7 @@ const GLOBAL_STRATEGY_RULES = `GLOBAL STRATEGY RULES (internal decision logic):
 - Strategy selection: treat library entries as hypotheses, not proven profitable systems. Screen the applicable library and return the best-supported setup(s), preferably 1–3, only when required inputs are visible. Identify strategy number/name, family (MR/BO/PB/VS), market regime, observed trigger, entry zone, stop, target(s), timeframe, risk in R, invalidation and no-trade/news/data limitations. Never invent ADX, ATR, VWAP, Bollinger standard deviations, volume, event times, ETF flows, CME gaps, historical averages, price levels or correlations when not visible/verified. For unavailable indicators, state the missing input and use chart-visible alternatives or WAIT.
 - Direction: explicitly select BUY or SELL when evidence supports a direction; otherwise WAIT/NO TRADE. An untriggered setup must be labeled WAITING FOR TRIGGER, not READY. Compare opposite-side scenarios and avoid forced signals.
 - No claimed win-rate bands: the supplied 65–78%, 60–70%, etc. are unverified user-provided estimates, not established facts. Never display them as proven probabilities. Require at least 200 historical trades per setup, realistic spread/slippage/fees, out-of-sample and walk-forward testing before estimating expectancy; demo forward-test before live use. Do not bench a strategy based on an arbitrary win-rate threshold alone; assess expectancy, drawdown and sample uncertainty.
-- USD-major strategies 76–100 are outside the platform's supported trade instruments. Do not recommend EURUSD, USDJPY, GBPUSD or DXY trades; DXY may only be contextual evidence if actually supplied. `;
+- Supported FX majors/crosses are EURUSD, GBPUSD, USDJPY, USDCAD and EURJPY. DXY is contextual evidence only, not a tradable instrument.`;
 
 const SUPPLEMENTAL_STRATEGIES = {
   XAUUSD: `ADDITIONAL XAUUSD SETUPS (candidate filters; NOT verified >75% win-rate systems):
@@ -128,7 +128,46 @@ AUD-83 Compression-to-Expansion Retest (BO): narrow multi-session range breaks, 
 `
 };
 
-const MARKET_RESEARCH = {
+const INTRADAY_STRATEGIES = `UNIVERSAL INTRADAY STRATEGY CATALOGUE — STRATEGIES 76–105 (candidates, not proven profitable systems):
+76 EMA 9/21 Trend Pullback: H1 trend aligned; M15 pullback to EMA zone; M15 rejection/close, optional M5 trigger.
+77 EMA 20/50 Trend Continuation: aligned slopes and structure; M15 retest of EMA20/50, not an extended candle.
+78 VWAP Reclaim: reclaim verified session VWAP and hold retest with M15 close; VWAP data must be visible/supplied.
+79 VWAP Rejection: verified VWAP rejection at confluence; M15 reversal close; target next intraday structure.
+80 Opening Range Breakout: define actual first 15/30-minute session range; close outside then retest; no wick-only break.
+81 Opening Range Failed Break: sweep range extreme, close back inside and retest; fade toward midpoint with room after costs.
+82 Previous-Day High/Low Sweep: sweep prior-day extreme and reclaim on M15; optional M5 structure shift; stop beyond sweep.
+83 Previous-Day High/Low Break-Retest: M15 close beyond prior-day level, successful retest and continuation.
+84 Asian Range Break-Retest: define actual Asian range; M15 close outside and hold retest during active session.
+85 Asian Range False Break: sweep Asian high/low then M15 close back inside; require rejection; target midpoint.
+86 Support/Resistance Retest: pre-marked H1/H4 level breaks, then M15 retest holds; enter after rejection close.
+87 Multi-Touch Range Fade: at least two clear reactions at range edge; fade only after M15 rejection, never the middle.
+88 Compression-to-Expansion: tight M15 consolidation at meaningful level, decisive close outside and retest.
+89 Bollinger Squeeze Break: verified band-width compression then M15 close outside and retest; bands must be calculable.
+90 Bollinger Band Mean Reversion: confirmed range/low-trend regime; outer-band rejection and close back inside.
+91 RSI Divergence + Structure Shift: visible/calculated RSI divergence at prior swing plus M15 structure break.
+92 MACD Zero-Line Pullback: trend regime, MACD on trend side of zero; M15 pullback and momentum confirmation.
+93 Stochastic Range Reversal: confirmed range; extreme cross at range edge plus M15 rejection; never oscillator alone.
+94 ADX Regime Switch: verified ADX rising through 20/25 supports trend setups; low/falling ADX permits range tests; ADX has no direction.
+95 ATR Volatility Filter: calculate ATR from supplied candles; skip disproportionate stop/target or abnormal volatility.
+96 Inside-Bar Break-Retest: M15 inside bar at key level; break and retest in H1 trend direction.
+97 Engulfing-at-Level: M15 engulfing only at meaningful support/resistance or retest; pattern alone is not a trade.
+98 Pin-Bar Rejection-at-Level: rejection wick at key level followed by confirming close; avoid mid-range pins.
+99 Two-Leg Pullback: impulse aligned with H1; two-leg M15 correction into structure; rejection/continuation trigger.
+100 Flag/Pennant Continuation: clear impulse, compact consolidation, M15 breakout and retest.
+101 Break of Structure + Retest: M15 close breaks meaningful swing; retest holds; explain higher-timeframe conflict.
+102 Change of Character Reversal: prior trend swing breaks, pullback fails and new M15 structure confirms.
+103 Liquidity Sweep + Reclaim: sweep equal/prior highs/lows then close back through level; require M15 reclaim and retest.
+104 Equal-High/Equal-Low Run: obvious clustered highs/lows swept; wait for reclaim or acceptance; sweep alone is not a signal.
+105 Fibonacci Confluence Pullback: measured visible impulse; 38.2–61.8% zone overlaps structure; require M15 trigger.
+`;
+const PAIR_STRATEGIES = {
+EURUSD: `EURUSD PAIR-SPECIFIC STRATEGIES 106–110: 106 London range break-retest; 107 London fakeout/reclaim; 108 NY continuation pullback; 109 prior-day level reclaim; 110 confirmed midday range rotation. All require M15 confirmation, H1 context and spread/news checks.
+GBPUSD: `GBPUSD PAIR-SPECIFIC STRATEGIES 111–115: 111 London impulse pullback; 112 prior-day/session sweep-reclaim; 113 multi-touch breakout-retest; 114 NY failed counter-move continuation; 115 compression breakout with spread/volatility filter. Require stronger cost-aware confirmation.
+USDJPY: `USDJPY PAIR-SPECIFIC STRATEGIES 116–120: 116 H1 trend/M15 pullback; 117 Tokyo range break-retest; 118 verified yen-spike reclaim after spread normalises; 119 prior-day break acceptance; 120 low-trend range-edge rejection. Respect BOJ/intervention risk.
+USDCAD: `USDCAD PAIR-SPECIFIC STRATEGIES 121–125: 121 NY session break-retest; 122 oil-context pullback only when oil data supplied; 123 post-data failed-break reclaim; 124 prior-day range rotation; 125 H1 EMA20/50 trend pullback. Trade actual USDCAD chart, not correlations.
+EURJPY: `EURJPY PAIR-SPECIFIC STRATEGIES 126–130: 126 H1 trend/M15 structure pullback; 127 Tokyo-London range break-retest; 128 prior-day sweep-reclaim; 129 compression break-retest with spread filter; 130 confirmed range-edge rotation. Do not infer direction from correlated pairs.
+};
+const MARKET_RESEARCH = {\n  EURUSD: "EURUSD MARKET PROFILE: Liquid major FX pair; assess EUR/USD session structure, prior-day levels, London/NY overlap and verified ECB/Fed/inflation/jobs events. Prefer M15 break-retest, pullback and range-failure setups; execution varies by broker.",\n  GBPUSD: "GBPUSD MARKET PROFILE: Major FX pair with sharper swings and spread sensitivity. Assess London structure, prior-day extremes and NY continuation/reversal; verify UK/US event risk and avoid oversized news candles.",\n  USDJPY: "USDJPY MARKET PROFILE: Sensitive to US yields, Fed/BOJ expectations and intervention headlines. Assess Tokyo range and London/NY structure; avoid uncertain intervention risk.",\n  USDCAD: "USDCAD MARKET PROFILE: Influenced by USD/CAD rates and oil context, but correlations vary. Focus on North American session, prior-day levels and M15 retests; use oil only if data is supplied.",\n  EURJPY: "EURJPY MARKET PROFILE: Cross pair with session-sensitive movement. Assess EUR and JPY structure independently, Tokyo/London range and H1 trend; do not infer direction from correlated pairs without chart confirmation.",
   BTCUSD: "BTCUSD MARKET PROFILE: Bitcoin is a 24/7 market and has no single official global spot price. Treat the user's broker/exchange feed as execution truth; never combine levels from different venues as if identical. Analyze regime first: directional trend, balanced range, high-volatility expansion, or compression. Look for prior-day/week highs and lows, equal highs/lows, range edges, break-and-retest, failed breakouts, impulse/displacement and pullback quality. Consider Asia/Europe/US activity and US equity/ETF benchmark windows as volatility/liquidity context only, never as a directional signal by itself. If supplied by verified data, consider spot volume, futures basis, funding, open interest and liquidation events; do not invent these. Treat weekends, thin liquidity, exchange outages, major crypto regulatory/macro news, ETF flows and large scheduled US data as risk context. Do not assume a liquidity sweep must reverse; require a reclaim/rejection or follow-through candle on a stated timeframe.",
   AUDUSD: "AUDUSD MARKET PROFILE: AUDUSD is quoted as USD per AUD; a rising quote means AUD strength versus USD. Evaluate relative RBA versus Federal Reserve rate expectations, Australian/US inflation and employment, China/commodity-sensitive risk appetite, broad USD direction, iron ore/commodity context and equity-risk sentiment when verified data is available. These are context, not mechanical signals: correlations change by regime. Mark Asian-session structure and London/US overlap, and account for scheduled RBA/Fed decisions, CPI, jobs, GDP and major China releases. Prefer price confirmation (trend/swing structure, break-retest, pullback, rejection) over assuming a macro headline dictates the next candle. If no current calendar/news feed is available, explicitly say the event check was not performed.",
   XAUUSD: "XAUUSD MARKET PROFILE: Gold is quoted in USD per troy ounce on most retail feeds, but broker CFDs may differ from spot/futures. Use the uploaded broker chart for execution levels. Consider US real yields, nominal yields, USD direction, inflation/rate expectations, central-bank and ETF demand, geopolitical risk, and momentum/positioning only when current trustworthy data is supplied. The gold–USD and gold–yield relationships are regime-dependent and can diverge; never apply them as fixed inverse rules. Examine Asian and US-session structure, prior-day/week extremes, opening-range behavior, impulse/pullback, failed breaks and event-driven volatility. Around CPI, PCE, NFP, FOMC/Fed speakers and geopolitical shocks, note spread/slippage risk and avoid inventing a news explanation. Separate macro bias from chart trigger and invalidate a trade if price structure breaks the thesis."
@@ -210,15 +249,16 @@ INDEPENDENT ANALYSIS — CRITICAL:
 - After deriving your own levels, compare them with visible/user-supplied demo levels. If a level happens to coincide, retain it only when the chart's independent structure genuinely justifies it, and explicitly explain that independent basis. Do not artificially change a valid level just to make it different.
 - If annotations obscure the candles or exact prices cannot be read, state that limitation and mark levels NOT IDENTIFIABLE. Never fill the gap by copying the demo trade.
  
-The user wants the best-supported BUY or SELL scenario, not a default WAIT/NO TRADE. Compare both sides and select the stronger direction whenever the uploaded structure reasonably supports one. If the setup is valid but the trigger has not occurred, still choose BUY or SELL and label it WAITING FOR TRIGGER with the exact confirmation event. Reserve WAIT / NO TRADE for genuinely conflicting/weak/unreadable evidence, or when neither side has a defensible entry and invalidation. Never label a setup READY unless the trigger is visibly confirmed. Do not fabricate confidence or win probabilities.
+The strategy catalogue is mandatory decision support: compare relevant numbered rules against the supplied chart and explicitly name the selected strategy ID/name. Never claim a rule was screened unless its conditions were checked. If none fit, say NO LIBRARY SETUP FITS and WAIT. The user wants the best-supported BUY or SELL scenario, not a default WAIT/NO TRADE. Compare both sides and select the stronger direction whenever the uploaded structure reasonably supports one. If the setup is valid but the trigger has not occurred, still choose BUY or SELL and label it WAITING FOR TRIGGER with the exact confirmation event. Reserve WAIT / NO TRADE for genuinely conflicting/weak/unreadable evidence, or when neither side has a defensible entry and invalidation. Never label a setup READY unless the trigger is visibly confirmed. Do not fabricate confidence or win probabilities.
 
 SELECTED TRADING STYLE: ${mode.name}. Objective: ${mode.objective} Timeframe framework: ${mode.context} Mode-specific requirements: ${mode.required} Holding horizon: ${mode.horizon} Uploaded timeframes: ${present.join(", ")}. Use the selected mode as the primary timeframe priority; do not require every timeframe if the relevant mode can be assessed from the available screenshots. Always state which missing timeframe would materially improve the assessment. For intraday/scalp modes, use D1/W1/MN1 only as optional background and do not let a distant higher-timeframe trend automatically override a clear, locally confirmed intraday setup; still disclose major nearby conflicts. For swing/position modes, give greater weight to W1/D1/H4 structure. Missing images must be called out. User direction preference (unverified context only, not a required bias): ${payload.direction || "Undecided"}. User-supplied chart notes/levels (annotations only; independently verify and do not copy into trade levels): ${JSON.stringify(payload.levels || {})}. User thesis (unverified annotation only): ${String(payload.thesis || "")}. User invalidation note (unverified annotation only): ${String(payload.invalidation || "")}. Timeframe notes (context only; independently verify): ${JSON.stringify(payload.timeframeNotes || {})}. No verified live price/news data is supplied.\n\nMARKET-SPECIFIC RESEARCH FRAMEWORK: ${MARKET_RESEARCH[pair]}
 
 GLOBAL STRATEGY RULES: ${GLOBAL_STRATEGY_RULES}
 
-RELEVANT STRATEGY CATALOG: ${STRATEGY_LIBRARY[pair]}
-
-ADDITIONAL CANDIDATE SETUPS: ${SUPPLEMENTAL_STRATEGIES[pair]}\n\nTHREE-MARKET OPERATING PLAYBOOK (use as a framework to evaluate, not as a mandatory signal):
+RELEVANT MARKET-SPECIFIC STRATEGIES: ${STRATEGY_LIBRARY[pair] || "No legacy market-specific list; use universal and pair-specific catalogue."}
+UNIVERSAL INTRADAY STRATEGIES: ${INTRADAY_STRATEGIES}
+PAIR-SPECIFIC STRATEGIES: ${PAIR_STRATEGIES[pair] || "Use universal catalogue only."}
+ADDITIONAL CANDIDATE SETUPS: ${SUPPLEMENTAL_STRATEGIES[pair] || "No extra market-specific list."}\n\nTHREE-MARKET OPERATING PLAYBOOK (use as a framework to evaluate, not as a mandatory signal):
 - XAUUSD is the primary research focus. Prefer an Asian-range breakout only after a candle closes beyond the marked range and a retest holds, with H4/H1 structure aligned. Define the stop beyond the retest swing or structural invalidation. A range-height target is only a planning reference, not guaranteed; require visible structure and realistic costs. Skip an abnormally wide Asian range only if a trustworthy 20-day range baseline is actually supplied. Never invent it.
 - BTCUSD is the volatility-focused market and trades 24/7. Consider intraday VWAP mean reversion only if VWAP and volume are visible or supplied as reliable data. A 2-standard-deviation band must be calculated from actual session data; never infer it from a screenshot without the values. Wait for rejection/reclaim toward VWAP, use BTC-specific structure for the stop, reduce size for volatility, and treat weekends as a separate tested regime.
 - AUDUSD is the trend-confirmation / standalone trend market. Assess it independently. Its agreement with gold may add context, but correlations are unstable and do not prove a trade. Disagreement should trigger reassessment or skipping; do not automatically halve size unless that sizing rule has been tested.
@@ -227,7 +267,7 @@ ADDITIONAL CANDIDATE SETUPS: ${SUPPLEMENTAL_STRATEGIES[pair]}\n\nTHREE-MARKET OP
 - Evaluate results by instrument, setup and session in the journal. A 55% win rate with 2:1 average reward/risk has positive theoretical expectancy before costs, but does not guarantee green weeks. Three +2R winners and two -1R losers equal +4R over five trades (60% wins), not 55%. Never state that daily profit is mechanically assured.
 \nDEEP-RESEARCH DISCIPLINE: Treat established technical-analysis principles as testable hypotheses, not laws. Distinguish direct chart observations, context hypotheses and verified external facts. Do not claim to have researched live web/news, checked a calendar or reviewed historical candles unless that data is actually supplied. Never claim a setup is high-probability without validated backtest statistics for this same instrument, timeframe, costs and regime. Compare continuation, pullback and failed-break scenarios. Include spread/fees/slippage and structural invalidation in the decision. Disclose if high-impact event status is unknown.
 
-Review timeframes according to the selected trading style. For Intraday (M15 focus): H4/H1 context, M30 structure, M15 setup and M5 trigger; use D1/W1/MN1 only for major context. For Quick trade: H1/M30 context, M15 setup and M5 trigger. For Swing: W1/D1 context, H4 setup and H1 refinement. For Position: MN1/W1/D1 context and H4 refinement. Clearly state whether the relevant timeframes align, conflict, or are mixed. Do not treat the monthly or weekly trend as an automatic trade signal. Adjust to actual screenshots; never assume the timeframes agree. Evaluate continuation and pullback setups as well as reversals. A strong trend can support a continuation trade; do not insist on reversal. Avoid chasing an extended move.
+Review timeframes according to the selected trading style. For Intraday (M15 focus): H4/H1 context, M30 structure, M15 setup and M5 trigger; screen universal strategies 76–105 and pair-specific strategies 106–130 where applicable, then relevant legacy market-specific rules; use D1/W1/MN1 only for major context. For Quick trade: H1/M30 context, M15 setup and M5 trigger. For Swing: W1/D1 context, H4 setup and H1 refinement. For Position: MN1/W1/D1 context and H4 refinement. Clearly state whether the relevant timeframes align, conflict, or are mixed. Do not treat the monthly or weekly trend as an automatic trade signal. Adjust to actual screenshots; never assume the timeframes agree. Evaluate continuation and pullback setups as well as reversals. A strong trend can support a continuation trade; do not insist on reversal. Avoid chasing an extended move.
 
 Use these headings in order:
 EXECUTIVE VERDICT:
@@ -237,6 +277,9 @@ EXPECTED HOLDING HORIZON / TIME STOP:
 BEST TIMEFRAME TO WATCH:
 SECOND-BEST TIMEFRAME:
 MARKET STRUCTURE:
+SELECTED STRATEGY FROM CATALOGUE: (exact ID and name)
+WHY THIS LIBRARY STRATEGY FITS: (visible evidence mapped to its rules)
+OTHER LIBRARY STRATEGIES SCREENED: (up to 3 alternatives and why rejected)
 SETUP TYPE:
 SETUP TIMEFRAME:
 ENTRY / EXECUTION TIMEFRAME:
