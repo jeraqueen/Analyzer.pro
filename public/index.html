@@ -245,8 +245,48 @@ function overview(){$('journalCount').textContent=data.journal.length;$('totalR'
 setInterval(clock,1000);clock();
 function renderJournal(){const body=$('journalRows');if(!data.journal.length){body.innerHTML='<tr><td colspan="7" class="muted">No records yet.</td></tr>';return}body.innerHTML=data.journal.slice().reverse().map((j,i)=>`<tr><td>${esc(j.date)}</td><td>${esc(j.pair)}</td><td>${esc(j.side)}</td><td>${esc(j.levels||'—')}</td><td>${fmt(Number(j.r)||0)}R</td><td>${esc((j.thesis||'')+(j.lesson?' · '+j.lesson:''))}</td><td><button class="danger" data-delete="${data.journal.length-1-i}">Delete</button></td></tr>`).join('');body.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>{if(confirm('Delete this record?')){data.journal.splice(Number(b.dataset.delete),1);save()}})}
 function updateUploadCount(){const n=['imgD1','imgH4','imgH1','imgM30','imgM15','imgM5'].filter(id=>$(id).files?.length).length;$('uploadCount').textContent=n===0?'No screenshots selected yet':n+' screenshot'+(n===1?'':'s')+' ready to analyse';$('scanChartTop').disabled=n===0;$('scanChartTop').style.opacity=n===0?'.65':'1'}
-document.querySelectorAll('input[type=file][id^=img]').forEach(inp=>inp.onchange=()=>{const f=inp.files?.[0],tf=inp.id.slice(3),im=$('prev'+tf),pick=document.querySelector('label[for="'+inp.id+'"]'),status=$('selected'+tf);if(!f){im.classList.add('hidden');if(pick)pick.classList.remove('hidden');if(status)status.classList.add('hidden');updateUploadCount();return}if(!f.type.startsWith('image/')){alert('Choose an image file.');inp.value='';updateUploadCount();return}im.classList.add('hidden');if(pick)pick.classList.add('hidden');if(status){status.innerHTML='<span>✓ '+f.name.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))+'</span> <label class="file-change" for="'+inp.id+'">Change</label>';status.classList.remove('hidden')}updateUploadCount()});
-$('scanChartTop').onclick=()=>$('sendAI').click();updateUploadCount();
+let pendingScreenshotInput=null,pendingScreenshotUrl='';
+function openScreenshotConfirmation(inp){
+  const f=inp.files?.[0],tf=inp.id.slice(3);
+  if(!f)return;
+  if(!f.type.startsWith('image/')){alert('Choose an image file.');inp.value='';updateUploadCount();return}
+  pendingScreenshotInput=inp;
+  if(pendingScreenshotUrl)URL.revokeObjectURL(pendingScreenshotUrl);
+  pendingScreenshotUrl=URL.createObjectURL(f);
+  $('screenshotConfirmTitle').textContent='Confirm '+tf+' screenshot';
+  $('screenshotConfirmHint').textContent='Check the image and confirm that it belongs in the '+tf+' timeframe box. If it is the wrong chart, cancel and choose again.';
+  $('screenshotConfirmPreview').src=pendingScreenshotUrl;
+  $('screenshotConfirmName').textContent=f.name+' · '+(f.size/1024/1024).toFixed(2)+' MB';
+  $('screenshotConfirmModal').classList.remove('hidden');
+}
+function closeScreenshotConfirmation(accept){
+  const inp=pendingScreenshotInput;
+  $('screenshotConfirmModal').classList.add('hidden');
+  $('screenshotConfirmPreview').removeAttribute('src');
+  if(pendingScreenshotUrl)URL.revokeObjectURL(pendingScreenshotUrl);
+  pendingScreenshotUrl='';pendingScreenshotInput=null;
+  if(!inp)return;
+  const tf=inp.id.slice(3),im=$('prev'+tf),pick=document.querySelector('label[for="'+inp.id+'"]'),status=$('selected'+tf);
+  if(!accept){inp.value='';im.classList.add('hidden');if(pick)pick.classList.remove('hidden');if(status)status.classList.add('hidden')}
+  else{
+    im.src=URL.createObjectURL(inp.files[0]);im.classList.add('hidden');
+    if(pick)pick.classList.add('hidden');
+    if(status){const f=inp.files[0];status.innerHTML='<span>✓ Confirmed: '+f.name.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))+'</span> <label class="file-change" for="'+inp.id+'">Change</label>';status.classList.remove('hidden')}
+  }
+  updateUploadCount();
+}
+document.querySelectorAll('input[type=file][id^=img]').forEach(inp=>inp.onchange=()=>openScreenshotConfirmation(inp));
+$('screenshotDone').onclick=()=>closeScreenshotConfirmation(true);
+$('screenshotCancel').onclick=()=>closeScreenshotConfirmation(false);
+$('screenshotConfirmModal').addEventListener('click',e=>{if(e.target===$('screenshotConfirmModal'))closeScreenshotConfirmation(false)});
+$('scanChartTop').onclick=()=>{
+ const selected=['imgM5','imgM15','imgM30','imgH1','imgH4','imgD1'].filter(id=>$(id).files?.length);
+ if(!selected.length){alert('Choose and confirm at least one screenshot before scanning.');return}
+ const pair=$('pair').value;
+ const list=selected.map(id=>id.slice(3)+': '+$(''+id).files[0].name).join('\n');
+ if(!confirm('FINAL CHECK BEFORE SCANNING\n\nMarket pair: '+pair+'\n\nConfirm each screenshot is in its correct timeframe box:\n'+list+'\n\nIf the pair or any screenshot is wrong, press Cancel, correct it, then scan.'))return;
+ $('sendAI').click()
+};updateUploadCount();
 $('saveReview').onclick=()=>{const notes=['D1','H4','H1','M30','M15','M5'].map(t=>t+': '+$('note'+t).value).filter(t=>!t.endsWith(': ')).join(' | ');data.journal.push({date:new Date().toLocaleString('en-KE',{timeZone:'Africa/Nairobi'}),pair:$('pair').value,side:$('bias').value,levels:`Entry ${$('entry').value||'—'} / Stop ${$('stop').value||'—'} / Target ${$('target').value||'—'}`,r:0,thesis:$('thesis').value,lesson:[notes,$('invalidate').value?'Invalidation: '+$('invalidate').value:''].filter(Boolean).join(' | ')});save();message($('analysisMsg'),'Review saved locally as 0R. Add the actual result separately when known.','good')};
 $('clearReview').onclick=()=>{['noteD1','noteH4','noteH1','noteM30','noteM15','noteM5','entry','stop','target','thesis','invalidate','aiResult'].forEach(id=>$(id).value='');$('bias').selectedIndex=0;document.querySelectorAll('.preview').forEach(i=>i.classList.add('hidden'));document.querySelectorAll('input[type=file][id^=img]').forEach(i=>i.value='');updateUploadCount();$('analysisMsg').classList.add('hidden')};
 async function imageForBackend(inputId){const f=$(inputId).files?.[0];if(!f)return null;if(!f.type.startsWith('image/'))throw Error(inputId+': please choose an image file.');if(f.size>12*1024*1024)throw Error(inputId+': image is over 12 MB. Choose a smaller screenshot.');const source=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(Error('Could not read '+inputId));r.readAsDataURL(f)});return await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{const max=1500,scale=Math.min(1,max/Math.max(im.width,im.height)),w=Math.max(1,Math.round(im.width*scale)),h=Math.max(1,Math.round(im.height*scale)),c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');if(!ctx){reject(Error('Image compression is unavailable on this browser.'));return}ctx.drawImage(im,0,0,w,h);resolve(c.toDataURL('image/jpeg',.78))};im.onerror=()=>reject(Error('Could not decode '+inputId+' image.'));im.src=source})}
@@ -410,4 +450,4 @@ function eatAlarmTick(){if(localStorage.getItem(EAT_ALARMS_KEY)!=='1')return;con
 async function eatEnable(){try{const C=window.AudioContext||window.webkitAudioContext;if(C){eatAudioContext=eatAudioContext||new C();if(eatAudioContext.state==='suspended')await eatAudioContext.resume()}}catch(e){}if('Notification'in window&&Notification.permission==='default'){try{await Notification.requestPermission()}catch(e){}}localStorage.setItem(EAT_ALARMS_KEY,'1');$('eatAlarmStatus').className='notice good';$('eatAlarmStatus').textContent='Daily EAT alarms enabled. Keep this website open; browser alarms may be paused if the phone sleeps or the browser is closed.';eatAlarmTick()}
 function eatDisable(){eatStopRinging();localStorage.setItem(EAT_ALARMS_KEY,'0');$('eatAlarmStatus').className='notice';$('eatAlarmStatus').textContent='Daily EAT alarms are off.';$('eatNextAlarm').textContent='Next alert: alarms are off.'}
 if($('enableEatAlarms')){$('enableEatAlarms').addEventListener('click',eatEnable);$('stopEatRinging').addEventListener('click',eatStopRinging);$('disableEatAlarms').addEventListener('click',eatDisable);if(localStorage.getItem(EAT_ALARMS_KEY)==='1'){$('eatAlarmStatus').className='notice good';$('eatAlarmStatus').textContent='Daily EAT alarms enabled. Keep this website open; browser alarms may be paused if the phone sleeps or the browser is closed.'}eatAlarmTimer=setInterval(eatAlarmTick,10000);eatAlarmTick()}
-</script></body></html>
+</script><div id="screenshotConfirmModal" class="image-confirm-modal hidden" role="dialog" aria-modal="true" aria-labelledby="screenshotConfirmTitle"><div class="image-confirm-card"><h3 id="screenshotConfirmTitle">Confirm this screenshot</h3><p id="screenshotConfirmHint" class="muted small">Check that this is the correct chart and timeframe.</p><img id="screenshotConfirmPreview" alt="Screenshot awaiting confirmation"><p id="screenshotConfirmName" class="small"></p><div class="scan-actions"><button id="screenshotCancel" class="danger" type="button">Cancel / choose again</button><button id="screenshotDone" class="primary" type="button">Done — use this screenshot</button></div></div></div><style>.image-confirm-modal{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:14px}.image-confirm-modal.hidden{display:none}.image-confirm-card{width:min(720px,100%);max-height:94vh;overflow:auto;background:var(--panel,#111827);border:1px solid var(--border,#475569);border-radius:16px;padding:16px;box-shadow:0 20px 70px #0009}.image-confirm-card img{display:block;width:100%;max-height:58vh;object-fit:contain;background:#080b10;border-radius:10px;margin:10px 0}.image-confirm-card .scan-actions{display:flex;gap:10px;flex-wrap:wrap}.image-confirm-card .scan-actions button{flex:1;min-width:145px}</style></body></html>
