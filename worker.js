@@ -245,7 +245,7 @@ function validateTradePlan(raw) {
 
   const warning = "PLAN VALIDATION: INVALID — the proposed " + side + " direction conflicts with its entry, stop-loss or take-profit price geometry. Do not use these levels. The recommendation has been downgraded to NO TRADE until a consistent plan is generated.\n";
   text = warning + text;
-  text = text.replace(/^\s*(?:EXECUTIVE VERDICT|DIRECTION)\s*:\s*.+$/im, "async function handleAnalyze(request, env) { — INVALID PRICE GEOMETRY; NO TRADE");
+  text = text.replace(/^(\s*(?:TRADING SIGNAL|EXECUTIVE VERDICT|DIRECTION)\s*:\s*).+$/im, "$1NO TRADE — INVALID PRICE GEOMETRY");
   text = text.replace(/^\s*(?:BUY NOW|SELL NOW|BUY SETUP\s*[—-].*|SELL SETUP\s*[—-].*)$/im, "NO TRADE — INVALID PRICE GEOMETRY");
   return text;
 }
