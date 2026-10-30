@@ -366,7 +366,16 @@ ALTERNATIVE SCENARIO:
 RISK AND PRE-TRADE CHECKLIST:
 LIMITATIONS:
 
-Give evidence, not vague labels: identify the visible structure/candle/level and its timeframe. Explicitly name the setup timeframe, entry/execution timeframe, the swing/structure timeframe used for SL, and the basis timeframe plus structural reason for every TP. Use only defensible prices. If exact values cannot be read, mark them NOT IDENTIFIABLE rather than making them up; explain the structural zone instead. Calculate reward:risk only when prices are sufficiently clear. If an untriggered conditional BUY/SELL setup is reasonably supported, do not hide it behind WAIT. If evidence truly conflicts, neither direction is defensible, or risk cannot be defined, use WAIT / NO TRADE and explain the event needed to resolve it. Setup quality score is not win probability. No guaranteed results, fabricated live data, or trade execution.`;
+Give evidence, not vague labels: identify the visible structure/candle/level and its timeframe. Explicitly name the setup timeframe, entry/execution timeframe, the swing/structure timeframe used for SL, and the basis timeframe plus structural reason for every TP. Use only defensible prices. If exact values cannot be read, mark them NOT IDENTIFIABLE rather than making them up; explain the structural zone instead. Calculate reward:risk only when prices are sufficiently clear. If an untriggered conditional BUY/SELL setup is reasonably supported, do not hide it behind WAIT. If evidence truly conflicts, neither direction is defensible, or risk cannot be defined, use WAIT / NO TRADE and explain the event needed to resolve it. Setup quality score is not win probability. No guaranteed results, fabricated live data, or trade execution.
+
+FINAL OUTPUT OVERRIDE — THIS OVERRIDES ANY EARLIER CONTRADICTORY WORDING:
+Never use the terms WAIT or WAITING in the user-facing verdict, title, or action instruction. Choose exactly one:
+- BUY NOW — trigger confirmed; include entry, SL, TP1/TP2 and MAX HOLD 15 MINUTES.
+- SELL NOW — trigger confirmed; include entry, SL, TP1/TP2 and MAX HOLD 15 MINUTES.
+- BUY SETUP — RECHECK IN [N] MINUTES; include the exact condition and exact screenshot timeframe to upload.
+- SELL SETUP — RECHECK IN [N] MINUTES; include the exact condition and exact screenshot timeframe to upload.
+- NO TRADE — SEND [timeframe] SCREENSHOT IN [N] MINUTES; explain why neither side is currently defensible or why the image is unusable.
+Always calculate the next relevant candle-close time in Africa/Nairobi (EAT) from the actual current time and timeframe. Do not invent a time. For the 15-minute mode, use M15 for setup, M5 for confirmation and M1 only for precise trigger timing; ask for the earliest screenshot that can materially change the decision, not a routine full set every time. A recheck timer is an instruction to upload a fresh screenshot and run a new analysis; it is never an instruction to enter automatically. If no defensible setup exists, NO TRADE is a valid answer—never manufacture BUY/SELL just to satisfy the format.
 
   const parts = [{ text: prompt }];
   for (const tf of present) {
