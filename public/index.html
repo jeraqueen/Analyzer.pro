@@ -409,16 +409,17 @@ function clock(){const now=new Date();const stamp=new Intl.DateTimeFormat('en-KE
 function overview(){/* market-first homepage; account metrics remain in their dedicated tools */}
 function zonedClock(zone,now=new Date()){const p=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:zone,weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(now).map(x=>[x.type,x.value]));return {day:p.weekday,hour:Number(p.hour)%24,minute:Number(p.minute)}}
 function inHours(zone,start,end,now){const p=zonedClock(zone,now),m=p.hour*60+p.minute;return ['Mon','Tue','Wed','Thu','Fri'].includes(p.day)&&m>=start*60&&m<end*60}
+function eatRange(zone,start,end,now){const parts=new Intl.DateTimeFormat('en-GB',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(now),v=Object.fromEntries(parts.map(x=>[x.type,x.value])),asUtc=Date.UTC(+v.year,+v.month-1,+v.day,+v.hour,+v.minute,+v.second),offset=(asUtc-now.getTime())/60000,eatOffset=180,fmt=m=>{m=((m%1440)+1440)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};return fmt(start*60+eatOffset-offset)+'–'+fmt(end*60+eatOffset-offset)+' EAT'}
 function marketWindow(pair,now){const lon=zonedClock('Europe/London',now),ny=zonedClock('America/New_York',now),tok=zonedClock('Asia/Tokyo',now),syd=zonedClock('Australia/Sydney',now),utc=zonedClock('UTC',now);
  const london=inHours('Europe/London',8,16.5,now),nyOpen=inHours('America/New_York',8,12,now),tokyo=inHours('Asia/Tokyo',9,15,now),sydney=inHours('Australia/Sydney',8,12,now);
  const overlap=london&&nyOpen;
  const fxOpen=!(ny.day==='Sat'||(ny.day==='Sun'&&ny.hour<17)||(ny.day==='Fri'&&ny.hour>=17));
- if(['EURUSD','GBPUSD'].includes(pair))return {good:fxOpen&&(overlap||(london&&lon.hour<13)),name:overlap?'London–New York overlap':london?'London session':'London + New York',window:'London 08:00–16:30 · NY 08:00–12:00'};
- if(pair==='USDCAD')return {good:fxOpen&&(overlap||nyOpen),name:overlap?'London–New York overlap':nyOpen?'New York session':'North American session',window:'NY 08:00–12:00 · overlap strongest'};
- if(pair==='USDJPY')return {good:fxOpen&&(tokyo||overlap),name:tokyo?'Tokyo session':overlap?'London–New York overlap':'Tokyo + New York',window:'Tokyo 09:00–15:00 · NY overlap'};
- if(pair==='AUDUSD')return {good:fxOpen&&(sydney||tokyo||overlap),name:sydney?'Sydney session':tokyo?'Tokyo session':overlap?'London–New York overlap':'Sydney + Tokyo',window:'Sydney 08:00–12:00 · Tokyo 09:00–15:00'};
- if(pair==='EURJPY')return {good:fxOpen&&((tokyo&&tok.hour>=15)||(london&&lon.hour<10)||overlap),name:'Tokyo close + London open',window:'Tokyo 15:00–18:00 · London 08:00–10:00'};
- if(pair==='XAUUSD')return {good:fxOpen&&(overlap||(london&&lon.hour<13)||nyOpen),name:overlap?'London–New York overlap':london?'London session':nyOpen?'New York session':'London + New York',window:'London open · NY 08:00–12:00'};
+ if(['EURUSD','GBPUSD'].includes(pair))return {good:fxOpen&&(overlap||(london&&lon.hour<13)),name:overlap?'London–New York overlap':london?'London session':'London + New York',window:'Best EAT: '+eatRange('America/New_York',8,12,now)+' · London: '+eatRange('Europe/London',8,16.5,now)};
+ if(pair==='USDCAD')return {good:fxOpen&&(overlap||nyOpen),name:overlap?'London–New York overlap':nyOpen?'New York session':'North American session',window:'Best EAT: '+eatRange('America/New_York',8,12,now)};
+ if(pair==='USDJPY')return {good:fxOpen&&(tokyo||overlap),name:tokyo?'Tokyo session':overlap?'London–New York overlap':'Tokyo + New York',window:'Tokyo: '+eatRange('Asia/Tokyo',9,15,now)+' · NY overlap'};
+ if(pair==='AUDUSD')return {good:fxOpen&&(sydney||tokyo||overlap),name:sydney?'Sydney session':tokyo?'Tokyo session':overlap?'London–New York overlap':'Sydney + Tokyo',window:'Sydney: '+eatRange('Australia/Sydney',8,12,now)+' · Tokyo: '+eatRange('Asia/Tokyo',9,15,now)};
+ if(pair==='EURJPY')return {good:fxOpen&&((tokyo&&tok.hour>=15)||(london&&lon.hour<10)||overlap),name:'Tokyo close + London open',window:'Tokyo: '+eatRange('Asia/Tokyo',15,18,now)+' · London: '+eatRange('Europe/London',8,10,now)};
+ if(pair==='XAUUSD')return {good:fxOpen&&(overlap||(london&&lon.hour<13)||nyOpen),name:overlap?'London–New York overlap':london?'London session':nyOpen?'New York session':'London + New York',window:'Best EAT: '+eatRange('America/New_York',8,12,now)+' · London: '+eatRange('Europe/London',8,16.5,now)};
  if(pair==='BTCUSD')return {good:utc.hour>=15&&utc.hour<17,name:'Global activity peak',window:'Research peak 16:00–17:00 UTC · 19:00–20:00 EAT'};
  return {good:false,name:'Session guide',window:'Check live market conditions'};
 }
