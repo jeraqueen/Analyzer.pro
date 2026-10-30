@@ -290,7 +290,13 @@ async function sendPhoneAlert(env, title, body, priority = 5, tag = "alarm") {
     },
     body
   });
-  if (!response.ok) throw new Error("ntfy returned HTTP " + response.status);
+  if (!response.ok) {
+    const detail = (await response.text().catch(() => "")).trim();
+    const retryAfter = response.headers.get("Retry-After");
+    const suffix = detail ? " — " + detail.slice(0, 500) : "";
+    const retry = retryAfter ? " (Retry-After: " + retryAfter + ")" : "";
+    throw new Error("ntfy returned HTTP " + response.status + suffix + retry);
+  }
   return true;
 }
 
