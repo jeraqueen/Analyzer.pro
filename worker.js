@@ -264,7 +264,32 @@ async function handleAnalyze(request, env) {
   };
   const mode = tradingModes[requestedMode] || tradingModes.intraday;
 
+  const failedSetupHistory = (Array.isArray(payload.failedSetups) ? payload.failedSetups : [])
+    .slice(0, 8)
+    .map(item => ({
+      pair: String(item?.pair || "EURUSD").slice(0, 12),
+      side: String(item?.side || "").toUpperCase().slice(0, 8),
+      entry: String(item?.entry || "").slice(0, 80),
+      stop: String(item?.stop || "").slice(0, 80),
+      strategy: String(item?.strategy || "").slice(0, 120),
+      markedAt: String(item?.markedAt || "").slice(0, 40),
+      source: String(item?.source || "user-marked").slice(0, 40)
+    }))
+    .filter(item => ["BUY", "SELL"].includes(item.side));
+
   const prompt = `Act as a practical chart analyst for ${pair}, not a broker or execution system. Analyze all supplied screenshots together. Each image is labelled with its exact timeframe; never confuse their order. Screenshots are the only chart evidence. Never invent prices, indicators, candles, live quotes, spreads, news, or backtest results. If price labels are unreadable, say exact numeric prices are NOT IDENTIFIABLE and describe visible zones qualitatively.
+
+FAILED-SETUP / STOP-LOSS MEMORY — HIGHEST PRIORITY:
+The following are user-confirmed failed trade setups from this browser's local stop-loss memory. They are historical risk events, NOT current market evidence:
+${JSON.stringify(failedSetupHistory)}
+- Treat every listed stop-loss event as proof that the previous trade thesis was invalidated. Do not reuse its old entry, stop, or target.
+- Never repeat the same direction + strategy + entry zone from a listed failed setup. A small numerical adjustment to the same level is still the same failed setup.
+- Reassess BUY and SELL independently from the new screenshots. Do not keep the old directional bias merely because it was previously recommended, and do not automatically reverse direction just because the stop was hit.
+- A fresh trade in the same direction is allowed only after genuinely new price structure has formed AFTER the recorded stop-loss time: a new break/reclaim or a new swing, followed by a fresh retest/confirmation appropriate to the strategy. Explain exactly what is new and identify its timeframe.
+- If the screenshots do not prove that new post-stop structure and a distinct entry/invalidation have formed, do not issue the previous trade again. Return NO TRADE with the exact next screenshot timeframe and recheck timing instead.
+- Explicitly include a section titled PREVIOUS STOP-LOSS CHECK stating whether the new screenshots show a genuinely new setup, what changed since the failed setup, and why the old setup is invalid. If the history is empty, state that no stop-loss events were supplied.
+- A previous stop-loss is not a reason to increase risk, chase price, revenge trade, average down, or force an opposite trade.
+
 
 INDEPENDENT ANALYSIS — CRITICAL:
 - Treat every pre-existing demo trade, open position, order marker, entry line, stop-loss line, take-profit line, risk/reward box, arrow, handwritten level, label, or other manually drawn trade annotation visible in any screenshot as USER ANNOTATION ONLY. These markings are not market evidence, not a recommendation, and not confirmation that the marked direction is correct.
