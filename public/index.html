@@ -199,6 +199,38 @@ td,th{border-bottom-color:#383a32}
 @media(max-width:620px){.market-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.market-card{min-height:104px;padding:10px}.market-group{padding:10px}}
 @media(max-width:360px){.market-cards{grid-template-columns:1fr}}
 
+
+/* Streamlined, task-first terminal */
+.market-heading h2{font-size:23px;letter-spacing:-.035em;margin:4px 0}
+.market-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:15px 0 10px}
+.market-tab{display:flex;justify-content:center;align-items:center;gap:7px;padding:12px 8px;border:1px solid #41483e;background:#171d19;color:#c8cec4;border-radius:12px;font-size:13px}
+.market-tab span{font-size:10px;border-radius:20px;padding:2px 6px;background:#2b332c;color:#c6cbbd}
+.market-tab.active{background:linear-gradient(135deg,#3b3828,#252b22);border-color:#d6b36a;color:#f1d99d;box-shadow:inset 0 0 0 1px #d6b36a24}
+.compact-markets .market-group{padding:11px;background:#151a16;border-color:#343d34}
+.compact-markets .market-group-head{margin-bottom:9px;font-size:11px;letter-spacing:.08em}
+.compact-markets .market-cards{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.compact-markets .market-card{min-height:84px;padding:10px;border-radius:11px}
+.compact-markets .market-card .market-symbol{font-size:13px}
+.compact-markets .market-card strong{font-size:11px;line-height:1.25}
+.compact-markets .market-card em{font-size:8px;padding-top:4px}
+.compact-markets .market-card:not(.active){opacity:.66}
+.compact-markets .market-card.active{opacity:1}
+#analyzer>.grid>.card.s12{padding:clamp(12px,2.5vw,22px)}
+#analyzer .card[style*="margin-top:14px;border:1px solid #42665e"]{margin-top:12px!important}
+#analyzer .card[style*="border:2px solid var(--green)"]{margin-top:12px!important;padding:14px!important}
+#eatTradingSchedule,#independentChecks,#scoreChecklist,#checkScore,#checkVerdict,#aiResult{display:none!important}
+#analyzer .card:has(>#eatTradingSchedule){display:none!important}
+#analyzer .card:has(>#independentChecks){display:none!important}
+#analyzer .divider{display:none}
+#analyzer details:has(#bias){display:none!important}
+#analyzer .tfgrid{gap:9px}
+#analyzer .tfbox{padding:11px;border-radius:13px}
+#analyzer .tfbox strong{font-size:13px}
+#analyzer .file-pick{min-height:48px}
+#analyzer .market-groups{margin-bottom:12px}
+#analyzer .market-heading p{margin-bottom:4px}
+@media(max-width:500px){.compact-markets .market-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.market-tabs{gap:6px}.market-tab{font-size:12px;padding:11px 4px}}
+
 </style></head><body>
 <div class="splash" id="welcomeSplash" aria-label="Loading Analyzer.pro"><div class="splash-inner"><div class="splash-logo">FTA</div><div class="splash-kicker">PROFESSIONAL TRADING WORKSPACE</div><div class="splash-title">FOREX TOOL ANALYZER</div><div class="splash-sub">Market structure · Trade planning · Risk control</div><div class="splash-chart" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="splash-markets"><span>₿ BTCUSD</span><span>AU AUDUSD</span><span>◆ XAUUSD</span></div><div class="splash-line"><i></i></div><p class="muted small" style="margin-top:13px">Preparing your trading workspace…</p></div></div>
 <header><div class="brand"><div class="logo">A</div><div><h1>Analyzer.pro</h1><div class="muted small">Forex majors · Gold · Bitcoin</div></div></div><div class="header-actions"><span class="pill" id="clock">Kenya time: …</span><button id="menuToggle" class="menu-toggle" aria-label="Open tools menu" aria-expanded="false">☰</button></div></header>
@@ -211,24 +243,23 @@ td,th{border-bottom-color:#383a32}
 <div class="card s4"><div class="eyebrow">Backend status</div><h3><span class="status" id="backendDot"></span><span id="backendStatus">Not configured</span></h3><p class="muted small">AI requests should go through your private Cloudflare Worker. Never put provider API keys in this page.</p><button data-goto="settings">Configure endpoint</button></div>
 <div class="card s12"><h2>Four-step checklist</h2><div class="grid"><div class="s3"><span class="tag">1 · Context</span><p class="small muted">Review H4 and H1 structure, trend and levels.</p></div><div class="s3"><span class="tag">2 · Setup</span><p class="small muted">Use M15 for the idea and M5 for trigger detail.</p></div><div class="s3"><span class="tag">3 · Risk</span><p class="small muted">Define invalidation, stop, size and costs.</p></div><div class="s3"><span class="tag">4 · Review</span><p class="small muted">Record the thesis, outcome and lesson.</p></div></div></div>
 </div></section>
-<section class="page" id="analyzer"><div class="grid"><div class="card s12"><div class="market-heading"><div class="eyebrow">Step 1 · Select your market</div><h2>Choose what you want to analyse</h2><p class="muted small">Choose a market below. The selected market is marked ACTIVE; the others remain inactive until selected.</p></div>
-<div class="market-groups">
- <div class="market-group"><div class="market-group-head"><div><span class="market-icon">FX</span><strong>FOREX MARKETS</strong></div><span class="market-state">6 PAIRS</span></div>
-  <div class="market-cards">
-   <button type="button" class="market-card active" data-pair="EURUSD"><span class="market-symbol">EUR / USD</span><strong>Euro · US Dollar</strong><small>Major forex pair</small><em>ACTIVE</em></button>
-   <button type="button" class="market-card" data-pair="GBPUSD"><span class="market-symbol">GBP / USD</span><strong>British Pound · US Dollar</strong><small>Major forex pair</small><em>NOT ACTIVE</em></button>
-   <button type="button" class="market-card" data-pair="USDJPY"><span class="market-symbol">USD / JPY</span><strong>US Dollar · Japanese Yen</strong><small>Major forex pair</small><em>NOT ACTIVE</em></button>
-   <button type="button" class="market-card" data-pair="USDCAD"><span class="market-symbol">USD / CAD</span><strong>US Dollar · Canadian Dollar</strong><small>Major forex pair</small><em>NOT ACTIVE</em></button>
-   <button type="button" class="market-card" data-pair="EURJPY"><span class="market-symbol">EUR / JPY</span><strong>Euro · Japanese Yen</strong><small>Forex cross</small><em>NOT ACTIVE</em></button>
-   <button type="button" class="market-card" data-pair="AUDUSD"><span class="market-symbol">AUD / USD</span><strong>Australian Dollar · US Dollar</strong><small>Major forex pair</small><em>NOT ACTIVE</em></button>
-  </div>
- </div>
- <div class="market-group"><div class="market-group-head"><div><span class="market-icon crypto">₿</span><strong>CRYPTOCURRENCY</strong></div><span class="market-state">24/7 MARKET</span></div>
-  <div class="market-cards single-market"><button type="button" class="market-card crypto-card" data-pair="BTCUSD"><span class="market-symbol">₿ BTC / USD</span><strong>Bitcoin · US Dollar</strong><small>Crypto market · trades 24/7</small><em>NOT ACTIVE</em></button></div>
- </div>
- <div class="market-group"><div class="market-group-head"><div><span class="market-icon gold-icon">Au</span><strong>PRECIOUS METALS</strong></div><span class="market-state">COMMODITIES</span></div>
-  <div class="market-cards single-market"><button type="button" class="market-card gold-card" data-pair="XAUUSD"><span class="market-symbol">XAU / USD</span><strong>Gold · US Dollar</strong><small>Precious metal</small><em>NOT ACTIVE</em></button></div>
- </div>
+<section class="page" id="analyzer"><div class="grid"><div class="card s12"><div class="market-heading"><div class="eyebrow">01 / MARKET</div><h2>Choose your market</h2><p class="muted small">Select one instrument. Only your chosen market is active for this scan.</p></div>
+<div class="market-tabs" role="tablist" aria-label="Market category">
+ <button type="button" class="market-tab active" data-market-tab="forex">◈ Forex <span>6</span></button>
+ <button type="button" class="market-tab" data-market-tab="crypto">₿ Crypto <span>1</span></button>
+ <button type="button" class="market-tab" data-market-tab="metals">Au Metals <span>1</span></button>
+</div>
+<div class="market-groups compact-markets">
+ <div class="market-group" data-market-group="forex"><div class="market-group-head"><strong>FOREX PAIRS</strong><span class="market-state">MAJOR & CROSS</span></div><div class="market-cards">
+ <button type="button" class="market-card active" data-pair="EURUSD"><span class="market-symbol">EUR / USD</span><strong>Euro · US Dollar</strong><em>ACTIVE</em></button>
+ <button type="button" class="market-card" data-pair="GBPUSD"><span class="market-symbol">GBP / USD</span><strong>Pound · US Dollar</strong><em>NOT ACTIVE</em></button>
+ <button type="button" class="market-card" data-pair="USDJPY"><span class="market-symbol">USD / JPY</span><strong>US Dollar · Yen</strong><em>NOT ACTIVE</em></button>
+ <button type="button" class="market-card" data-pair="USDCAD"><span class="market-symbol">USD / CAD</span><strong>US Dollar · Canadian Dollar</strong><em>NOT ACTIVE</em></button>
+ <button type="button" class="market-card" data-pair="EURJPY"><span class="market-symbol">EUR / JPY</span><strong>Euro · Yen</strong><em>NOT ACTIVE</em></button>
+ <button type="button" class="market-card" data-pair="AUDUSD"><span class="market-symbol">AUD / USD</span><strong>Aussie · US Dollar</strong><em>NOT ACTIVE</em></button>
+ </div></div>
+ <div class="market-group hidden" data-market-group="crypto"><div class="market-group-head"><strong>CRYPTOCURRENCY</strong><span class="market-state">24 / 7</span></div><div class="market-cards"><button type="button" class="market-card crypto-card" data-pair="BTCUSD"><span class="market-symbol">₿ BTC / USD</span><strong>Bitcoin · US Dollar</strong><em>NOT ACTIVE</em></button></div></div>
+ <div class="market-group hidden" data-market-group="metals"><div class="market-group-head"><strong>PRECIOUS METALS</strong><span class="market-state">COMMODITIES</span></div><div class="market-cards"><button type="button" class="market-card gold-card" data-pair="XAUUSD"><span class="market-symbol">XAU / USD</span><strong>Gold · US Dollar</strong><em>NOT ACTIVE</em></button></div></div>
 </div>
 <select id="pair" class="hidden" aria-hidden="true"><option value="EURUSD" selected>EURUSD</option><option value="GBPUSD">GBPUSD</option><option value="USDJPY">USDJPY</option><option value="USDCAD">USDCAD</option><option value="EURJPY">EURJPY</option><option value="AUDUSD">AUDUSD</option><option value="XAUUSD">XAUUSD · Gold</option><option value="BTCUSD">BTCUSD · Bitcoin</option></select>
 <div class="card s12" style="margin-top:14px;border:1px solid #42665e;background:linear-gradient(120deg,#142a29,#17232a)"><div class="eyebrow">Trading approach · choose your holding horizon</div><h3>How do you want to trade today?</h3><p class="muted small">Your account size does not determine the timeframe. Choose the pace that suits your plan; use the risk calculator to size positions safely.</p><div class="f2"><div class="field"><label>Trading style</label><select id="tradingMode"><option value="intraday" selected>Intraday · M15 setup, M5 entry (same-day plan)</option><option value="scalp">Quick trade · M5/M15 (short-duration)</option><option value="swing">Swing · H4/D1 (multiple sessions)</option><option value="position">Position · D1/W1/MN1 (longer-term)</option></select></div><div class="field"><label>Analysis focus</label><div id="modeDescription" class="notice good">H4/H1 context → M30 structure → M15 setup → M5 entry trigger. Plan to close or reassess within the trading day.</div></div></div><p class="muted small">You can switch styles for every scan. Upload the matching chart timeframes below; the AI will prioritise the selected style while still considering useful context.</p></div>
@@ -436,7 +467,8 @@ function renderTradeResult(raw){
 }
 const modeDescriptions={intraday:'H4/H1 context → M30 structure → M15 setup → M5 entry trigger. Same-day trading plan.',scalp:'M15 setup → M5 execution. Only the fast-trade timeframes are shown.',swing:'W1/D1 context → H4 setup → H1 refinement. Multi-session trading plan.',position:'MN1/W1 context → D1 structure → H4 refinement. Longer-term trading plan.'};
 const timeframeModes={scalp:['M15','M5'],intraday:['H4','H1','M30','M15','M5'],swing:['W1','D1','H4','H1'],position:['MN1','W1','D1','H4']};
-function refreshMarketCards(){document.querySelectorAll('.market-card[data-pair]').forEach(b=>{const active=b.dataset.pair===$('pair').value;b.classList.toggle('active',active);const state=b.querySelector('em');if(state)state.textContent=active?'ACTIVE':'NOT ACTIVE'})}
+function refreshMarketCards(){document.querySelectorAll('.market-card[data-pair]').forEach(b=>{const active=b.dataset.pair===$('pair').value;b.classList.toggle('active',active);const state=b.querySelector('em');if(state)state.textContent=active?'ACTIVE':'NOT ACTIVE'});const chosen=document.querySelector('.market-card.active');if(chosen){const group=chosen.closest('[data-market-group]');document.querySelectorAll('.market-tab').forEach(t=>t.classList.toggle('active',t.dataset.marketTab===group?.dataset.marketGroup));document.querySelectorAll('[data-market-group]').forEach(g=>g.classList.toggle('hidden',g!==group))}}
+document.querySelectorAll('.market-tab').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.market-tab').forEach(x=>x.classList.toggle('active',x===t));document.querySelectorAll('[data-market-group]').forEach(g=>g.classList.toggle('hidden',g.dataset.marketGroup!==t.dataset.marketTab))}));
 function refreshTimeframes(){const mode=$('tradingMode').value,shown=timeframeModes[mode]||timeframeModes.intraday;document.querySelectorAll('.tfbox').forEach(box=>{const label=box.querySelector('strong');if(!label)return;const tf=(label.textContent.match(/^(MN1|W1|D1|H4|H1|M30|M15|M5)/)||[])[1];if(!tf)return;const visible=shown.includes(tf);box.classList.toggle('tf-inactive',!visible);let badge=label.querySelector('.tf-priority');if(visible&&!badge){badge=document.createElement('span');badge.className='tf-priority';badge.textContent='RELEVANT';label.appendChild(badge)}else if(!visible&&badge)badge.remove()})}
 document.querySelectorAll('.market-card[data-pair]').forEach(b=>b.addEventListener('click',()=>{$('pair').value=b.dataset.pair;refreshMarketCards();updateUploadCount()}));
 $('pair').addEventListener('change',refreshMarketCards);
