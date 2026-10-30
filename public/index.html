@@ -265,6 +265,103 @@ td,th{border-bottom-color:#383a32}
 .home-footnote{padding:11px 12px;border:1px solid #343a32;border-radius:11px;background:#171b17;color:#929e92;font-size:10px;line-height:1.5}
 @media(max-width:420px){.home-hero{padding:17px 14px;display:block}.home-time{display:inline-flex;margin-top:14px}.home-market-grid{gap:8px}.home-market-card{padding:11px;border-radius:13px}.home-market-card>strong{font-size:19px}.home-time-window{font-size:9px}.home-card-bottom b{font-size:9px}}
 
+
+/* SITE-WIDE MOBILE REPAIR — keep every page inside the phone viewport */
+html{width:100%;max-width:100%;overflow-x:hidden; -webkit-text-size-adjust:100%}
+body{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
+body *{box-sizing:border-box;min-width:0}
+main,.page,.grid,.card,.field,.stack,.row,.between,.f2,.f3,.tfgrid,.playbook-grid,.trade-grid,.pattern-checks{max-width:100%}
+main{width:100%;padding-left:clamp(10px,2.5vw,22px);padding-right:clamp(10px,2.5vw,22px)}
+.page{width:100%;overflow:visible}
+.grid{grid-template-columns:repeat(12,minmax(0,1fr));width:100%}
+.grid>.card{min-width:0;max-width:100%}
+.card{overflow-wrap:anywhere}
+img,video,canvas,svg,iframe{max-width:100%}
+input,select,textarea,button{max-width:100%;font:inherit}
+input,select,textarea{min-width:0}
+textarea,pre,code,.result-copy,.notice,.muted{overflow-wrap:anywhere;word-break:break-word}
+.row,.between{min-width:0}
+.row>* , .between>*{max-width:100%}
+button{white-space:normal;line-height:1.3}
+.tablewrap{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tablewrap table{min-width:560px}
+table{max-width:100%}
+.tfgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.f2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.f3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.trade-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.pattern-checks{grid-template-columns:repeat(2,minmax(0,1fr))}
+.playbook-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.direction-hero{min-width:0;grid-template-columns:minmax(0,auto) minmax(0,1fr)}
+.direction-copy,.direction-mark,.trade-tile,.tfbox,.playbook-card{min-width:0;max-width:100%;overflow-wrap:anywhere}
+#scanStage.scan-stage.show{width:100vw;max-width:100vw;padding:clamp(16px,4vw,32px);overflow-y:auto;overflow-x:hidden}
+#tradeResults{width:100%;max-width:100%;min-width:0}
+#tradeResults .result-copy{max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere}
+header{width:100%;min-width:0;flex-wrap:wrap}
+.header-actions{max-width:100%;min-width:0;flex-wrap:wrap}
+nav{width:100%;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden}
+.bottom-nav{max-width:100vw}
+.footer{max-width:100%;overflow-wrap:anywhere}
+@media(max-width:700px){
+ body{padding-bottom:calc(82px + env(safe-area-inset-bottom))}
+ main{padding:12px 10px calc(26px + env(safe-area-inset-bottom))}
+ .grid{gap:9px}
+ .grid>.card{grid-column:1/-1;padding:13px;border-radius:14px}
+ .f3{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .tfgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .trade-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .playbook-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .row{gap:7px}
+ .row>button{flex:1 1 135px}
+ .between{align-items:flex-start}
+ .between>*{flex:1 1 auto}
+ .direction-hero{grid-template-columns:1fr;gap:10px;padding:13px}
+ .direction-mark{min-width:0;min-height:64px;width:100%}
+ .trade-tile{padding:10px}
+ .trade-tile .value{font-size:clamp(15px,4vw,20px)}
+ .pattern-checks{grid-template-columns:1fr}
+ .session-row{grid-template-columns:1fr;gap:3px}
+ .home-hero{max-width:100%;overflow:hidden}
+ .home-market-grid,.market-cards{width:100%;max-width:100%;grid-template-columns:repeat(2,minmax(0,1fr))}
+ .market-card,.home-market-card{min-width:0;max-width:100%;overflow-wrap:anywhere}
+ .tools-menu{right:10px;top:calc(10px + env(safe-area-inset-top));max-height:calc(100dvh - 100px);overflow:auto}
+ #scanStage.scan-stage.show{padding:22px 14px calc(28px + env(safe-area-inset-bottom))}
+ #scanStage.scan-stage.show:before{left:14px;right:14px;top:14px;font-size:9px;letter-spacing:.1em}
+ #scanStage.scan-stage.show:after{font-size:9px;letter-spacing:.06em;padding:0 12px}
+}
+@media(max-width:480px){
+ h1{font-size:17px}
+ h2{font-size:18px}
+ h3{font-size:14px}
+ .metric{font-size:21px}
+ .f2,.f3{grid-template-columns:1fr}
+ .tfgrid{grid-template-columns:1fr}
+ .trade-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .playbook-grid{grid-template-columns:1fr}
+ .home-market-grid,.market-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+ header{gap:8px;padding:10px}
+ .brand{min-width:0;flex:1 1 auto}
+ .header-actions{flex:0 0 auto}
+ .logo{padding:8px;border-radius:11px}
+ .pill{font-size:10px;padding:5px 7px}
+ .card{padding:11px}
+ button{padding:10px 9px;font-size:13px}
+ .bottom-nav button{font-size:10px;padding:7px 2px}
+ .bottom-nav .nav-ico{font-size:17px}
+ .file-pick{width:100%;text-align:center}
+ .file-selected{align-items:flex-start}
+ .direction-copy h3{font-size:17px}
+ .scan-actions>*{flex:1 1 130px}
+}
+@media(max-width:360px){
+ main{padding-left:8px;padding-right:8px}
+ .home-market-grid,.market-cards{grid-template-columns:1fr}
+ .trade-grid{grid-template-columns:1fr 1fr}
+ .bottom-nav{gap:1px;padding-left:3px;padding-right:3px}
+ .bottom-nav button{font-size:9px}
+ .bottom-nav .nav-ico{font-size:16px}
+ .card{padding:10px}
+}
 </style></head><body>
 <div class="splash" id="welcomeSplash" aria-label="Loading Analyzer.pro"><div class="splash-inner"><div class="splash-logo">FTA</div><div class="splash-kicker">PROFESSIONAL TRADING WORKSPACE</div><div class="splash-title">FOREX TOOL ANALYZER</div><div class="splash-sub">Market structure · Trade planning · Risk control</div><div class="splash-chart" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="splash-markets"><span>₿ BTCUSD</span><span>AU AUDUSD</span><span>◆ XAUUSD</span></div><div class="splash-line"><i></i></div><p class="muted small" style="margin-top:13px">Preparing your trading workspace…</p></div></div>
 <header><div class="brand"><div class="logo">A</div><div><h1>Analyzer.pro</h1><div class="muted small">Forex majors · Gold · Bitcoin</div></div></div><div class="header-actions"><span class="pill" id="clock">Kenya time: …</span><button id="menuToggle" class="menu-toggle" aria-label="Open tools menu" aria-expanded="false">☰</button></div></header>
