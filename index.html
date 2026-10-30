@@ -165,22 +165,22 @@ async function imageForBackend(inputId){const f=$(inputId).files?.[0];if(!f)retu
 let scanTimer=null,scanTick=0;
 function startScanAnimation(){clearInterval(scanTimer);scanTick=0;$('scanStage').classList.add('show');$('tradeResults').classList.remove('show');const labels=['Reading screenshots and timeframes…','Checking structure and pattern candidates…','Reviewing confluence and trade levels…'];scanTimer=setInterval(()=>{scanTick=Math.min(94,scanTick+Math.max(2,Math.round((94-scanTick)*.13)));$('scanProgress').style.width=scanTick+'%';$('scanCaption').textContent=labels[scanTick<35?0:scanTick<70?1:2]},500)}
 function extractSection(raw,labels){
-  const lines=String(raw||'').replace(/\\r/g,'').split('\\n').map(line=>line.trim());
-  const norm=s=>s.replace(/^#+\\s*/,'').replace(/^\\*{1,3}|\\*{1,3}$/g,'').replace(/^\\d+[.)]\\s*/,'').trim().toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const lines=String(raw||'').replace(/\r/g,'').split('\n').map(line=>line.trim());
+  const norm=s=>s.replace(/^#+\s*/,'').replace(/^\*{1,3}|\*{1,3}$/g,'').replace(/^\d+[.)]\s*/,'').trim().toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const wanted=labels.map(norm);
   for(let i=0;i<lines.length;i++){
-    const line=lines[i].replace(/^#+\\s*/,'').replace(/^\\*{1,3}|\\*{1,3}$/g,'').trim();
-    const match=line.match(/^(.{2,100}?)\\s*[:—-]\\s*(.*)$/);
+    const line=lines[i].replace(/^#+\s*/,'').replace(/^\*{1,3}|\*{1,3}$/g,'').trim();
+    const match=line.match(/^(.{2,100}?)\s*[:—-]\s*(.*)$/);
     if(!match)continue;
     const heading=norm(match[1]);
     if(wanted.some(w=>heading===w)){
-      const value=match[2].replace(/^\\*{1,3}|\\*{1,3}$/g,'').trim();
+      const value=match[2].replace(/^\*{1,3}|\*{1,3}$/g,'').trim();
       if(value)return value;
       for(let j=i+1;j<lines.length;j++){
         const next=lines[j];
         if(!next)continue;
-        if(/^#{1,6}\\s/.test(next)||/^\\*\\*[^*]+\\*\\*\\s*[:—-]/.test(next)||/^[A-Z][A-Z0-9 /:&()_-]{2,80}:$/.test(next))break;
-        return next.replace(/^[-*]\\s*/,'').trim();
+        if(/^#{1,6}\s/.test(next)||/^\*\*[^*]+\*\*\s*[:—-]/.test(next)||/^[A-Z][A-Z0-9 /:&()_-]{2,80}:$/.test(next))break;
+        return next.replace(/^[-*]\s*/,'').trim();
       }
     }
   }
