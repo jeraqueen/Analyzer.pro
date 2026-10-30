@@ -274,11 +274,23 @@ ADDITIONAL CANDIDATE SETUPS: ${SUPPLEMENTAL_STRATEGIES[pair] || "No extra market
 
 Review timeframes according to the selected trading style. For Intraday (M15 focus): H4/H1 context, M30 structure, M15 setup and M5 trigger; screen universal strategies 76–105 and pair-specific strategies 106–130 where applicable, then relevant legacy market-specific rules; use D1/W1/MN1 only for major context. For Quick trade: H1/M30 context, M15 setup and M5 trigger. For Swing: W1/D1 context, H4 setup and H1 refinement. For Position: MN1/W1/D1 context and H4 refinement. Clearly state whether the relevant timeframes align, conflict, or are mixed. Do not treat the monthly or weekly trend as an automatic trade signal. Adjust to actual screenshots; never assume the timeframes agree. Evaluate continuation and pullback setups as well as reversals. A strong trend can support a continuation trade; do not insist on reversal. Avoid chasing an extended move.
 
+ENTRY-TIMING AND TRADE-PLAN RULES:
+- Give a practical Kenya-time (Africa/Nairobi / EAT) window for monitoring this setup, but do not invent an exact clock-time entry. A trade is entered only when the specified candle-close/retest/rejection trigger occurs. If the trigger is not present, say WAITING FOR TRIGGER and describe exactly what candle/price action must happen.
+- State whether the idea is a market entry after confirmation, a buy/sell limit at a retest, or a stop entry after a confirmed breakout. Do not recommend a pending order when the screenshot cannot establish a reliable level.
+- Derive entry, structural stop and each target independently from visible chart prices. Explain the stop's structural basis and why it invalidates the thesis. TP1 should be the nearest defensible opposing level; later targets must be supported by visible structure, not arbitrary fixed pip amounts.
+- Show planned reward:risk to each target after estimated costs only when spread/fees are actually supplied; otherwise label gross R:R and state costs are unknown. Reject setups with inadequate room after costs or a stop that is inside normal chart noise.
+- Give a risk plan in R and a conservative suggested account-risk percentage (default ceiling 1% per trade). Do not calculate lot size, cash loss, or exact position size unless account equity, account currency, broker contract/tick value, and costs are supplied. If missing, show the formula and list the exact missing inputs.
+- Include a time stop/reassessment condition appropriate to the selected trading style. Explain when to cancel an unfilled setup and when the thesis is invalidated. Never encourage revenge trading, martingale, averaging down, or increasing size to recover a loss.
+- If the screenshot's price scale, candle timestamps or timeframe are unclear, do not manufacture numerical levels or a clock time. Return WAIT / NO TRADE or a qualitative conditional plan with NOT IDENTIFIABLE values.
+- A daily opportunity is not a daily obligation. It is acceptable and often correct to take zero trades. Do not imply that a target, daily profit, recovery of a prior loss, or a fixed number of winners is assured.
+
 Use these headings in order:
 EXECUTIVE VERDICT:
 DIRECTION: (exactly BUY, SELL, or WAIT / NO TRADE; state READY or WAITING FOR TRIGGER)
 SELECTED TRADING STYLE:
 EXPECTED HOLDING HORIZON / TIME STOP:
+ENTRY TIMING (KENYA TIME / EAT WINDOW + EXACT TRIGGER; NO FABRICATED CLOCK ENTRY):
+ENTRY ORDER TYPE (MARKET / LIMIT / STOP / WAIT):
 BEST TIMEFRAME TO WATCH:
 SECOND-BEST TIMEFRAME:
 MARKET STRUCTURE:
