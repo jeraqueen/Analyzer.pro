@@ -618,9 +618,8 @@ function extractSection(raw,labels){
 }
 function getSetupConfidence(raw){
   const text=String(raw||'');
-  let m=text.match(/SETUP\s+CONFIDENCE\s*[:—-]?\s*(\d{1,3})(?:\s*%|\s*\/\s*100)\s*(?:[—–-]\s*(LOW|MODERATE|GOOD|EXCELLENT|HIGH))?/i);
-  if(!m)m=text.match(/(?:setup\s+)?confidence\s*(?:score)?\s*[:=—-]?\s*(\d{1,3})\s*%/i);
-  if(!m){const ix=text.toLowerCase().indexOf('confidence breakdown');if(ix>=0)m=text.slice(ix,ix+500).match(/(?:total|score|confidence)[^\d]{0,20}(\d{1,3})\s*(?:\/\s*100|%)/i)}
+  let m=text.match(/SETUP +CONFIDENCE *[:—-]? *([0-9]{1,3}) *% *(?:[—–-] *(LOW|MODERATE|GOOD|EXCELLENT|HIGH))?/i);
+  if(!m)m=text.match(/(?:setup +)?confidence *(?:score)? *[:=—-]? *([0-9]{1,3}) *%/i);
   if(!m)return {score:null,rating:'UNAVAILABLE'};
   const score=Math.max(0,Math.min(100,Number(m[1])));
   const rating=score>=85?'EXCELLENT':score>=70?'GOOD':score>=50?'MODERATE':'LOW';
