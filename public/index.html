@@ -116,6 +116,65 @@ body.results-fullscreen{overflow:hidden}
 #eatTradingSchedule .session-row{grid-template-columns:minmax(125px,170px) 1fr;gap:12px}
 #eatTradingSchedule .session-row strong{color:var(--gold)}
 @media(max-width:480px){#eatTradingSchedule .session-row{grid-template-columns:1fr;gap:3px}}
+
+/* Analyzer.pro — professional graphite and champagne trading desk */
+:root{--bg:#10110f;--panel:#1a1b17;--line:#383a32;--text:#f1efe8;--muted:#aaa99e;--green:#a8d2b1;--red:#df8982;--gold:#c9ad78;--blue:#b7aa8d;--violet:#b7aa8d;--cyan:#b7aa8d}
+html{scroll-behavior:smooth}
+body{background:radial-gradient(ellipse at 50% -24%,#302d23 0%,#171813 42%,#10110f 82%);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;line-height:1.55}
+h1,h2,h3,.metric{font-family:'Space Grotesk','DM Sans',sans-serif;letter-spacing:-.02em}
+header{position:sticky;top:0;z-index:60;background:rgba(16,17,15,.96);border-color:#403d33;backdrop-filter:blur(16px)}
+.logo{background:linear-gradient(145deg,#e1cc9f,#ad9160);color:#191812;box-shadow:0 5px 22px #c9ad7820;border-radius:11px}
+.pill{border-color:#494538;background:#201f19;color:#d1c7b1}
+.card{background:linear-gradient(150deg,rgba(31,32,27,.98),rgba(23,24,20,.99));border:1px solid #3a3b32;border-radius:16px;box-shadow:0 12px 34px #0004}
+.eyebrow{color:#c9b487;letter-spacing:.13em;font-size:10px}
+button{background:#292a24;color:#eeeae0;border:1px solid #49483e;border-radius:10px;padding:10px 14px;transition:background .16s,border-color .16s,transform .16s}
+button:hover{background:#343329;border-color:var(--gold);transform:translateY(-1px)}
+button.primary{background:linear-gradient(135deg,#dfc99a,#b89b68);color:#191812;border:0;box-shadow:0 7px 22px #c9ad7820;font-weight:800}
+button.primary:hover{background:#e8d4aa}
+button.active{background:#393426;border-color:var(--gold);color:#f0dfb8}
+button.danger{background:#321f1d;border-color:#75443f;color:#f0b7ae}
+input,select,textarea{background:#11130f;border:1px solid #414239;border-radius:9px;color:var(--text);padding:11px}
+input:focus,select:focus,textarea:focus{outline:2px solid #c9ad7845;border-color:var(--gold)}
+.field label{color:#c3bfae}
+.notice{background:#30291d;border-color:#75603b;color:#f0dcae}
+.notice.good{background:#1a2920;border-color:#45664c;color:#c0e1c5}
+.notice.bad{background:#301d1c;border-color:#70413c;color:#efb9b2}
+.tag{background:#302b20;color:#e2d1a9;border:1px solid #514734}
+.tfbox{background:#151611;border:1px solid #414238;border-radius:13px;padding:13px}
+.tfbox strong{color:#d3bd8e;font-size:13px}
+.preview{background:#0c0d0b;border:1px solid #414238;border-radius:9px}
+.file-pick{background:#26271f;border:1px dashed #777052;color:#e0d0a9;border-radius:9px;padding:11px;text-align:center}
+.file-pick:hover{background:#333126;border-color:var(--gold)}
+.file-selected{background:#1c2920;border:1px solid #45664c;color:#c4e4c9;border-radius:8px;padding:8px;font-size:12px}
+.scan-stage{background:linear-gradient(135deg,#24251e,#191a16);border-color:#66583c}
+.scan-orb{border-color:#514832;border-top-color:var(--gold)}
+.scan-track{background:#39382f}.scan-track span{background:var(--gold)}
+.direction-hero{background:linear-gradient(120deg,#28271f,#191a16);border-color:#4b493d}
+.direction-mark{background:#302e24}
+.direction-mark.buy{background:#1c3325;border-color:#456b4b;color:#b9dfbd}
+.direction-mark.sell{background:#38211f;border-color:#805047;color:#efb7ad}
+.direction-mark.wait{background:#352d1d;border-color:#8e7039;color:#ffe0a1}
+.trade-tile{background:#151611;border-color:#414238;border-radius:12px}
+.trade-tile.entry{border-color:#537a59}.trade-tile.stop{border-color:#8c5048}.trade-tile.target{border-color:#537a59}
+.result-copy{background:#11130f;border-color:#414238}
+.tablewrap{border:1px solid #3a3b32;border-radius:12px}
+th{background:#24251f;color:#c9b487}
+td,th{border-bottom-color:#383a32}
+.divider{border-top-color:#383a32}
+.tools-menu{background:#1b1c17;border-color:#494638;box-shadow:0 20px 55px #000a}
+.tools-menu-head{border-bottom-color:#403e33}
+.tools-menu>button{background:transparent;border-color:transparent}
+.tools-menu>button:hover{background:#302e24;border-color:#61543b}
+.menu-note{background:#24241d;color:#bcb7a8}
+.menu-scrim{background:#0009}
+.bottom-nav{background:rgba(16,17,15,.97);border-color:#454238;backdrop-filter:blur(18px)}
+.bottom-nav button{background:transparent;border-color:transparent;color:#aaa99e}
+.bottom-nav button.active{background:#302c22;color:#e3ca94;border-color:#61543b}
+.bottom-nav button:hover{background:#29291f}
+.status.ok{background:var(--green)}
+@media(min-width:900px){main{padding:24px 18px 42px}.card{padding:20px}}
+@media(max-width:700px){body{padding-bottom:86px}main{padding:13px 11px 28px}.card{padding:14px}.bottom-nav{padding:8px 9px calc(8px + env(safe-area-inset-bottom));background:rgba(16,17,15,.98);border-top:1px solid #454238;box-shadow:0 -12px 35px #0008}.bottom-nav button.active{background:#302c22;border:1px solid #61543b}.tfgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tfbox{padding:10px}.metric{font-size:22px}}
+@media(max-width:380px){.tfgrid{grid-template-columns:1fr}.f2,.f3{grid-template-columns:1fr}}
 </style></head><body>
 <div class="splash" id="welcomeSplash" aria-label="Loading Analyzer.pro"><div class="splash-inner"><div class="splash-logo">FTA</div><div class="splash-kicker">PROFESSIONAL TRADING WORKSPACE</div><div class="splash-title">FOREX TOOL ANALYZER</div><div class="splash-sub">Market structure · Trade planning · Risk control</div><div class="splash-chart" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="splash-markets"><span>₿ BTCUSD</span><span>AU AUDUSD</span><span>◆ XAUUSD</span></div><div class="splash-line"><i></i></div><p class="muted small" style="margin-top:13px">Preparing your trading workspace…</p></div></div>
 <header><div class="brand"><div class="logo">A</div><div><h1>Analyzer.pro</h1><div class="muted small">Forex majors · Gold · Bitcoin</div></div></div><div class="header-actions"><span class="pill" id="clock">Kenya time: …</span><button id="menuToggle" class="menu-toggle" aria-label="Open tools menu" aria-expanded="false">☰</button></div></header>
