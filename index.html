@@ -129,10 +129,8 @@ document.querySelectorAll('input[type=file][id^=img]').forEach(inp=>inp.onchange
   if(!f.type.startsWith('image/')){alert('Choose an image file.');inp.value='';im.removeAttribute('src');im.classList.add('hidden');updateUploadCount();return}
   if(im.dataset.objectUrl)URL.revokeObjectURL(im.dataset.objectUrl);
   const objectUrl=URL.createObjectURL(f);im.dataset.objectUrl=objectUrl;im.src=objectUrl;im.classList.remove('hidden');updateUploadCount();
-  $('photoReviewImage').src=objectUrl;
-  $('photoReviewOverlay').classList.add('show');
-  $('photoReviewOverlay').setAttribute('aria-hidden','false');
-  document.body.style.overflow='hidden';
+   // The gallery's Done already confirms the file; keep only the inline timeframe preview.
+   closePhotoReview();
  });
 $('scanChartTop').onclick=()=>{if(!['imgD1','imgH4','imgH1','imgM30','imgM15','imgM5'].some(id=>$(id).files?.length))return;$('sendAI').click()};updateUploadCount();
 $('saveReview').onclick=()=>{const notes=['D1','H4','H1','M30','M15','M5'].map(t=>t+': '+$('note'+t).value).filter(t=>!t.endsWith(': ')).join(' | ');data.journal.push({date:new Date().toLocaleString('en-KE',{timeZone:'Africa/Nairobi'}),pair:$('pair').value,side:$('bias').value,levels:`Entry ${$('entry').value||'—'} / Stop ${$('stop').value||'—'} / Target ${$('target').value||'—'}`,r:0,thesis:$('thesis').value,lesson:[notes,$('invalidate').value?'Invalidation: '+$('invalidate').value:''].filter(Boolean).join(' | ')});save();message($('analysisMsg'),'Review saved locally as 0R. Add the actual result separately when known.','good')};
