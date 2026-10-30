@@ -13,8 +13,9 @@ nav{display:flex;gap:7px;overflow:auto;padding:10px 12px;border-bottom:1px solid
 
 .photo-review-overlay{position:fixed;inset:0;z-index:99999;background:#05080d;display:none;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
 .photo-review-overlay.show{display:flex}
-.photo-review-top{height:58px;display:flex;justify-content:flex-end;align-items:center;padding:8px 14px;background:#05080d;flex-shrink:0}
-.photo-review-done{background:#9de0b2;color:#07151a;border:0;border-radius:9px;padding:9px 20px;font-size:16px;font-weight:800}
+.photo-review-top{height:58px;display:flex;align-items:center;gap:14px;padding:8px 14px;background:#05080d;flex-shrink:0}
+.photo-review-back{background:#1b2d45;color:#fff;border:1px solid #324966;border-radius:50%;width:42px;height:42px;padding:0;font-size:27px;line-height:1}
+.photo-review-title{font-size:16px;font-weight:750;color:#fff}
 .photo-review-image-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:auto;padding:8px}
 .photo-review-image{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
 </style></head><body>
@@ -100,7 +101,7 @@ nav{display:flex;gap:7px;overflow:auto;padding:10px 12px;border-bottom:1px solid
 </div></section>
 <div class="footer">Market Compass / FX Lab · Research and education only · No guarantee of performance · No live trading or order execution</div></main>
 
-<div id="photoReviewOverlay" class="photo-review-overlay" aria-hidden="true"><div class="photo-review-top"><button type="button" id="photoReviewDone" class="photo-review-done">Done</button></div><div class="photo-review-image-wrap"><img id="photoReviewImage" class="photo-review-image" alt="Selected screenshot full-screen preview"></div></div>
+<div id="photoReviewOverlay" class="photo-review-overlay" aria-hidden="true"><div class="photo-review-top"><button type="button" id="photoReviewBack" class="photo-review-back" aria-label="Back to screenshot selection">←</button><span class="photo-review-title">Review screenshot</span></div><div class="photo-review-image-wrap"><img id="photoReviewImage" class="photo-review-image" alt="Selected screenshot full-screen preview"></div></div>
 <script>
 'use strict';
 const $=id=>document.getElementById(id), STORE='fxResearchDesk_v2';
@@ -121,7 +122,7 @@ setInterval(clock,1000);clock();
 function renderJournal(){const body=$('journalRows');if(!data.journal.length){body.innerHTML='<tr><td colspan="7" class="muted">No records yet.</td></tr>';return}body.innerHTML=data.journal.slice().reverse().map((j,i)=>`<tr><td>${esc(j.date)}</td><td>${esc(j.pair)}</td><td>${esc(j.side)}</td><td>${esc(j.levels||'—')}</td><td>${fmt(Number(j.r)||0)}R</td><td>${esc((j.thesis||'')+(j.lesson?' · '+j.lesson:''))}</td><td><button class="danger" data-delete="${data.journal.length-1-i}">Delete</button></td></tr>`).join('');body.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>{if(confirm('Delete this record?')){data.journal.splice(Number(b.dataset.delete),1);save()}})}
 function updateUploadCount(){const n=['imgD1','imgH4','imgH1','imgM30','imgM15','imgM5'].filter(id=>$(id).files?.length).length;$('uploadCount').textContent=n===0?'No screenshots selected yet':n+' screenshot'+(n===1?'':'s')+' ready to analyse';$('scanChartTop').disabled=n===0;$('scanChartTop').style.opacity=n===0?'.65':'1'}
 function closePhotoReview(){const overlay=$('photoReviewOverlay');overlay.classList.remove('show');overlay.setAttribute('aria-hidden','true');$('photoReviewImage').removeAttribute('src');document.body.style.overflow=''}
-$('photoReviewDone').onclick=closePhotoReview;
+$('photoReviewBack').onclick=closePhotoReview;
 document.querySelectorAll('input[type=file][id^=img]').forEach(inp=>inp.onchange=()=>{
   const f=inp.files?.[0],im=$('prev'+inp.id.slice(3));
   if(!f){im.removeAttribute('src');im.classList.add('hidden');updateUploadCount();return}
