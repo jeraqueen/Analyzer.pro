@@ -362,6 +362,43 @@ nav{width:100%;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden}
  .bottom-nav .nav-ico{font-size:16px}
  .card{padding:10px}
 }
+
+/* MOBILE-FIRST LAYOUT + ALWAYS-VISIBLE PRIMARY NAV */
+html,body{max-width:100%;width:100%;overflow-x:clip}
+body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+main{width:100%;max-width:100%;padding:12px 12px calc(96px + env(safe-area-inset-bottom))}
+.page{width:100%;max-width:100%;min-width:0;overflow-x:clip}
+.bottom-nav{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%!important;z-index:1000!important;display:flex!important;visibility:visible!important;opacity:1!important;justify-content:space-around!important;gap:4px!important;padding:7px 8px calc(7px + env(safe-area-inset-bottom))!important;border-top:1px solid #344047!important;border-bottom:0!important;background:rgba(11,15,19,.98)!important;box-shadow:0 -10px 30px #0008!important}
+.bottom-nav button{flex:1 1 0!important;min-width:0!important;padding:7px 2px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:3px!important;font-size:11px!important;white-space:normal!important}
+.home-market-grid{grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:9px}
+.home-market-card{width:100%;min-width:0;max-width:100%;overflow:hidden;cursor:pointer;touch-action:manipulation}
+.home-market-card:focus-visible{outline:2px solid #8ed1c2;outline-offset:2px}
+.home-market-card strong{font-size:clamp(16px,4.5vw,22px)}
+.home-card-top,.home-card-bottom{min-width:0;flex-wrap:wrap}
+.home-time-window{overflow-wrap:anywhere;min-width:0}
+.home-session{overflow-wrap:anywhere}
+.tools-menu{z-index:1100;max-width:calc(100vw - 20px)}
+.menu-scrim{z-index:1090}
+@media(max-width:520px){
+ main{padding:10px 9px calc(96px + env(safe-area-inset-bottom))}
+ .home-hero{padding:14px!important;gap:10px!important}
+ .home-hero h2{font-size:20px!important;line-height:1.18}
+ .home-hero p{font-size:11px;line-height:1.45}
+ .home-section-head{align-items:flex-start}
+ .home-section-head .small{max-width:42%;text-align:right;font-size:10px}
+ .home-market-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .home-market-card{padding:10px 9px;gap:5px;border-radius:12px}
+ .home-class{font-size:8px;letter-spacing:.04em}
+ .home-light{font-size:8px;padding:4px 5px}
+ .home-name{font-size:10px;line-height:1.25}
+ .home-session{font-size:10px;line-height:1.25;margin-top:3px}
+ .home-card-bottom{align-items:flex-start;margin-top:4px;padding-top:7px}
+ .home-time-window{font-size:9px;line-height:1.3;flex:1 1 100%}
+ .home-card-bottom b{font-size:10px}
+ .home-time{font-size:10px}
+ .bottom-nav button{font-size:10px!important}
+}
+@media(max-width:350px){.home-market-grid{grid-template-columns:1fr}.home-market-card{padding:12px}}
 </style></head><body>
 <div class="splash" id="welcomeSplash" aria-label="Loading Analyzer.pro"><div class="splash-inner"><div class="splash-logo">FTA</div><div class="splash-kicker">PROFESSIONAL TRADING WORKSPACE</div><div class="splash-title">FOREX TOOL ANALYZER</div><div class="splash-sub">Market structure · Trade planning · Risk control</div><div class="splash-chart" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="splash-markets"><span>₿ BTCUSD</span><span>AU AUDUSD</span><span>◆ XAUUSD</span></div><div class="splash-line"><i></i></div><p class="muted small" style="margin-top:13px">Preparing your trading workspace…</p></div></div>
 <header><div class="brand"><div class="logo">A</div><div><h1>Analyzer.pro</h1><div class="muted small">Forex majors · Gold · Bitcoin</div></div></div><div class="header-actions"><span class="pill" id="clock">Kenya time: …</span><button id="menuToggle" class="menu-toggle" aria-label="Open tools menu" aria-expanded="false">☰</button></div></header>
@@ -521,7 +558,7 @@ function marketWindow(pair,now){const lon=zonedClock('Europe/London',now),ny=zon
  return {good:false,name:'Session guide',window:'Check live market conditions'};
 }
 function refreshHomeMarkets(){const now=new Date();$('homeClock').textContent='KENYA TIME · '+new Intl.DateTimeFormat('en-KE',{timeZone:'Africa/Nairobi',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(now);document.querySelectorAll('[data-pair-home]').forEach(card=>{const pair=card.dataset.pairHome,w=marketWindow(pair,now),light=$('status-'+pair);light.textContent=w.good?'FAVOURABLE WINDOW':'OFF-PEAK';light.classList.toggle('good',w.good);$('session-'+pair).textContent=w.name;$('window-'+pair).textContent=w.window;card.setAttribute('aria-label',pair+' '+(w.good?'favourable activity window':'outside preferred window')+'. Tap to analyse.')})}
-document.querySelectorAll('[data-pair-home]').forEach(card=>card.addEventListener('click',()=>{$('pair').value=card.dataset.pairHome;refreshMarketCards();refreshTimeframes();updateUploadCount();go('analyzer')}));
+document.addEventListener('click',event=>{const card=event.target.closest('[data-pair-home]');if(!card)return;event.preventDefault();const pair=card.dataset.pairHome;const selector=$('pair');if(!selector)return;selector.value=pair;refreshMarketCards();refreshTimeframes();updateUploadCount();go('analyzer');});
 setInterval(()=>{clock();refreshHomeMarkets()},1000);clock();refreshHomeMarkets();
 function renderJournal(){const body=$('journalRows');if(!data.journal.length){body.innerHTML='<tr><td colspan="7" class="muted">No records yet.</td></tr>';return}body.innerHTML=data.journal.slice().reverse().map((j,i)=>`<tr><td>${esc(j.date)}</td><td>${esc(j.pair)}</td><td>${esc(j.side)}</td><td>${esc(j.levels||'—')}</td><td>${fmt(Number(j.r)||0)}R</td><td>${esc((j.thesis||'')+(j.lesson?' · '+j.lesson:''))}</td><td><button class="danger" data-delete="${data.journal.length-1-i}">Delete</button></td></tr>`).join('');body.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>{if(confirm('Delete this record?')){data.journal.splice(Number(b.dataset.delete),1);save()}})}
 function updateUploadCount(){const active=timeframeModes[$('tradingMode')?.value]||timeframeModes.intraday;const ids={MN1:'imgMN1',W1:'imgW1',D1:'imgD1',H4:'imgH4',H1:'imgH1',M30:'imgM30',M15:'imgM15',M5:'imgM5'};const n=active.filter(tf=>$(ids[tf])?.files?.length).length;$('uploadCount').textContent=n===0?'No relevant screenshots selected yet':n+' relevant screenshot'+(n===1?'':'s')+' ready to analyse';$('scanChartTop').disabled=n===0;$('scanChartTop').style.opacity=n===0?'.65':'1'}
