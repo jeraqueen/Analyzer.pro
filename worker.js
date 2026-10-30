@@ -407,6 +407,14 @@ LIMITATIONS:
 
 Give evidence, not vague labels: identify the visible structure/candle/level and its timeframe. Explicitly name the setup timeframe, entry/execution timeframe, the swing/structure timeframe used for SL, and the basis timeframe plus structural reason for every TP. Use only defensible prices. If exact values cannot be read, mark them NOT IDENTIFIABLE rather than making them up; explain the structural zone instead. Calculate reward:risk only when prices are sufficiently clear. If an untriggered conditional BUY/SELL setup is reasonably supported, do not hide it behind WAIT. If evidence truly conflicts, neither direction is defensible, or risk cannot be defined, use WAIT / NO TRADE and explain the event needed to resolve it. Setup quality score is not win probability. No guaranteed results, fabricated live data, or trade execution.
 
+
+CONSISTENCY AND COMPLETENESS RULES — REQUIRED:
+- Keep the output concise enough to finish every required field. Never let the response end before TP3, invalidation, timeframe review, alternative scenario, and limitations.
+- Always print all three target fields: TP1, TP2, and TP3. If a defensible third target cannot be identified from the screenshots, write exactly: TP3: NOT IDENTIFIABLE FROM SCREENSHOTS — do not omit the field and do not invent a price. If no safe trade plan exists, still include TP1/TP2/TP3 as NOT APPLICABLE — NO TRADE.
+- For the same unchanged screenshots and same inputs, apply the same visible swing points, entry zone, invalidation logic, stop-loss placement, and target-selection rules. Do not change prices or tips merely to produce a different answer. If a price cannot be read precisely, keep it as NOT IDENTIFIABLE rather than guessing a new number.
+- Separate a genuine change in market structure/time from interpretation variation. Only revise a previous level when new chart evidence, a different selected timeframe, or a clearly stated correction justifies it. Briefly identify what changed.
+- Before finalizing, verify that SL is beyond the setup's structural invalidation point, targets follow the stated structure, and all prices use the same instrument quote format. Do not fabricate precision.
+
 FINAL OUTPUT OVERRIDE — THIS OVERRIDES ANY EARLIER CONTRADICTORY WORDING:
 Never use the terms WAIT or WAITING in the user-facing verdict, title, or action instruction. Choose exactly one:
 - BUY NOW — trigger confirmed; include entry, SL, TP1/TP2 and MAX HOLD 15 MINUTES.
@@ -434,7 +442,7 @@ Always calculate the next relevant candle-close time in Africa/Nairobi (EAT) fro
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 3000 }
+        generationConfig: { temperature: 0, maxOutputTokens: 5000 }
       })
     });
     const result = await response.json().catch(() => ({}));
