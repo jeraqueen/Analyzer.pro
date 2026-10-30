@@ -1,5 +1,5 @@
 const MAX_BODY_BYTES = 9 * 1024 * 1024;
-const ALLOWED_PAIRS = new Set(["BTCUSD", "AUDUSD", "XAUUSD"]);
+const ALLOWED_PAIRS = new Set(["EURUSD", "GBPUSD", "USDJPY", "USDCAD", "AUDUSD", "USDCHF", "EURJPY", "BTCUSD", "XAUUSD"]);
 
 const STRATEGY_LIBRARY = {
   XAUUSD: `XAUUSD CANDIDATE STRATEGIES (screen all; only select those supported by uploaded charts and verified data):
@@ -197,13 +197,17 @@ export async function onRequest(context) {
 
 PRIMARY GOAL: make the scan useful and decisive. Compare plausible BUY and SELL scenarios, then select the best-supported directional scenario when the screenshots show a reasonably coherent structure. Do NOT default to WAIT / NO TRADE merely because the entry candle has not triggered yet. In that case, return BUY or SELL with status WAITING FOR TRIGGER and state the exact condition required. Use WAIT / NO TRADE only when the screenshots are unreadable, evidence is genuinely contradictory, neither direction has a defensible structure, or no sensible invalidation can be identified. Never label an untriggered setup READY.
 
-Uploaded timeframes, in review order: ${present.join(", ")}. Preferred full set: H4, H1, M15, M5, M30, D1. Missing timeframes must be identified rather than imagined. User-selected direction: ${payload.direction || "Undecided"}. User-entered levels: ${JSON.stringify(payload.levels || {})}. Thesis: ${String(payload.thesis || "")}. Invalidation: ${String(payload.invalidation || "")}. Timeframe notes: ${JSON.stringify(payload.timeframeNotes || {})}. Current verified live price/news data was NOT supplied; do not claim to have checked it.\n\nMARKET-SPECIFIC RESEARCH FRAMEWORK: ${MARKET_RESEARCH[pair]}
+STRATEGY WEIGHTING: rank up to three applicable strategies with distinct scores, never reuse a default 45/100. For each candidate calculate regime/direction fit 0–25, setup/level geometry 0–25, actual trigger evidence 0–20, M15/M5 alignment 0–15, and risk/reward after estimated costs 0–15; sum exactly to /100. Mark unverified indicators/costs unknown and do not award unsupported points. Explain the selected strategy ID/name and why it outranks alternatives. Scores are evidence-quality scores, not probabilities of profit.
+
+INTRADAY ENTRY TIMER: for intraday mode, specify the next M5 candle close as the next timing checkpoint. If a directional setup is valid but its trigger is pending, name BUY or SELL as a conditional setup and state the exact candle-close condition. The website countdown is a timing aid only; at zero, the user must check a fresh M5 candle/screenshot before entering. Never promise the next candle will confirm, and never turn the countdown into an unconditional order. If no defensible direction exists, return WAIT / NO TRADE rather than inventing a signal.
+
+Uploaded timeframes, in review order: ${present.join(", ")}. Preferred full set: H4, H1, M15, M5, M30, D1. Missing timeframes must be identified rather than imagined. User-selected direction: ${payload.direction || "Undecided"}. User-entered levels: ${JSON.stringify(payload.levels || {})}. Thesis: ${String(payload.thesis || "")}. Invalidation: ${String(payload.invalidation || "")}. Timeframe notes: ${JSON.stringify(payload.timeframeNotes || {})}. Current verified live price/news data was NOT supplied; do not claim to have checked it.\n\nMARKET-SPECIFIC RESEARCH FRAMEWORK: ${MARKET_RESEARCH[pair] || "Major FX pair: evaluate its own H1/M15 structure, active session, prior-day levels, spread and verified central-bank/economic-event risk. Do not infer direction from correlated pairs."}
 
 GLOBAL STRATEGY RULES: ${GLOBAL_STRATEGY_RULES}
 
-RELEVANT STRATEGY CATALOG: ${STRATEGY_LIBRARY[pair]}
+RELEVANT STRATEGY CATALOG: ${STRATEGY_LIBRARY[pair] || "Universal major-FX candidates: trend pullback; M15 breakout and retest; prior-day/session sweep-and-reclaim; range-edge rejection in a confirmed low-trend regime; compression breakout with retest. Require M15 setup, M5 trigger, visible levels and a cost-aware stop/target."}
 
-ADDITIONAL CANDIDATE SETUPS: ${SUPPLEMENTAL_STRATEGIES[pair]}\n\nTHREE-MARKET OPERATING PLAYBOOK (use as a framework to evaluate, not as a mandatory signal):
+ADDITIONAL CANDIDATE SETUPS: ${SUPPLEMENTAL_STRATEGIES[pair] || "Use the universal major-FX candidates; do not invent pair-specific backtest results."}\n\nTHREE-MARKET OPERATING PLAYBOOK (use as a framework to evaluate, not as a mandatory signal):
 - XAUUSD is the primary research focus. Prefer an Asian-range breakout only after a candle closes beyond the marked range and a retest holds, with H4/H1 structure aligned. Define the stop beyond the retest swing or structural invalidation. A range-height target is only a planning reference, not guaranteed; require visible structure and realistic costs. Skip an abnormally wide Asian range only if a trustworthy 20-day range baseline is actually supplied. Never invent it.
 - BTCUSD is the volatility-focused market and trades 24/7. Consider intraday VWAP mean reversion only if VWAP and volume are visible or supplied as reliable data. A 2-standard-deviation band must be calculated from actual session data; never infer it from a screenshot without the values. Wait for rejection/reclaim toward VWAP, use BTC-specific structure for the stop, reduce size for volatility, and treat weekends as a separate tested regime.
 - AUDUSD is the trend-confirmation / standalone trend market. Assess it independently. Its agreement with gold may add context, but correlations are unstable and do not prove a trade. Disagreement should trigger reassessment or skipping; do not automatically halve size unless that sizing rule has been tested.
@@ -259,7 +263,7 @@ Evidence rules: cite the actual visible candle/swing/level and the timeframe sup
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 2200 }
+        generationConfig: { temperature: 0.2, maxOutputTokens: 3000 }
       })
     });
     const result = await response.json().catch(() => ({}));
