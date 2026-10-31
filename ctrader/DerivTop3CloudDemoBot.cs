@@ -49,7 +49,7 @@ namespace cAlgo.Robots
         [Parameter("Peak balance drawdown lock (%)", DefaultValue = 8.0, MinValue = 2.0, MaxValue = 15.0, Step = 0.5)]
         public double PeakDrawdownLimitPercent { get; set; }
 
-        [Parameter("Scan interval (seconds)", DefaultValue = 60, MinValue = 15, MaxValue = 300)]
+        [Parameter("Scan interval (seconds)", DefaultValue = 15, MinValue = 15, MaxValue = 300)]
         public int ScanIntervalSeconds { get; set; }
 
         [Parameter("Symbols per batch", DefaultValue = 3, MinValue = 1, MaxValue = 10)]
@@ -102,6 +102,7 @@ namespace cAlgo.Robots
         private int _openedThisScan;
         private DateTime _lastScanCompleted = DateTime.MinValue;
         private bool _rescanRequested;
+        private readonly Dictionary<long, double> _peakOpenProfit = new Dictionary<long, double>();
 
         private static readonly TimeFrame[] ScanTimeFrames =
         {
@@ -202,12 +203,37 @@ namespace cAlgo.Robots
                         continue;
                     }
 
-                    // Once open profit reaches a threshold based on current account equity,
-                    // trail a stop using the instrument's ATR. Only tighten the stop; never
-                    // move it farther away. This lets winners run while protecting gains.
+                    // Track each position's peak floating profit. Close a winner after
+                    // a meaningful account-scaled profit retracement instead of waiting for
+                    // a distant fixed TP. This scales with equity, not a fixed dollar target.
+                    double activationCash = Account.Equity * ProfitTrailActivationPercent / 100.0;
+                    double peakProfit;
+                    if (!_peakOpenProfit.TryGetValue(position.Id, out peakProfit))
+                        peakProfit = Math.Max(0, position.NetProfit);
+                    if (position.NetProfit > peakProfit)
+                        peakProfit = position.NetProfit;
+                    _peakOpenProfit[position.Id] = peakProfit;
+
+                    double givebackLimit = Math.Min(activationCash, peakProfit * 0.25);
+                    if (peakProfit >= activationCash && position.NetProfit > 0 &&
+                        peakProfit - position.NetProfit >= givebackLimit && givebackLimit > 0)
+                    {
+                        Print("PROFIT PROTECTION EXIT: {0} {1} | peak={2:F2} {3}, current={4:F2} {3}, giveback limit={5:F2}.",
+                            position.SymbolName, position.Id, peakProfit, Account.Asset.Name, position.NetProfit, givebackLimit);
+                        TradeResult profitClose = ClosePosition(position);
+                        if (profitClose.IsSuccessful)
+                        {
+                            _peakOpenProfit.Remove(position.Id);
+                            Print("PROFIT BANKED {0} {1} | net P/L={2:F2} {3}.", position.SymbolName, position.Id, position.NetProfit, Account.Asset.Name);
+                        }
+                        else
+                            Print("PROFIT PROTECTION CLOSE FAILED {0} {1}: {2}", position.SymbolName, position.Id, profitClose.Error);
+                        continue;
+                    }
+
+                    // Keep ATR-based broker-side stop trailing as an additional safeguard.
                     SymbolContext positionContext = GetContext(symbol);
                     double atrNow = positionContext?.Atr?.Result.Last(1) ?? 0;
-                    double activationCash = Account.Equity * ProfitTrailActivationPercent / 100.0;
                     if (position.NetProfit >= activationCash && atrNow > 0)
                     {
                         double trailDistance = atrNow * ProfitTrailAtrMultiple;
@@ -240,7 +266,11 @@ namespace cAlgo.Robots
                     if (signal == null || signal.Score <= MinimumScore || signal.Direction == position.TradeType)
                         continue;
 
-                    Print("EXIT SIGNAL {0} {1} | open direction={2} | opposite technical score={3:F1}% > {4:F1}%. Closing position to limit reversal exposure.",
+                    // Only reverse-close early when the current position is profitable.
+                    if (position.NetProfit <= 0)
+                        continue;
+
+                    Print("PROFITABLE REVERSAL EXIT {0} {1} | open direction={2} | opposite technical score={3:F1}% > {4:F1}%. Closing position to limit reversal exposure.",
                         position.SymbolName, position.Id, position.TradeType, signal.Score, MinimumScore);
                     TradeResult closeResult = ClosePosition(position);
                     if (closeResult.IsSuccessful)
@@ -264,12 +294,11 @@ namespace cAlgo.Robots
 
         private void OnPositionClosed(PositionClosedEventArgs args)
         {
+            _peakOpenProfit.Remove(args.Position.Id);
             PrintHistoricalPerformance();
-            // A manual close, stop-loss, take-profit, reversal exit, or loss-guard exit
-            // frees capacity. Request a fresh scan immediately instead of waiting for
-            // the normal scan interval. The next timer tick starts a clean scan cycle.
+            // Scanning continues through closures; start immediately only when idle.
             _rescanRequested = true;
-            Print("POSITION CLOSED: immediate opportunity rescan requested; fresh qualifying candidates can open on the next scan batches.");
+            Print("POSITION CLOSED: scanner remains active; current scan continues and the next cycle starts immediately if idle.");
         }
 
         private void PrintHistoricalPerformance()
@@ -318,7 +347,9 @@ namespace cAlgo.Robots
                 if (_rescanRequested)
                 {
                     _rescanRequested = false;
-                    StartScanCycle();
+                    // Never reset a scan already in progress after a position closes.
+                    if (_scanQueue.Count == 0)
+                        StartScanCycle();
                 }
                 if (_scanQueue.Count == 0)
                 {
