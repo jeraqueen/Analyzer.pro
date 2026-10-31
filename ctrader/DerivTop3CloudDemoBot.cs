@@ -133,6 +133,7 @@ namespace cAlgo.Robots
         private int _openedThisScan;
         private DateTime _lastScanCompleted = DateTime.MinValue;
         private bool _rescanRequested;
+        private DateTime _lastHeartbeatLog = DateTime.MinValue;
         private readonly Dictionary<long, double> _initialRiskPrice = new Dictionary<long, double>();
         private readonly HashSet<long> _partialProfitTaken = new HashSet<long>();
 
@@ -189,20 +190,41 @@ namespace cAlgo.Robots
             Positions.Closed += OnPositionClosed;
             PrintHistoricalPerformance();
 
-            Timer.Start(TimeSpan.FromSeconds(BatchIntervalSeconds));
-            Print("Analyzer.pro Deriv Top-3 Cloud Demo Bot v1.0 started.");
+            Print("Analyzer.pro Deriv Top-3 Cloud Demo Bot v1.1 started; initializing scan engine.");
             Print("Account: DEMO | Equity: {0} {1} | Risk/trade: {2}% | Max total positions: {3} | Max new per completed scan: {4}.",
                 Account.Equity, Account.Asset.Name, RiskPercent, MaximumTotalPositions, MaximumNewPositionsPerScan);
             Print("Markets: dynamically scans supported FX, Gold (XAU), Bitcoin (BTC), and Deriv synthetic-market families whenever the broker reports them open. Closed markets are skipped automatically; reopened markets are included on the next scan.");
             Print("Timeframes: M1/M5 candle-following exits; M15/H1/H4/D1/W1 trend context; only closed candles are evaluated.");
 
             StartScanCycle();
+            Timer.Start(TimeSpan.FromSeconds(BatchIntervalSeconds));
+            _lastHeartbeatLog = Server.Time;
+            Print("TIMER STARTED | interval={0}s | cloud heartbeat diagnostics enabled.", BatchIntervalSeconds);
         }
 
         protected override void OnTimer()
         {
-            ManageOpenPositions();
-            ProcessScanBatch();
+            try
+            {
+                ManageOpenPositions();
+                ProcessScanBatch();
+                if (_lastHeartbeatLog == DateTime.MinValue || (Server.Time - _lastHeartbeatLog).TotalSeconds >= 30)
+                {
+                    _lastHeartbeatLog = Server.Time;
+                    Print("BOT HEARTBEAT | {0:yyyy-MM-dd HH:mm:ss} UTC | timer active | open positions={1} | scan queue={2} | scan index={3} | candidates={4} | free margin={5:F2} {6}.",
+                        Server.Time, Positions.FindAll(BotLabel).Length, _scanQueue.Count, _scanIndex, _scanCandidates.Count, Account.FreeMargin, Account.Asset.Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                Print("FATAL TIMER CYCLE ERROR (bot remains under cTrader supervision): {0}: {1}", ex.GetType().Name, ex.Message);
+            }
+        }
+
+        protected override void OnException(Exception exception)
+        {
+            Print("UNHANDLED CBOT EXCEPTION: {0}: {1}", exception.GetType().Name, exception.Message);
+            Print("STACK TRACE: {0}", exception.StackTrace);
         }
 
         // Manage exits continuously, independently of the entry scan. Broker-side SL/TP
@@ -488,7 +510,12 @@ namespace cAlgo.Robots
             _scanIndex = 0;
             _openedThisScan = 0;
             RefreshRiskBaselines();
-            if (!RiskGateAllowsEntries()) return;
+            if (!RiskGateAllowsEntries())
+            {
+                Print("SCAN BLOCKED BY RISK GATE | equity={0:F2} | balance={1:F2} | free margin={2:F2} | daily start={3:F2} | peak balance={4:F2}. No new entries until the configured safety gate allows them.",
+                    Account.Equity, Account.Balance, Account.FreeMargin, _dayStartBalance, _peakBalance);
+                return;
+            }
             for (int i = 0; i < Symbols.Count; i++)
             {
                 string name = Symbols[i];
@@ -650,7 +677,14 @@ namespace cAlgo.Robots
             }
 
             if (Account.FreeMargin <= 0)
+            {
+                if (!_riskLockLogged)
+                {
+                    Print("RISK LOCK ACTIVE: free margin is zero or negative ({0:F2} {1}); new entries disabled.", Account.FreeMargin, Account.Asset.Name);
+                    _riskLockLogged = true;
+                }
                 return false;
+            }
 
             return true;
         }
