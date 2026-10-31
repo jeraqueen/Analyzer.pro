@@ -510,11 +510,16 @@ namespace cAlgo.Robots
             _scanIndex = 0;
             _openedThisScan = 0;
             RefreshRiskBaselines();
-            if (!RiskGateAllowsEntries())
+            // A risk lock must block ORDER PLACEMENT, not the scanner itself.
+            // Continue evaluating markets and reporting scores/rejections while locked;
+            // TryOpenQualifiedCandidate() checks the same gate immediately before every order.
+            bool entriesAllowed = RiskGateAllowsEntries();
+            if (!entriesAllowed)
             {
-                Print("SCAN BLOCKED BY RISK GATE | equity={0:F2} | balance={1:F2} | free margin={2:F2} | daily start={3:F2} | peak balance={4:F2}. No new entries until the configured safety gate allows them.",
-                    Account.Equity, Account.Balance, Account.FreeMargin, _dayStartBalance, _peakBalance);
-                return;
+                Print("RISK-LOCKED SCAN MODE | equity={0:F2} | balance={1:F2} | free margin={2:F2} | daily start={3:F2} | peak balance={4:F2} | daily floor={5:F2} | peak floor={6:F2}. Scanning continues; all new orders remain blocked.",
+                    Account.Equity, Account.Balance, Account.FreeMargin, _dayStartBalance, _peakBalance,
+                    _dayStartBalance * (1.0 - DailyLossLimitPercent / 100.0),
+                    _peakBalance * (1.0 - PeakDrawdownLimitPercent / 100.0));
             }
             for (int i = 0; i < Symbols.Count; i++)
             {
