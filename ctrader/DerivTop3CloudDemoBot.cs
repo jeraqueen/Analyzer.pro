@@ -44,6 +44,12 @@ namespace cAlgo.Robots
         [Parameter("Profit trailing activation (% equity)", DefaultValue = 1.0, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
         public double ProfitTrailActivationPercent { get; set; }
 
+        [Parameter("Peak profit lock activation (account currency)", DefaultValue = 0.5, MinValue = 0.1, MaxValue = 1000.0, Step = 0.1)]
+        public double PeakProfitLockActivation { get; set; }
+
+        [Parameter("Close after peak profit gives back (%)", DefaultValue = 25.0, MinValue = 10.0, MaxValue = 75.0, Step = 5.0)]
+        public double PeakProfitGivebackPercent { get; set; }
+
         [Parameter("Profit trailing distance (ATR multiple)", DefaultValue = 2.0, MinValue = 0.5, MaxValue = 3.0, Step = 0.25)]
         public double ProfitTrailAtrMultiple { get; set; }
 
@@ -245,6 +251,26 @@ namespace cAlgo.Robots
                         peak = position.NetProfit;
                     peak = Math.Max(peak, position.NetProfit);
                     _peakNetProfit[position.Id] = peak;
+
+                    // Protect even modest green trades: once the position has reached
+                    // the configured peak-profit activation, close this position alone
+                    // if it gives back the configured fraction while still profitable.
+                    // This is separate from the distant broker-side R-multiple target.
+                    double givebackFraction = Math.Max(0.10, Math.Min(0.75, PeakProfitGivebackPercent / 100.0));
+                    if (peak >= PeakProfitLockActivation &&
+                        position.NetProfit > 0 &&
+                        position.NetProfit <= peak * (1.0 - givebackFraction))
+                    {
+                        TradeResult profitLockClose = ClosePosition(position);
+                        if (profitLockClose.IsSuccessful)
+                        {
+                            Print("PEAK PROFIT LOCK EXIT | {0} {1} | peak={2:F2} {3} | closed P/L={4:F2} {3} | giveback={5:F0}%.",
+                                position.TradeType, position.SymbolName, peak, Account.Asset.Name,
+                                position.NetProfit, givebackFraction * 100.0);
+                            continue;
+                        }
+                        Print("PEAK PROFIT LOCK EXIT FAILED | {0} {1}: {2}", position.SymbolName, position.Id, profitLockClose.Error);
+                    }
 
                     SymbolContext context = GetContext(symbol);
                     if (context == null || context.TimeFrames == null) continue;
