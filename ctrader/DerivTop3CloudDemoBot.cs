@@ -583,7 +583,7 @@ namespace cAlgo.Robots
         {
             if (!RiskGateAllowsEntries())
             {
-                Print("ENTRY SKIPPED {0}: account risk gate is active.", candidate.Symbol.Name);
+                Print("ENTRY NOT SENT {0}: account equity/drawdown or free-margin safety check failed. Check the account values printed above.", candidate.Symbol.Name);
                 return;
             }
             int totalOpenPositions = Positions.FindAll(BotLabel).Length;
@@ -678,7 +678,7 @@ namespace cAlgo.Robots
             {
                 if (!_riskLockLogged)
                 {
-                    Print("RISK LOCK ACTIVE. Equity={0}; daily-loss floor={1}; historical peak-balance floor={2}. New entries disabled.",
+                    Print("ENTRY SAFETY CHECK FAILED: equity={0}; daily-loss floor={1}; historical peak-balance floor={2}. New entries are paused by the configured account limits.",
                         Account.Equity, dailyFloor, drawdownFloor);
                     _riskLockLogged = true;
                 }
@@ -689,7 +689,7 @@ namespace cAlgo.Robots
             {
                 if (!_riskLockLogged)
                 {
-                    Print("RISK LOCK ACTIVE: free margin is zero or negative ({0:F2} {1}); new entries disabled.", Account.FreeMargin, Account.Asset.Name);
+                    Print("ENTRY SAFETY CHECK FAILED: free margin is zero or negative ({0:F2} {1}); broker margin requirements prevent new entries.", Account.FreeMargin, Account.Asset.Name);
                     _riskLockLogged = true;
                 }
                 return false;
