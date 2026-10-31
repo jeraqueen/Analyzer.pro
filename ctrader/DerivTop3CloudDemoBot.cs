@@ -206,6 +206,11 @@ namespace cAlgo.Robots
 
                 var candidates = new List<TradeCandidate>();
                 int symbolsChecked = 0;
+                int targetSymbolsFound = 0;
+                int marketsClosed = 0;
+                int marketsUnavailable = 0;
+                Print("MARKET UNIVERSE: cTrader exposes {0} broker symbols to this instance. Host chart: {1} (host chart does not limit scanning).",
+                    Symbols.Count, SymbolName);
 
                 for (int i = 0; i < Symbols.Count; i++)
                 {
@@ -213,9 +218,20 @@ namespace cAlgo.Robots
                     if (string.IsNullOrWhiteSpace(symbolName) || !IsTargetMarket(symbolName))
                         continue;
 
+                    targetSymbolsFound++;
                     Symbol symbol = Symbols.GetSymbol(symbolName);
-                    if (symbol == null || !symbol.MarketHours.IsOpened())
+                    if (symbol == null)
+                    {
+                        marketsUnavailable++;
+                        Print("MARKET SKIPPED {0}: broker symbol could not be loaded.", symbolName);
                         continue;
+                    }
+
+                    if (!symbol.MarketHours.IsOpened())
+                    {
+                        marketsClosed++;
+                        continue;
+                    }
 
                     symbolsChecked++;
                     if (AvoidDuplicateSymbols && Positions.FindAll(BotLabel, symbol.Name).Length > 0)
@@ -231,8 +247,8 @@ namespace cAlgo.Robots
                                         .ThenBy(c => c.SpreadToAtr)
                                         .ToList();
 
-                Print("Scan complete: {0} target symbols open/checked; {1} qualifying opportunities; {2} free slots.",
-                    symbolsChecked, ranked.Count, freeSlots);
+                Print("SCAN SUMMARY: broker symbols={0}; supported targets found={1}; open and checked={2}; closed={3}; unavailable={4}; qualifying opportunities={5}; free trade slots={6}.",
+                    Symbols.Count, targetSymbolsFound, symbolsChecked, marketsClosed, marketsUnavailable, ranked.Count, freeSlots);
 
                 if (ranked.Count == 0)
                 {
