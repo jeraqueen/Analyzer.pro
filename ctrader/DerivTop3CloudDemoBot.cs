@@ -139,7 +139,7 @@ namespace cAlgo.Robots
             Print("Analyzer.pro Deriv Top-3 Cloud Demo Bot v1.0 started.");
             Print("Account: DEMO | Equity: {0} {1} | Risk/trade: {2}% | Maximum selected instruments per scan: 3 | One open position per instrument.",
                 Account.Equity, Account.Asset.Name, RiskPercent);
-            Print("Markets: broker-enabled FX, Gold (XAU), Bitcoin (BTC), and supported synthetic indices (Volatility, Boom, Crash, Step, Jump, Range).");
+            Print("Markets: dynamically scans supported FX, Gold (XAU), Bitcoin (BTC), and Deriv synthetic-market families whenever the broker reports them open. Closed markets are skipped automatically; reopened markets are included on the next scan.");
             Print("Timeframes: M1, M5, M15, M30, H1, H4, D1, W1. Only closed candles are evaluated.");
 
             ScanAndRank();
@@ -369,7 +369,13 @@ namespace cAlgo.Robots
                 name.Contains("STEP") ||
                 name.Contains("JUMP") ||
                 name.Contains("RANGEBREAK") ||
-                name.Contains("DRIFT"))
+                name.Contains("DRIFT") ||
+                name.Contains("VOLSWITCH") ||
+                name.Contains("MULTIPLIER") ||
+                name.Contains("DEX") ||
+                name.Contains("TREK") ||
+                name.Contains("HYBRID") ||
+                name.Contains("SYNTHETIC"))
                 return true;
 
             if (name.StartsWith("XAU") || name.StartsWith("BTC"))
