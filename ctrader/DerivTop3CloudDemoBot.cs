@@ -17,6 +17,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Globalization;
 using cAlgo.API;
 using cAlgo.API.Indicators;
 using cAlgo.API.Internals;
@@ -79,8 +80,29 @@ namespace cAlgo.Robots
         [Parameter("Stop Loss ATR multiple", DefaultValue = 2.0, MinValue = 1.0, MaxValue = 4.0, Step = 0.25)]
         public double StopAtrMultiple { get; set; }
 
-        [Parameter("Take Profit (R multiple)", DefaultValue = 2.0, MinValue = 1.0, MaxValue = 3.0, Step = 0.25)]
+        [Parameter("Take Profit (R multiple)", DefaultValue = 6.0, MinValue = 3.0, MaxValue = 10.0, Step = 0.5)]
         public double TakeProfitR { get; set; }
+
+        [Parameter("Breakeven trigger (R)", DefaultValue = 1.0, MinValue = 0.5, MaxValue = 3.0, Step = 0.25)]
+        public double BreakevenR { get; set; }
+
+        [Parameter("Partial profit trigger (R)", DefaultValue = 2.0, MinValue = 1.0, MaxValue = 5.0, Step = 0.25)]
+        public double PartialProfitR { get; set; }
+
+        [Parameter("Partial close fraction", DefaultValue = 0.35, MinValue = 0.1, MaxValue = 0.8, Step = 0.05)]
+        public double PartialCloseFraction { get; set; }
+
+        [Parameter("Start trailing at (R)", DefaultValue = 2.0, MinValue = 1.0, MaxValue = 5.0, Step = 0.25)]
+        public double PositionTrailStartR { get; set; }
+
+        [Parameter("Position trailing ATR multiple", DefaultValue = 2.5, MinValue = 1.0, MaxValue = 5.0, Step = 0.25)]
+        public double PositionTrailAtrMultiple { get; set; }
+
+        [Parameter("Reversal exit minimum profit (R)", DefaultValue = 0.75, MinValue = 0.0, MaxValue = 3.0, Step = 0.25)]
+        public double ReversalExitMinR { get; set; }
+
+        [Parameter("Position trail lookback bars", DefaultValue = 22, MinValue = 5, MaxValue = 100)]
+        public int PositionTrailLookback { get; set; }
 
         [Parameter("Maximum spread / ATR", DefaultValue = 0.10, MinValue = 0.05, MaxValue = 0.5, Step = 0.05)]
         public double MaximumSpreadToAtr { get; set; }
@@ -105,7 +127,8 @@ namespace cAlgo.Robots
         private int _openedThisScan;
         private DateTime _lastScanCompleted = DateTime.MinValue;
         private bool _rescanRequested;
-        private readonly Dictionary<long, double> _peakOpenProfit = new Dictionary<long, double>();
+        private readonly Dictionary<long, double> _initialRiskPrice = new Dictionary<long, double>();
+        private readonly HashSet<long> _partialProfitTaken = new HashSet<long>();
 
         private static readonly TimeFrame[] ScanTimeFrames =
         {
