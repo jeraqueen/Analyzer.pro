@@ -1,10 +1,12 @@
 // -----------------------------------------------------------------------------
 // Analyzer.pro - Deriv cTrader Cloud Demo Bot
-// Version 2.0.0 - M5-only candle-following strategy
+// Version 2.1.0 - M5 early-direction confirmation strategy
 // -----------------------------------------------------------------------------
 // Strategy:
 // - Scans all broker-listed supported FX, XAU, BTC and Deriv synthetic symbols.
-// - At 30 seconds into each M5 candle: green = BUY, red = SELL, doji = no trade.
+// - Enters as soon as the live M5 candle first shows a clear green/red direction.
+// - During the first 30 seconds, an opposite colour closes the provisional trade.
+// - At +30 seconds, the surviving direction is confirmed; a still-flat candle is skipped.
 // - Tracks price-based maximum favourable excursion (MFE).
 // - Closes after a 25% retracement from peak MFE, retaining approximately 75%.
 // - If no retracement occurs, closes at the end of the originating M5 candle.
@@ -27,7 +29,7 @@ namespace cAlgo.Robots
     {
         private const string BotLabel = "ANALYZERPRO_CTRADER_DEMO_V1";
         private const int CandleMinutes = 5;
-        private const int EntryDelaySeconds = 30;
+        private const int ConfirmationWindowSeconds = 30;
         private const double RetainedMfeFraction = 0.75;
 
         [Parameter("Demo only (mandatory)", DefaultValue = true)]
@@ -72,9 +74,9 @@ namespace cAlgo.Robots
 
             Positions.Closed += OnPositionClosed;
             RefreshSymbolCatalogue();
-            Print("Analyzer.pro cTrader Cloud Demo Bot v2.0 started.");
-            Print("MODE: M5 ONLY | decision at +30 seconds | green=BUY | red=SELL | doji=skip.");
-            Print("EXIT: price-based 75% MFE lock after 25% retracement; otherwise close at originating M5 candle end.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v2.1 started.");
+            Print("MODE: M5 ONLY | enter on first clear candle colour | opposite colour during first 30 seconds closes trade | flat at +30s skips.");
+            Print("EXIT: opposite-colour reversal closes provisional entry; then 75% MFE lock after 25% retracement; otherwise close at M5 candle end.");
             Print("MARKETS: broker-listed FX, XAU, BTC and supported Deriv synthetic symbols.");
             Print("POSITION LIMIT: no global cap; one active position per symbol.");
             Print("SAFETY: demo-only guard and broker-side emergency stop active.");
@@ -153,9 +155,9 @@ namespace cAlgo.Robots
                 return;
 
             DateTime candleOpen = bars.OpenTimes.Last(0);
-            DateTime decisionTime = candleOpen.AddSeconds(EntryDelaySeconds);
+            DateTime confirmationTime = candleOpen.AddSeconds(ConfirmationWindowSeconds);
             DateTime candleEnd = candleOpen.AddMinutes(CandleMinutes);
-            if (now < decisionTime || now >= candleEnd)
+            if (now >= candleEnd)
                 return;
 
             DateTime lastDecision;
@@ -174,9 +176,9 @@ namespace cAlgo.Robots
                 OpenPosition(symbol, bars, TradeType.Buy, candleOpen);
             else if (live < open)
                 OpenPosition(symbol, bars, TradeType.Sell, candleOpen);
-            else
+            else if (now >= confirmationTime)
             {
-                Print("M5 DOJI - NO ENTRY | {0} | candle={1:HH:mm} UTC.", name, candleOpen);
+                Print("M5 FLAT AT 30-SECOND CONFIRMATION - NO ENTRY | {0} | candle={1:HH:mm} UTC.", name, candleOpen);
                 _lastDecisionCandle[name] = candleOpen;
             }
         }
@@ -203,7 +205,7 @@ namespace cAlgo.Robots
                 double stopDistance = Math.Max(atr * StopAtrMultiple, MinimumEmergencyStopPips * symbol.PipSize);
                 double stopPips = Math.Max(MinimumEmergencyStopPips, stopDistance / symbol.PipSize);
                 TradeResult result = ExecuteMarketOrder(direction, symbol.Name, volume, BotLabel, stopPips, (double?)null,
-                    "ANALYZERPRO_M5_30S | " + candleOpen.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture));
+                    ANALYZERPRO_M5_EARLY |  + candleOpen.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture));
 
                 if (!result.IsSuccessful)
                 {
@@ -273,6 +275,31 @@ namespace cAlgo.Robots
                         _restartStateRecovered.Add(position.Id);
                         Print("POSITION STATE RECOVERED | {0} {1} | origin candle={2:HH:mm} UTC | MFE tracking resumed from current quote.",
                             position.TradeType, position.SymbolName, origin);
+                    }
+
+                    // First 30 seconds are a direction-confirmation window. If the live
+                    // candle changes to the opposite colour, close immediately and do not re-enter.
+                    if (now < origin.AddSeconds(ConfirmationWindowSeconds))
+                    {
+                        Bars confirmBars;
+                        if (_m5Bars.TryGetValue(position.SymbolName, out confirmBars) && confirmBars != null && confirmBars.Count > 0)
+                        {
+                            double candleOpen = confirmBars.OpenPrices.Last(0);
+                            double candleLive = confirmBars.ClosePrices.Last(0);
+                            bool reversed = position.TradeType == TradeType.Buy
+                                ? candleLive < candleOpen
+                                : candleLive > candleOpen;
+                            if (reversed)
+                            {
+                                TradeResult reversalClose = ClosePosition(position);
+                                if (reversalClose.IsSuccessful)
+                                    Print("30-SECOND DIRECTION REVERSAL EXIT | {0} {1} | candle={2:HH:mm} UTC | trade closed; no re-entry this candle.",
+                                        position.TradeType, position.SymbolName, origin);
+                                else
+                                    Print("DIRECTION REVERSAL EXIT FAILED | {0} #{1} | {2}.", position.SymbolName, position.Id, reversalClose.Error);
+                                continue;
+                            }
+                        }
                     }
 
                     double executable = position.TradeType == TradeType.Buy ? symbol.Bid : symbol.Ask;
