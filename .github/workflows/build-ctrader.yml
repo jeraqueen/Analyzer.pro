@@ -1,0 +1,50 @@
+name: Build cTrader demo bot
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ctrader-cloud-demo-bot
+    paths:
+      - "ctrader/**"
+      - ".github/workflows/build-ctrader.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 6 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "6.0.x"
+
+      - name: Restore cTrader dependencies
+        run: dotnet restore ctrader/AnalyzerProDerivCloudBot.csproj
+
+      - name: Build cTrader .algo package
+        run: dotnet build ctrader/AnalyzerProDerivCloudBot.csproj --configuration Release --no-restore -p:AlgoBuild=True -p:AlgoPublish=False -p:IncludeSource=True
+
+      - name: Verify .algo output exists
+        shell: pwsh
+        run: |
+          $algo = Get-ChildItem -Path "ctrader/bin/Release" -Filter "*.algo" -Recurse | Select-Object -First 1
+          if (-not $algo) {
+            Write-Error "Build completed without producing a .algo file."
+            exit 1
+          }
+          Write-Host "Built $($algo.FullName)"
+          "ALGO_PATH=$($algo.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload installable cBot
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnalyzerPro-cTrader-demo-bot
+          path: ${{ env.ALGO_PATH }}
+          if-no-files-found: error
+          retention-days: 30
