@@ -313,7 +313,7 @@ namespace cAlgo.Robots
                         ? peak - position.EntryPrice
                         : position.EntryPrice - peak;
 
-                    if (maxFavourable > symbol.TickSize)
+                    if (now >= origin.AddSeconds(ConfirmationWindowSeconds) && maxFavourable > symbol.TickSize)
                     {
                         double lockLevel = position.TradeType == TradeType.Buy
                             ? position.EntryPrice + maxFavourable * RetainedMfeFraction
