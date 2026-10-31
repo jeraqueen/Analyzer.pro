@@ -46,7 +46,7 @@ namespace cAlgo.Robots
         [Parameter("Scan interval (seconds)", DefaultValue = 60, MinValue = 15, MaxValue = 300)]
         public int ScanIntervalSeconds { get; set; }
 
-        [Parameter("Minimum alignment score (%)", DefaultValue = 76, MinValue = 60, MaxValue = 95)]
+        [Parameter("Minimum calculated confidence (%)", DefaultValue = 76, MinValue = 60, MaxValue = 95)]
         public double MinimumScore { get; set; }
 
         [Parameter("Fast EMA", DefaultValue = 9, MinValue = 3, MaxValue = 30)]
@@ -336,25 +336,35 @@ namespace cAlgo.Robots
             }
 
             TradeType direction;
-            double score;
+            double directionalWeight;
             if (buyWeight > sellWeight)
             {
                 direction = TradeType.Buy;
-                score = buyWeight / totalWeight * 100.0;
+                directionalWeight = buyWeight;
             }
             else if (sellWeight > buyWeight)
             {
                 direction = TradeType.Sell;
-                score = sellWeight / totalWeight * 100.0;
+                directionalWeight = sellWeight;
             }
             else
                 return null;
 
+            double alignmentScore = directionalWeight / totalWeight * 100.0;
             double rsi = context.Rsi.Result.Last(1);
             if (direction == TradeType.Buy && (rsi < 52 || rsi > 72))
                 return null;
             if (direction == TradeType.Sell && (rsi > 48 || rsi < 28))
                 return null;
+
+            double rsiScore;
+            if (direction == TradeType.Buy)
+                rsiScore = rsi <= 60 ? 70.0 + (rsi - 52.0) / 8.0 * 30.0
+                                     : 100.0 - (rsi - 60.0) / 12.0 * 30.0;
+            else
+                rsiScore = rsi >= 40 ? 70.0 + (48.0 - rsi) / 8.0 * 30.0
+                                     : 100.0 - (40.0 - rsi) / 12.0 * 30.0;
+            rsiScore = Math.Max(0.0, Math.Min(100.0, rsiScore));
 
             double atr = context.Atr.Result.Last(1);
             if (atr <= 0)
@@ -364,6 +374,19 @@ namespace cAlgo.Robots
             double spreadToAtr = spread / atr;
             if (spreadToAtr > MaximumSpreadToAtr)
                 return null;
+
+            var m15 = context.TimeFrames[2];
+            double emaSeparation = Math.Abs(m15.Fast.Result.Last(1) - m15.Middle.Result.Last(1));
+            double trendStrengthScore = Math.Max(0.0, Math.Min(100.0, (emaSeparation / atr) * 250.0));
+            double spreadEfficiencyScore = Math.Max(0.0, Math.Min(100.0,
+                (1.0 - spreadToAtr / MaximumSpreadToAtr) * 100.0));
+
+            // Technical evidence score only; not a statistically calibrated win probability.
+            // Historical predictive performance requires out-of-sample backtesting.
+            double score = alignmentScore * 0.50
+                         + rsiScore * 0.20
+                         + trendStrengthScore * 0.15
+                         + spreadEfficiencyScore * 0.15;
 
             double stopDistancePrice = atr * StopAtrMultiple;
             double stopPips = stopDistancePrice / symbol.PipSize;
@@ -443,7 +466,7 @@ namespace cAlgo.Robots
                 BotLabel,
                 candidate.StopPips,
                 candidate.TakeProfitPips,
-                "Top-ranked demo signal; score " + candidate.Score.ToString("F1") + "%");
+                "Top-ranked demo signal; calculated technical confidence score " + candidate.Score.ToString("F1") + "%");
 
             if (!result.IsSuccessful)
             {
@@ -451,7 +474,7 @@ namespace cAlgo.Robots
                 return false;
             }
 
-            Print("OPENED {0} {1} | score {2:F1}% | RSI {3:F1} | SL {4:F1} pips | TP {5:F1} pips | volume {6}",
+            Print("OPENED {0} {1} | CALCULATED TECHNICAL CONFIDENCE {2:F1}% (not a win probability) | RSI {3:F1} | SL {4:F1} pips | TP {5:F1} pips | volume {6}",
                 candidate.Direction, symbol.Name, candidate.Score, candidate.Rsi,
                 candidate.StopPips, candidate.TakeProfitPips, volume);
             return true;
