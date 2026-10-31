@@ -398,13 +398,15 @@ namespace cAlgo.Robots
 
             double buyWeight = 0;
             double sellWeight = 0;
-            double totalWeight = TimeFrameWeights.Sum();
+            double totalWeight = 0;
 
             for (int i = 0; i < context.TimeFrames.Length; i++)
             {
                 TimeFrameData data = context.TimeFrames[i];
-                if (data.Bars.Count < TrendEmaPeriod + 10)
-                    return null;
+                if (data.Bars == null || data.Fast == null || data.Middle == null || data.Trend == null || data.Bars.Count < TrendEmaPeriod + 10)
+                    continue;
+
+                totalWeight += TimeFrameWeights[i];
 
                 int closed = 1;
                 double fast = data.Fast.Result.Last(closed);
@@ -420,6 +422,9 @@ namespace cAlgo.Robots
                 else if (bearish)
                     sellWeight += TimeFrameWeights[i];
             }
+
+            if (context.TimeFrames[2].Bars == null || context.TimeFrames[2].Bars.Count < TrendEmaPeriod + 10 || totalWeight <= 0)
+                return null;
 
             TradeType direction;
             double directionalWeight;
@@ -509,6 +514,11 @@ namespace cAlgo.Robots
                 for (int i = 0; i < ScanTimeFrames.Length; i++)
                 {
                     Bars bars = MarketData.GetBars(ScanTimeFrames[i], symbol.Name);
+                    if (bars == null || bars.Count < TrendEmaPeriod + 10)
+                    {
+                        timeFrameData[i] = new TimeFrameData { Bars = bars };
+                        continue;
+                    }
                     var fast = Indicators.ExponentialMovingAverage(bars.ClosePrices, FastEmaPeriod);
                     var middle = Indicators.ExponentialMovingAverage(bars.ClosePrices, MiddleEmaPeriod);
                     var trend = Indicators.ExponentialMovingAverage(bars.ClosePrices, TrendEmaPeriod);
@@ -516,6 +526,8 @@ namespace cAlgo.Robots
                 }
 
                 Bars m15 = MarketData.GetBars(TimeFrame.Minute15, symbol.Name);
+                if (m15 == null || m15.Count < Math.Max(TrendEmaPeriod + 10, RsiPeriod + 10))
+                    return null;
                 var rsi = Indicators.RelativeStrengthIndex(m15.ClosePrices, RsiPeriod);
                 var atr = Indicators.AverageTrueRange(m15, AtrPeriod, MovingAverageType.Exponential);
 
