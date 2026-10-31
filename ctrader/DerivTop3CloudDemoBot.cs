@@ -128,9 +128,15 @@ namespace cAlgo.Robots
                 return;
             }
 
-            _riskDay = Server.Time.Date;
-            _dayStartEquity = Account.Equity;
-            _peakEquity = Account.Equity;
+            // Rebuild risk references from account history so a Cloud restart
+            // cannot silently reset the daily-loss or historical peak-balance guard.
+            _riskDay = DateTime.MinValue;
+            _dayStartEquity = 0;
+            _peakEquity = 0;
+            RefreshRiskBaselines();
+
+            Positions.Closed += OnPositionClosed;
+            PrintHistoricalPerformance();
 
             Timer.Start(TimeSpan.FromSeconds(ScanIntervalSeconds));
             Print("Analyzer.pro Deriv Top-3 Cloud Demo Bot v1.0 started.");
@@ -150,7 +156,35 @@ namespace cAlgo.Robots
         protected override void OnStop()
         {
             Timer.Stop();
+            Positions.Closed -= OnPositionClosed;
             Print("Analyzer.pro cBot stopped. Existing broker-side SL/TP remain with their positions.");
+        }
+
+        private void OnPositionClosed(PositionClosedEventArgs args)
+        {
+            PrintHistoricalPerformance();
+        }
+
+        private void PrintHistoricalPerformance()
+        {
+            var trades = History.FindAll(BotLabel);
+            int total = trades.Length;
+            if (total == 0)
+            {
+                Print("BOT PERFORMANCE: no closed trades yet; win rate and profit factor are not available.");
+                return;
+            }
+
+            int wins = trades.Count(t => t.NetProfit > 0);
+            int losses = trades.Count(t => t.NetProfit < 0);
+            double net = trades.Sum(t => t.NetProfit);
+            double grossWins = trades.Where(t => t.NetProfit > 0).Sum(t => t.NetProfit);
+            double grossLosses = Math.Abs(trades.Where(t => t.NetProfit < 0).Sum(t => t.NetProfit));
+            string profitFactor = grossLosses > 0 ? (grossWins / grossLosses).ToString("F2") : "N/A (no losing trades)";
+
+            Print("BOT HISTORICAL PERFORMANCE | Closed trades: {0} | Wins: {1} | Losses: {2} | Win rate: {3:F1}% | Net P/L: {4:F2} {5} | Profit factor: {6}",
+                total, wins, losses, (double)wins / total * 100.0, net, Account.Asset.Name, profitFactor);
+            Print("Performance figures describe this bot's closed trades only; they are historical results, not a guaranteed future win probability.");
         }
 
         private void ScanAndRank()
@@ -247,16 +281,31 @@ namespace cAlgo.Robots
         private void RefreshRiskBaselines()
         {
             DateTime today = Server.Time.Date;
+            var accountHistory = History.ToArray();
+            double todayClosedNet = accountHistory
+                .Where(t => t.ClosingTime.Date == today)
+                .Sum(t => t.NetProfit);
+
+            // Reconstruct today's opening balance from current balance and all
+            // account trades closed today. Floating P/L remains included through Equity.
+            double reconstructedStartBalance = Account.Balance - todayClosedNet;
+            if (reconstructedStartBalance > 0)
+                _dayStartEquity = reconstructedStartBalance;
+
             if (today != _riskDay)
             {
                 _riskDay = today;
-                _dayStartEquity = Account.Equity;
                 _riskLockLogged = false;
-                Print("New server day. Daily equity reference reset to {0}.", _dayStartEquity);
+                Print("Daily risk reference reconstructed from account history: {0:F2} {1}.",
+                    _dayStartEquity, Account.Asset.Name);
             }
 
-            if (Account.Equity > _peakEquity)
-                _peakEquity = Account.Equity;
+            // Use the account's historical closed-balance high-water mark. Unlike
+            // LocalStorage, History is available after a cTrader Cloud restart.
+            double historicalPeakBalance = accountHistory.Length > 0
+                ? accountHistory.Max(t => t.Balance)
+                : Account.Balance;
+            _peakEquity = Math.Max(_peakEquity, Math.Max(Account.Balance, historicalPeakBalance));
         }
 
         private bool RiskGateAllowsEntries()
