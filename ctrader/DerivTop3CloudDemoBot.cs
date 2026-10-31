@@ -34,9 +34,6 @@ namespace cAlgo.Robots
         [Parameter("Risk per trade (%)", DefaultValue = 0.25, MinValue = 0.05, MaxValue = 1.0, Step = 0.05)]
         public double RiskPercent { get; set; }
 
-        [Parameter("Maximum open trades", DefaultValue = 3, MinValue = 1, MaxValue = 3)]
-        public int MaxOpenTrades { get; set; }
-
         [Parameter("Daily loss limit (%)", DefaultValue = 2.5, MinValue = 0.5, MaxValue = 5.0, Step = 0.25)]
         public double DailyLossLimitPercent { get; set; }
 
@@ -121,9 +118,9 @@ namespace cAlgo.Robots
                 return;
             }
 
-            if (RiskPercent <= 0 || RiskPercent > 1.0 || MaxOpenTrades < 1 || MaxOpenTrades > 3)
+            if (RiskPercent <= 0 || RiskPercent > 1.0)
             {
-                Print("START BLOCKED: Risk or maximum-position parameters are outside the permitted safety range.");
+                Print("START BLOCKED: Risk parameters are outside the permitted safety range.");
                 Stop();
                 return;
             }
@@ -140,8 +137,8 @@ namespace cAlgo.Robots
 
             Timer.Start(TimeSpan.FromSeconds(ScanIntervalSeconds));
             Print("Analyzer.pro Deriv Top-3 Cloud Demo Bot v1.0 started.");
-            Print("Account: DEMO | Equity: {0} {1} | Risk/trade: {2}% | Max positions: {3}",
-                Account.Equity, Account.Asset.Name, RiskPercent, MaxOpenTrades);
+            Print("Account: DEMO | Equity: {0} {1} | Risk/trade: {2}% | Maximum selected instruments per scan: 3 | One open position per instrument.",
+                Account.Equity, Account.Asset.Name, RiskPercent);
             Print("Markets: broker-enabled FX, Gold (XAU), Bitcoin (BTC), and supported synthetic indices (Volatility, Boom, Crash, Step, Jump, Range).");
             Print("Timeframes: M1, M5, M15, M30, H1, H4, D1, W1. Only closed candles are evaluated.");
 
@@ -196,14 +193,6 @@ namespace cAlgo.Robots
                 if (!RiskGateAllowsEntries())
                     return;
 
-                var openPositions = Positions.FindAll(BotLabel);
-                int freeSlots = MaxOpenTrades - openPositions.Length;
-                if (freeSlots <= 0)
-                {
-                    Print("Position cap reached ({0}/{1}). No new entries.", openPositions.Length, MaxOpenTrades);
-                    return;
-                }
-
                 var candidates = new List<TradeCandidate>();
                 int symbolsChecked = 0;
                 int targetSymbolsFound = 0;
@@ -247,8 +236,8 @@ namespace cAlgo.Robots
                                         .ThenBy(c => c.SpreadToAtr)
                                         .ToList();
 
-                Print("SCAN SUMMARY: broker symbols={0}; supported targets found={1}; open and checked={2}; closed={3}; unavailable={4}; qualifying opportunities={5}; free trade slots={6}.",
-                    Symbols.Count, targetSymbolsFound, symbolsChecked, marketsClosed, marketsUnavailable, ranked.Count, freeSlots);
+                Print("SCAN SUMMARY: broker symbols={0}; supported targets found={1}; open and checked={2}; closed={3}; unavailable={4}; qualifying opportunities={5}; selected instrument limit=3.",
+                    Symbols.Count, targetSymbolsFound, symbolsChecked, marketsClosed, marketsUnavailable, ranked.Count);
 
                 if (ranked.Count == 0)
                 {
@@ -265,14 +254,18 @@ namespace cAlgo.Robots
 
                 int opened = 0;
                 var currencyExposure = BuildCurrentCurrencyExposure();
+                var selected = ranked.Take(3).ToList();
+                Print("SELECTED TOP INSTRUMENTS: {0}", string.Join(", ", selected.Select(x => x.Symbol.Name)));
 
-                foreach (TradeCandidate candidate in ranked)
+                foreach (TradeCandidate candidate in selected)
                 {
-                    if (opened >= freeSlots)
-                        break;
-
-                    if (AvoidDuplicateSymbols && Positions.FindAll(BotLabel, candidate.Symbol.Name).Length > 0)
+                    // One live position per selected instrument. The bot may trade
+                    // the same instrument again after its previous position closes.
+                    if (Positions.FindAll(BotLabel, candidate.Symbol.Name).Length > 0)
+                    {
+                        Print("Already holding {0}; keeping the instrument in the top-three scan but not stacking another position.", candidate.Symbol.Name);
                         continue;
+                    }
 
                     if (UseCurrencyExposureGuard && candidate.IsForex &&
                         WouldIncreaseConcentratedExposure(candidate, currencyExposure))
@@ -293,7 +286,7 @@ namespace cAlgo.Robots
                 }
 
                 if (opened == 0)
-                    Print("No order opened. Candidates were blocked by exposure, sizing, or broker constraints.");
+                    Print("No new order opened from the top-three selection. Existing positions, exposure, sizing, or broker constraints may have blocked entries.");
             }
             catch (Exception ex)
             {
