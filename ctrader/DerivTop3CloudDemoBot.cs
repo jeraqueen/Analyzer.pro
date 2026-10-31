@@ -35,7 +35,7 @@ namespace cAlgo.Robots
         [Parameter("Risk per trade (%)", DefaultValue = 0.25, MinValue = 0.05, MaxValue = 1.0, Step = 0.05)]
         public double RiskPercent { get; set; }
 
-        [Parameter("Daily loss limit (%)", DefaultValue = 10.0, MinValue = 0.5, MaxValue = 10.0, Step = 0.5)]
+        [Parameter("Daily loss limit (%)", DefaultValue = 50.0, MinValue = 0.5, MaxValue = 50.0, Step = 0.5)]
         public double DailyLossLimitPercent { get; set; }
 
         [Parameter("Maximum loss per position (% equity)", DefaultValue = 1.0, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
@@ -53,7 +53,7 @@ namespace cAlgo.Robots
         [Parameter("Scan interval (seconds)", DefaultValue = 15, MinValue = 15, MaxValue = 300)]
         public int ScanIntervalSeconds { get; set; }
 
-        [Parameter("Symbols per batch", DefaultValue = 5, MinValue = 1, MaxValue = 10)]
+        [Parameter("Symbols per batch", DefaultValue = 10, MinValue = 1, MaxValue = 10)]
         public int SymbolsPerBatch { get; set; }
 
         [Parameter("Batch interval (seconds)", DefaultValue = 2, MinValue = 1, MaxValue = 30)]
@@ -119,7 +119,7 @@ namespace cAlgo.Robots
         [Parameter("Maximum total open positions", DefaultValue = 8, MinValue = 1, MaxValue = 10)]
         public int MaximumTotalPositions { get; set; }
 
-        [Parameter("Maximum new positions per scan", DefaultValue = 2, MinValue = 1, MaxValue = 5)]
+        [Parameter("Maximum new positions per scan", DefaultValue = 8, MinValue = 1, MaxValue = 8)]
         public int MaximumNewPositionsPerScan { get; set; }
 
         private readonly Dictionary<string, SymbolContext> _contexts = new Dictionary<string, SymbolContext>(StringComparer.OrdinalIgnoreCase);
@@ -471,14 +471,10 @@ namespace cAlgo.Robots
             _initialRiskPrice.Remove(args.Position.Id);
             _partialProfitTaken.Remove(args.Position.Id);
             PrintHistoricalPerformance();
-            // Discard any stale/incomplete ranking. The next timer tick starts a fresh
-            // full-universe scan so the best currently available opportunity is reconsidered.
-            _scanQueue.Clear();
-            _scanCandidates.Clear();
-            _scanIndex = 0;
-            _openedThisScan = 0;
-            _rescanRequested = true;
-            Print("POSITION CLOSED: fresh full-market scan requested to find the strongest next eligible trade.");
+            // Do not interrupt an active scan. Remaining open markets are evaluated
+            // on schedule and can immediately fill the newly freed portfolio slot.
+            // If the scan has already completed, the normal scan interval starts the next cycle.
+            Print("POSITION CLOSED: portfolio slot freed; active scan continues and the next qualifying market may fill it.");
         }
 
         private void PrintHistoricalPerformance()
@@ -521,12 +517,23 @@ namespace cAlgo.Robots
                     _dayStartBalance * (1.0 - DailyLossLimitPercent / 100.0),
                     _peakBalance * (1.0 - PeakDrawdownLimitPercent / 100.0));
             }
+            int supportedOpen = 0;
+            int supportedClosed = 0;
             for (int i = 0; i < Symbols.Count; i++)
             {
                 string name = Symbols[i];
-                if (!string.IsNullOrWhiteSpace(name) && IsTargetMarket(name)) _scanQueue.Add(name);
+                if (string.IsNullOrWhiteSpace(name) || !IsTargetMarket(name)) continue;
+                Symbol market = Symbols.GetSymbol(name);
+                if (market == null) continue;
+                if (market.MarketHours.IsOpened())
+                {
+                    _scanQueue.Add(name);
+                    supportedOpen++;
+                }
+                else supportedClosed++;
             }
-            Print("SCAN START | host={0} | broker symbols={1} | target markets={2} | batch size={3}.", SymbolName, Symbols.Count, _scanQueue.Count, SymbolsPerBatch);
+            Print("SCAN START | broker symbols={0} | supported OPEN markets queued={1} | supported CLOSED markets skipped={2} | batch size={3}.",
+                Symbols.Count, supportedOpen, supportedClosed, SymbolsPerBatch);
             if (_scanQueue.Count == 0) Print("SCAN DIAGNOSTIC: no supported symbols found in broker catalogue.");
         }
 
@@ -557,8 +564,12 @@ namespace cAlgo.Robots
                     if (candidate != null && candidate.Score > MinimumScore)
                     {
                         _scanCandidates.Add(candidate);
-                        Print("QUALIFIED {0} {1} | technical score={2:F1}% (not a statistically validated win probability); added to ranking.",
+                        Print("QUALIFIED {0} {1} | technical score={2:F1}% (not a statistically validated win probability); attempting immediate entry.",
                             candidate.Direction, name, candidate.Score);
+                        if (Positions.FindAll(BotLabel).Length < MaximumTotalPositions)
+                            TryOpenQualifiedCandidate(candidate);
+                        else
+                            Print("PORTFOLIO FULL | {0}/{1} positions; continuing scan without new entries.", Positions.FindAll(BotLabel).Length, MaximumTotalPositions);
                     }
                 }
                 Print("SCAN PROGRESS: {0}/{1} symbols processed; candidates={2}.", _scanIndex, _scanQueue.Count, _scanCandidates.Count);
@@ -612,15 +623,8 @@ namespace cAlgo.Robots
         {
             var ranked = _scanCandidates.OrderByDescending(c => c.Score).ThenByDescending(c => c.RewardRisk).ThenBy(c => c.SpreadToAtr).ToList();
             Print("SCAN COMPLETE | broker symbols={0} | supported markets={1} | qualifying={2} | opened during scan={3}.", Symbols.Count, _scanQueue.Count, ranked.Count, _openedThisScan);
-            // Complete the scan first, then open up to the configured number of strongest eligible opportunities.
-            // Never exceed the portfolio cap and never force weak entries just to maintain a minimum count.
-            foreach (TradeCandidate candidate in ranked)
-            {
-                if (_openedThisScan >= MaximumNewPositionsPerScan) break;
-                if (Positions.FindAll(BotLabel).Length >= MaximumTotalPositions) break;
-                TryOpenQualifiedCandidate(candidate);
-            }
-
+            // Entries are attempted immediately as each qualifying market is evaluated.
+            // The scan continues so a freed portfolio slot can be filled by a later candidate.
             if (ranked.Count == 0)
                 Print("NO TRADE: no market scored above the strict threshold and passed all entry filters; no forced trades.");
             else if (_openedThisScan == 0)
