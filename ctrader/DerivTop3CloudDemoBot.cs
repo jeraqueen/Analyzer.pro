@@ -172,13 +172,23 @@ namespace cAlgo.Robots
 
             double open = bars.OpenPrices.Last(0);
             double live = bars.ClosePrices.Last(0);
-            if (live > open)
-                OpenPosition(symbol, bars, TradeType.Buy, candleOpen);
-            else if (live < open)
-                OpenPosition(symbol, bars, TradeType.Sell, candleOpen);
-            else if (now >= confirmationTime)
+
+            // Entries are only allowed during the first 30 seconds of the M5 candle.
+            // If this symbol is first reached after that window, do not chase a candle
+            // that is already moving; the bot has missed the immediate first-direction entry.
+            if (now < confirmationTime)
             {
-                Print("M5 FLAT AT 30-SECOND CONFIRMATION - NO ENTRY | {0} | candle={1:HH:mm} UTC.", name, candleOpen);
+                if (live > open)
+                    OpenPosition(symbol, bars, TradeType.Buy, candleOpen);
+                else if (live < open)
+                    OpenPosition(symbol, bars, TradeType.Sell, candleOpen);
+            }
+            else
+            {
+                string reason = Math.Abs(live - open) <= symbol.TickSize
+                    ? "flat/doji at confirmation"
+                    : "entry window elapsed before symbol was processed";
+                Print("M5 NO ENTRY | {0} | {1} | candle={2:HH:mm} UTC.", name, reason, candleOpen);
                 _lastDecisionCandle[name] = candleOpen;
             }
         }
