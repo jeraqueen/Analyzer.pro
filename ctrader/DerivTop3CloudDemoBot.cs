@@ -43,6 +43,9 @@ namespace cAlgo.Robots
         [Parameter("Scan interval (seconds)", DefaultValue = 60, MinValue = 15, MaxValue = 300)]
         public int ScanIntervalSeconds { get; set; }
 
+        [Parameter("Symbols per batch", DefaultValue = 3, MinValue = 1, MaxValue = 10)]
+        public int SymbolsPerBatch { get; set; }
+
         [Parameter("Minimum calculated confidence (%)", DefaultValue = 76, MinValue = 60, MaxValue = 95)]
         public double MinimumScore { get; set; }
 
@@ -81,6 +84,10 @@ namespace cAlgo.Robots
         private double _dayStartBalance;
         private double _peakBalance;
         private bool _riskLockLogged;
+        private readonly List<string> _scanQueue = new List<string>();
+        private readonly List<TradeCandidate> _scanCandidates = new List<TradeCandidate>();
+        private int _scanIndex;
+        private DateTime _lastScanCompleted = DateTime.MinValue;
 
         private static readonly TimeFrame[] ScanTimeFrames =
         {
@@ -142,12 +149,12 @@ namespace cAlgo.Robots
             Print("Markets: dynamically scans supported FX, Gold (XAU), Bitcoin (BTC), and Deriv synthetic-market families whenever the broker reports them open. Closed markets are skipped automatically; reopened markets are included on the next scan.");
             Print("Timeframes: M1, M5, M15, M30, H1, H4, D1, W1. Only closed candles are evaluated.");
 
-            ScanAndRank();
+            StartScanCycle();
         }
 
         protected override void OnTimer()
         {
-            ScanAndRank();
+            ProcessScanBatch();
         }
 
         protected override void OnStop()
@@ -184,116 +191,67 @@ namespace cAlgo.Robots
             Print("Performance figures describe this bot's closed trades only; they are historical results, not a guaranteed future win probability.");
         }
 
-        private void ScanAndRank()
+        private void StartScanCycle()
+        {
+            _scanQueue.Clear();
+            _scanCandidates.Clear();
+            _scanIndex = 0;
+            RefreshRiskBaselines();
+            if (!RiskGateAllowsEntries()) return;
+            for (int i = 0; i < Symbols.Count; i++)
+            {
+                string name = Symbols[i];
+                if (!string.IsNullOrWhiteSpace(name) && IsTargetMarket(name)) _scanQueue.Add(name);
+            }
+            Print("SCAN START | host={0} | broker symbols={1} | target markets={2} | batch size={3}.", SymbolName, Symbols.Count, _scanQueue.Count, SymbolsPerBatch);
+            if (_scanQueue.Count == 0) Print("SCAN DIAGNOSTIC: no supported symbols found in broker catalogue.");
+        }
+
+        private void ProcessScanBatch()
         {
             try
             {
-                RefreshRiskBaselines();
-
-                if (!RiskGateAllowsEntries())
-                    return;
-
-                var candidates = new List<TradeCandidate>();
-                int symbolsChecked = 0;
-                int targetSymbolsFound = 0;
-                int marketsClosed = 0;
-                int marketsUnavailable = 0;
-                Print("MARKET UNIVERSE: cTrader exposes {0} broker symbols to this instance. Host chart: {1} (host chart does not limit scanning).",
-                    Symbols.Count, SymbolName);
-
-                for (int i = 0; i < Symbols.Count; i++)
+                if (_scanQueue.Count == 0)
                 {
-                    string symbolName = Symbols[i];
-                    if (string.IsNullOrWhiteSpace(symbolName) || !IsTargetMarket(symbolName))
-                        continue;
-
-                    targetSymbolsFound++;
-                    Symbol symbol = Symbols.GetSymbol(symbolName);
-                    if (symbol == null)
-                    {
-                        marketsUnavailable++;
-                        Print("MARKET SKIPPED {0}: broker symbol could not be loaded.", symbolName);
-                        continue;
-                    }
-
-                    if (!symbol.MarketHours.IsOpened())
-                    {
-                        marketsClosed++;
-                        continue;
-                    }
-
-                    symbolsChecked++;
-                    if (AvoidDuplicateSymbols && Positions.FindAll(BotLabel, symbol.Name).Length > 0)
-                        continue;
-
+                    if (_lastScanCompleted == DateTime.MinValue || (Server.Time - _lastScanCompleted).TotalSeconds >= ScanIntervalSeconds) StartScanCycle();
+                    if (_scanQueue.Count == 0) return;
+                }
+                int processed = 0;
+                while (_scanIndex < _scanQueue.Count && processed < SymbolsPerBatch)
+                {
+                    string name = _scanQueue[_scanIndex++]; processed++;
+                    Symbol symbol = Symbols.GetSymbol(name);
+                    if (symbol == null || !symbol.MarketHours.IsOpened()) continue;
+                    if (AvoidDuplicateSymbols && Positions.FindAll(BotLabel, symbol.Name).Length > 0) continue;
                     TradeCandidate candidate = EvaluateSymbol(symbol);
                     if (candidate != null && candidate.Score >= MinimumScore)
-                        candidates.Add(candidate);
-                }
-
-                var ranked = candidates.OrderByDescending(c => c.Score)
-                                        .ThenByDescending(c => c.RewardRisk)
-                                        .ThenBy(c => c.SpreadToAtr)
-                                        .ToList();
-
-                Print("SCAN SUMMARY: broker symbols={0}; supported targets found={1}; open and checked={2}; closed={3}; unavailable={4}; qualifying opportunities={5}; selected instrument limit=3.",
-                    Symbols.Count, targetSymbolsFound, symbolsChecked, marketsClosed, marketsUnavailable, ranked.Count);
-
-                if (ranked.Count == 0)
-                {
-                    Print("No trade: no market met the full strategy and risk filters. No forced entry.");
-                    return;
-                }
-
-                foreach (TradeCandidate item in ranked.Take(5))
-                {
-                    Print("RANKED {0} {1} | TECHNICAL SCORE {2:F1}% (not win probability) | MTF {3:F1} | RSI {4:F1} | EMA strength {5:F1} | spread quality {6:F1} | RSI value {7:F1}",
-                        item.Direction, item.Symbol.Name, item.Score, item.AlignmentScore,
-                        item.RsiScore, item.TrendStrengthScore, item.SpreadEfficiencyScore, item.Rsi);
-                }
-
-                int opened = 0;
-                var currencyExposure = BuildCurrentCurrencyExposure();
-                var selected = ranked.Take(3).ToList();
-                Print("SELECTED TOP INSTRUMENTS: {0}", string.Join(", ", selected.Select(x => x.Symbol.Name)));
-
-                foreach (TradeCandidate candidate in selected)
-                {
-                    // One live position per selected instrument. The bot may trade
-                    // the same instrument again after its previous position closes.
-                    if (Positions.FindAll(BotLabel, candidate.Symbol.Name).Length > 0)
                     {
-                        Print("Already holding {0}; keeping the instrument in the top-three scan but not stacking another position.", candidate.Symbol.Name);
-                        continue;
-                    }
-
-                    if (UseCurrencyExposureGuard && candidate.IsForex &&
-                        WouldIncreaseConcentratedExposure(candidate, currencyExposure))
-                    {
-                        Print("Skipped {0}: correlated currency exposure guard.", candidate.Symbol.Name);
-                        continue;
-                    }
-
-                    if (!RiskGateAllowsEntries())
-                        break;
-
-                    if (PlaceTrade(candidate))
-                    {
-                        opened++;
-                        if (UseCurrencyExposureGuard && candidate.IsForex)
-                            ApplyExposure(candidate, currencyExposure);
+                        _scanCandidates.Add(candidate);
+                        Print("QUALIFIED {0} {1} | technical score={2:F1}% (not win probability).", candidate.Direction, name, candidate.Score);
                     }
                 }
-
-                if (opened == 0)
-                    Print("No new order opened from the top-three selection. Existing positions, exposure, sizing, or broker constraints may have blocked entries.");
+                Print("SCAN PROGRESS: {0}/{1} symbols processed; candidates={2}.", _scanIndex, _scanQueue.Count, _scanCandidates.Count);
+                if (_scanIndex >= _scanQueue.Count) CompleteScanCycle();
             }
-            catch (Exception ex)
-            {
-                Print("Scan error (bot remains protected): {0}", ex.Message);
-            }
+            catch (Exception ex) { Print("BATCH SCAN ERROR: {0}", ex.Message); }
         }
 
+        private void CompleteScanCycle()
+        {
+            var ranked = _scanCandidates.OrderByDescending(c => c.Score).ThenByDescending(c => c.RewardRisk).ThenBy(c => c.SpreadToAtr).ToList();
+            Print("SCAN COMPLETE | broker symbols={0} | supported markets={1} | qualifying={2}.", Symbols.Count, _scanQueue.Count, ranked.Count);
+            var exposure = BuildCurrentCurrencyExposure();
+            foreach (TradeCandidate candidate in ranked.Take(3))
+            {
+                if (Positions.FindAll(BotLabel, candidate.Symbol.Name).Length > 0) continue;
+                if (UseCurrencyExposureGuard && candidate.IsForex && WouldIncreaseConcentratedExposure(candidate, exposure)) continue;
+                if (!RiskGateAllowsEntries()) break;
+                if (PlaceTrade(candidate) && UseCurrencyExposureGuard && candidate.IsForex) ApplyExposure(candidate, exposure);
+            }
+            if (ranked.Count == 0) Print("NO TRADE: no market met entry filters; no forced trades.");
+            _lastScanCompleted = Server.Time;
+            _scanQueue.Clear(); _scanIndex = 0; _scanCandidates.Clear();
+        }
         private void RefreshRiskBaselines()
         {
             DateTime today = Server.Time.Date;
