@@ -299,9 +299,14 @@ namespace cAlgo.Robots
         {
             _peakOpenProfit.Remove(args.Position.Id);
             PrintHistoricalPerformance();
-            // Scanning continues through closures; start immediately only when idle.
+            // Discard any stale/incomplete ranking. The next timer tick starts a fresh
+            // full-universe scan so the best currently available opportunity is reconsidered.
+            _scanQueue.Clear();
+            _scanCandidates.Clear();
+            _scanIndex = 0;
+            _openedThisScan = 0;
             _rescanRequested = true;
-            Print("POSITION CLOSED: scanner remains active; current scan continues and the next cycle starts immediately if idle.");
+            Print("POSITION CLOSED: fresh full-market scan requested to find the strongest next eligible trade.");
         }
 
         private void PrintHistoricalPerformance()
@@ -350,9 +355,7 @@ namespace cAlgo.Robots
                 if (_rescanRequested)
                 {
                     _rescanRequested = false;
-                    // Never reset a scan already in progress after a position closes.
-                    if (_scanQueue.Count == 0)
-                        StartScanCycle();
+                    StartScanCycle();
                 }
                 if (_scanQueue.Count == 0)
                 {
@@ -372,8 +375,8 @@ namespace cAlgo.Robots
                     if (candidate != null && candidate.Score > MinimumScore)
                     {
                         _scanCandidates.Add(candidate);
-                        Print("QUALIFIED {0} {1} | technical score={2:F1}% (not a statistically validated win probability).", candidate.Direction, name, candidate.Score);
-                        TryOpenQualifiedCandidate(candidate);
+                        Print("QUALIFIED {0} {1} | technical score={2:F1}% (not a statistically validated win probability); added to ranking.",
+                            candidate.Direction, name, candidate.Score);
                     }
                 }
                 Print("SCAN PROGRESS: {0}/{1} symbols processed; candidates={2}.", _scanIndex, _scanQueue.Count, _scanCandidates.Count);
@@ -421,10 +424,20 @@ namespace cAlgo.Robots
         {
             var ranked = _scanCandidates.OrderByDescending(c => c.Score).ThenByDescending(c => c.RewardRisk).ThenBy(c => c.SpreadToAtr).ToList();
             Print("SCAN COMPLETE | broker symbols={0} | supported markets={1} | qualifying={2} | opened during scan={3}.", Symbols.Count, _scanQueue.Count, ranked.Count, _openedThisScan);
-            // Candidates are attempted as soon as they qualify during scanning.
-            // This completion pass is diagnostic only; it does not place duplicate orders.
-            if (ranked.Count == 0) Print("NO TRADE: no market scored above the strict threshold and passed all entry filters; no forced trades.");
-            else if (_openedThisScan == 0) Print("QUALIFIED CANDIDATES WERE FOUND, BUT NO ORDER OPENED: check entry-skip and broker-rejection messages above.");
+            // Wait for the complete scan, then try candidates in descending score order.
+            // Open only one new position per scan cycle; if the strongest order is rejected,
+            // continue to the next-ranked eligible candidate.
+            foreach (TradeCandidate candidate in ranked)
+            {
+                if (_openedThisScan > 0)
+                    break;
+                TryOpenQualifiedCandidate(candidate);
+            }
+
+            if (ranked.Count == 0)
+                Print("NO TRADE: no market scored above the strict threshold and passed all entry filters; no forced trades.");
+            else if (_openedThisScan == 0)
+                Print("QUALIFIED CANDIDATES WERE FOUND, BUT NO ORDER OPENED: check entry-skip and broker-rejection messages above.");
             _lastScanCompleted = Server.Time;
             _scanQueue.Clear(); _scanIndex = 0; _scanCandidates.Clear();
         }
