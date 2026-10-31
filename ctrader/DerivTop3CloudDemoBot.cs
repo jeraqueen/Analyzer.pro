@@ -779,8 +779,8 @@ namespace cAlgo.Robots
                 symbol.Name,
                 volume,
                 BotLabel,
-                null,
-                null,
+                (double?)null,
+                (double?)null,
                 "ANALYZERPRO_DEMO_TEST | SCORE=" + candidate.Score.ToString("F1", CultureInfo.InvariantCulture));
 
             if (!result.IsSuccessful)
