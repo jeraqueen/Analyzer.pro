@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------------------
 // JENZY? No. Analyzer.pro - Deriv cTrader Cloud Demo Bot
-// Version: 1.0.0 (development source; compile and validate in cTrader before use)
+// Version: 1.1.0 (development source; compile and validate in cTrader before use)
 // Purpose: multi-symbol, multi-timeframe demo automation for FX, Gold, Bitcoin and Deriv synthetic indices.
 // Safety: hard demo-account guard. This cBot refuses to start on a live account.
 // -----------------------------------------------------------------------------
