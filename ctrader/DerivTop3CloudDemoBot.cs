@@ -101,6 +101,7 @@ namespace cAlgo.Robots
         private int _scanIndex;
         private int _openedThisScan;
         private DateTime _lastScanCompleted = DateTime.MinValue;
+        private bool _rescanRequested;
 
         private static readonly TimeFrame[] ScanTimeFrames =
         {
@@ -264,6 +265,11 @@ namespace cAlgo.Robots
         private void OnPositionClosed(PositionClosedEventArgs args)
         {
             PrintHistoricalPerformance();
+            // A manual close, stop-loss, take-profit, reversal exit, or loss-guard exit
+            // frees capacity. Request a fresh scan immediately instead of waiting for
+            // the normal scan interval. The next timer tick starts a clean scan cycle.
+            _rescanRequested = true;
+            Print("POSITION CLOSED: immediate opportunity rescan requested; fresh qualifying candidates can open on the next scan batches.");
         }
 
         private void PrintHistoricalPerformance()
@@ -309,6 +315,11 @@ namespace cAlgo.Robots
         {
             try
             {
+                if (_rescanRequested)
+                {
+                    _rescanRequested = false;
+                    StartScanCycle();
+                }
                 if (_scanQueue.Count == 0)
                 {
                     if (_lastScanCompleted == DateTime.MinValue || (Server.Time - _lastScanCompleted).TotalSeconds >= ScanIntervalSeconds) StartScanCycle();
