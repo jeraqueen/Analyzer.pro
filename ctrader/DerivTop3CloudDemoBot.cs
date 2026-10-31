@@ -41,6 +41,9 @@ namespace cAlgo.Robots
         [Parameter("Maximum loss per position (% equity)", DefaultValue = 1.0, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
         public double MaximumPositionLossPercent { get; set; }
 
+        [Parameter("Maximum floating loss per trade (account currency)", DefaultValue = 0.95, MinValue = 0.10, MaxValue = 1000.0, Step = 0.05)]
+        public double MaximumFloatingLossPerTrade { get; set; }
+
         [Parameter("Profit trailing activation (% equity)", DefaultValue = 1.0, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
         public double ProfitTrailActivationPercent { get; set; }
 
@@ -272,6 +275,22 @@ namespace cAlgo.Robots
                         Print("PEAK PROFIT LOCK EXIT FAILED | {0} {1}: {2}", position.SymbolName, position.Id, profitLockClose.Error);
                     }
 
+                    // Hard cash-loss guard is checked before indicator/context lookups,
+                    // so missing market context cannot bypass this protection.
+                    if (position.NetProfit <= -Math.Abs(MaximumFloatingLossPerTrade))
+                    {
+                        TradeResult cashLossClose = ClosePosition(position);
+                        if (cashLossClose.IsSuccessful)
+                        {
+                            Print("HARD CASH LOSS EXIT | {0} {1} | floating P/L={2:F2} {3} | configured limit=-{4:F2} {3}.",
+                                position.TradeType, position.SymbolName, position.NetProfit, Account.Asset.Name,
+                                Math.Abs(MaximumFloatingLossPerTrade));
+                            _rescanRequested = true;
+                            continue;
+                        }
+                        Print("HARD CASH LOSS EXIT FAILED | {0} {1}: {2}", position.SymbolName, position.Id, cashLossClose.Error);
+                    }
+
                     SymbolContext context = GetContext(symbol);
                     if (context == null || context.TimeFrames == null) continue;
 
@@ -306,16 +325,14 @@ namespace cAlgo.Robots
                     // Close only this position when price action confirms reversal.
                     // At a small gain, the fast candle signal is enough; at larger gains
                     // either fast reversal or broader structure confirmation can protect it.
-                    // Loss-control exit: do not allow an adverse move to drift all the
-                    // way to the wider emergency stop when price has moved at least
-                    // half an initial risk unit against the entry.
-                    bool adverseLossLimit = rMultiple <= -0.5;
-                    if (adverseLossLimit || (fastReversal && (position.NetProfit > 0 || rMultiple < 0)))
+                    // A cash-denominated hard loss limit above controls downside.
+                    // Fast reversal remains an additional early exit when confirmed.
+                    if (fastReversal && (position.NetProfit > 0 || rMultiple < 0))
                     {
                         TradeResult close = ClosePosition(position);
                         if (close.IsSuccessful)
-                            Print("ADAPTIVE EXIT | {0} {1} closed on {6} | floating P/L={2:F2} {3} | peak P/L={4:F2} {3} | R={5:F2}.",
-                                position.TradeType, position.SymbolName, position.NetProfit, Account.Asset.Name, peak, rMultiple, adverseLossLimit ? "adverse-loss limit (-0.5R)" : "fast reversal");
+                            Print("ADAPTIVE EXIT | {0} {1} closed on fast reversal | floating P/L={2:F2} {3} | peak P/L={4:F2} {3} | R={5:F2}.",
+                                position.TradeType, position.SymbolName, position.NetProfit, Account.Asset.Name, peak, rMultiple);
                         else
                             Print("ADAPTIVE EXIT FAILED | {0} {1}: {2}", position.SymbolName, position.Id, close.Error);
                     }
