@@ -156,6 +156,10 @@ void EvaluateSymbol(const string symbol)
    if(!ReadIndicator(symbol,PERIOD_H4,MODE_EMA,TrendEMA,1,h4Slow)) return;
    if(!ReadATR(symbol,PERIOD_M15,ATRPeriod,atr) || atr<=0) return;
 
+   // Skip instruments that are not currently tradeable on this account.
+   long tradeMode=SymbolInfoInteger(symbol,SYMBOL_TRADE_MODE);
+   if(tradeMode==SYMBOL_TRADE_MODE_DISABLED || tradeMode==SYMBOL_TRADE_MODE_CLOSEONLY) return;
+
    MqlTick tick;
    if(!SymbolInfoTick(symbol,tick) || tick.ask<=0 || tick.bid<=0) return;
    double point=SymbolInfoDouble(symbol,SYMBOL_POINT);
@@ -166,6 +170,8 @@ void EvaluateSymbol(const string symbol)
    bool buy=(m15Fast>m15Slow && h1Fast>h1Slow && h4Fast>h4Slow);
    bool sell=(m15Fast<m15Slow && h1Fast<h1Slow && h4Fast<h4Slow);
    if(!buy && !sell) return;
+   if(buy && tradeMode==SYMBOL_TRADE_MODE_SHORTONLY) return;
+   if(sell && tradeMode==SYMBOL_TRADE_MODE_LONGONLY) return;
 
    double stopDistance=atr*StopATRMultiplier;
    double entry=buy ? tick.ask : tick.bid;
@@ -195,12 +201,14 @@ double CalculateLots(const string symbol, double entry, double sl)
    double riskMoney=equity*RiskPercentPerTrade/100.0;
    if(riskMoney<=0) return 0;
 
-   double tickSize=SymbolInfoDouble(symbol,SYMBOL_TRADE_TICK_SIZE);
-   double tickValue=SymbolInfoDouble(symbol,SYMBOL_TRADE_TICK_VALUE_LOSS);
-   if(tickValue<=0) tickValue=SymbolInfoDouble(symbol,SYMBOL_TRADE_TICK_VALUE);
-   if(tickSize<=0 || tickValue<=0) return 0;
-   double lossPerLot=(MathAbs(entry-sl)/tickSize)*tickValue;
-   if(lossPerLot<=0) return 0;
+   // Use the terminal's own contract-aware P/L calculation for this symbol.
+   // This is more robust across forex, metals and CFDs than assuming a
+   // universal tick-value conversion.
+   ENUM_ORDER_TYPE type=(entry>sl ? ORDER_TYPE_BUY : ORDER_TYPE_SELL);
+   double estimatedProfit=0.0;
+   if(!OrderCalcProfit(type,symbol,1.0,entry,sl,estimatedProfit)) return 0;
+   double lossPerLot=MathAbs(estimatedProfit);
+   if(lossPerLot<=0 || !MathIsValidNumber(lossPerLot)) return 0;
 
    double rawLots=riskMoney/lossPerLot;
    double minLot=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN);
@@ -214,7 +222,6 @@ double CalculateLots(const string symbol, double entry, double sl)
    if(lots<minLot || lots>maxLot) return 0;
 
    double margin=0;
-   ENUM_ORDER_TYPE type=(entry>sl ? ORDER_TYPE_BUY : ORDER_TYPE_SELL);
    if(!OrderCalcMargin(type,symbol,lots,entry,margin)) return 0;
    if(margin>AccountInfoDouble(ACCOUNT_MARGIN_FREE)*0.8) return 0;
    return lots;
