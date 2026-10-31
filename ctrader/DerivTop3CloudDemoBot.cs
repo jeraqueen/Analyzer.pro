@@ -194,7 +194,7 @@ namespace cAlgo.Robots
             Print("Account: DEMO | Equity: {0} {1} | Risk/trade: {2}% | Max total positions: {3} | Max new per completed scan: {4}.",
                 Account.Equity, Account.Asset.Name, RiskPercent, MaximumTotalPositions, MaximumNewPositionsPerScan);
             Print("Markets: dynamically scans supported FX, Gold (XAU), Bitcoin (BTC), and Deriv synthetic-market families whenever the broker reports them open. Closed markets are skipped automatically; reopened markets are included on the next scan.");
-            Print("Timeframes: M1, M5, M15, M30, H1, H4, D1, W1. Only closed candles are evaluated.");
+            Print("Timeframes: M1/M5 candle-following exits; M15/H1/H4/D1/W1 trend context; only closed candles are evaluated.");
 
             StartScanCycle();
         }
@@ -306,12 +306,14 @@ namespace cAlgo.Robots
                         TryImprovePositionStop(position, symbol, trailStop, marketPrice, isBuy);
                     }
 
-                    if (profitR >= ReversalExitMinR && ReversalConfirmed(positionContext, isBuy))
+                    // Fast candle-following exit: use closed M1/M5 candles regardless of current P/L.
+                    if (FastCandleReversalConfirmed(positionContext, isBuy))
                     {
-                        Print("CONFIRMED REVERSAL EXIT {0} {1} | open result={2:F2}R.", position.SymbolName, position.Id, profitR);
+                        Print("M1/M5 CANDLE REVERSAL EXIT {0} {1} | open result={2:F2}R | requesting fresh market scan.",
+                            position.SymbolName, position.Id, profitR);
                         TradeResult reversalResult = ClosePosition(position);
                         if (!reversalResult.IsSuccessful)
-                            Print("REVERSAL CLOSE FAILED {0} {1}: {2}", position.SymbolName, position.Id, reversalResult.Error);
+                            Print("FAST REVERSAL CLOSE FAILED {0} {1}: {2}", position.SymbolName, position.Id, reversalResult.Error);
                     }
                 }
                 catch (Exception ex)
@@ -349,6 +351,58 @@ namespace cAlgo.Robots
             TradeResult result = ModifyPosition(position, proposedStop, position.TakeProfit);
             if (!result.IsSuccessful)
                 Print("POSITION STOP UPDATE FAILED {0} {1}: {2}", position.SymbolName, position.Id, result.Error);
+        }
+
+        // Fast exit logic: two consecutive closed M1 candles against the position
+        // beyond EMA 9, OR a decisive opposite M5 candle beyond EMA 9 confirmed
+        // by loss of M15 or H1 EMA direction. Closed bars prevent tick-noise exits.
+        private bool FastCandleReversalConfirmed(SymbolContext context, bool isBuy)
+        {
+            if (context.TimeFrames == null || context.TimeFrames.Length < 5)
+                return false;
+
+            var m1 = context.TimeFrames[0];
+            var m5 = context.TimeFrames[1];
+            var m15 = context.TimeFrames[2];
+            var h1 = context.TimeFrames[4];
+
+            bool m1Reversal = false;
+            if (m1 != null && m1.Bars != null && m1.Fast != null && m1.Bars.Count >= 5)
+            {
+                double close1 = m1.Bars.ClosePrices.Last(1);
+                double close2 = m1.Bars.ClosePrices.Last(2);
+                double ema1 = m1.Fast.Result.Last(1);
+                double ema2 = m1.Fast.Result.Last(2);
+                bool twoBearish = close1 < m1.Bars.OpenPrices.Last(1) &&
+                                  close2 < m1.Bars.OpenPrices.Last(2);
+                bool twoBullish = close1 > m1.Bars.OpenPrices.Last(1) &&
+                                  close2 > m1.Bars.OpenPrices.Last(2);
+                m1Reversal = isBuy
+                    ? twoBearish && close1 < ema1 && close2 < ema2
+                    : twoBullish && close1 > ema1 && close2 > ema2;
+            }
+
+            bool m5Reversal = false;
+            if (m5 != null && m5.Bars != null && m5.Fast != null && m5.Bars.Count >= 5 &&
+                m15 != null && m15.Fast != null && m15.Middle != null &&
+                h1 != null && h1.Fast != null && h1.Middle != null)
+            {
+                double m5Close = m5.Bars.ClosePrices.Last(1);
+                double m5Open = m5.Bars.OpenPrices.Last(1);
+                bool decisiveBear = m5Close < m5Open && m5Close < m5.Fast.Result.Last(1);
+                bool decisiveBull = m5Close > m5Open && m5Close > m5.Fast.Result.Last(1);
+                bool m15LostSupport = isBuy
+                    ? m15.Fast.Result.Last(1) < m15.Middle.Result.Last(1)
+                    : m15.Fast.Result.Last(1) > m15.Middle.Result.Last(1);
+                bool h1LostSupport = isBuy
+                    ? h1.Fast.Result.Last(1) < h1.Middle.Result.Last(1)
+                    : h1.Fast.Result.Last(1) > h1.Middle.Result.Last(1);
+                m5Reversal = isBuy
+                    ? decisiveBear && (m15LostSupport || h1LostSupport)
+                    : decisiveBull && (m15LostSupport || h1LostSupport);
+            }
+
+            return m1Reversal || m5Reversal;
         }
 
         private bool ReversalConfirmed(SymbolContext context, bool isBuy)
