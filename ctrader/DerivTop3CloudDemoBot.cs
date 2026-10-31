@@ -222,7 +222,7 @@ namespace cAlgo.Robots
                 {
                     _lastHeartbeatLog = Server.Time;
                     Print("BOT HEARTBEAT | {0:yyyy-MM-dd HH:mm:ss} UTC | timer active | open positions={1} | scan queue={2} | scan index={3} | candidates={4} | free margin={5:F2} {6}.",
-                        Server.Time, Positions.FindAll(BotLabel).Length, _scanQueue.Count, _scanIndex, _scanCandidates.Count, Account.FreeMargin, Account.Asset.Name);
+                        Server.Time, Positions.ToArray().Length, _scanQueue.Count, _scanIndex, _scanCandidates.Count, Account.FreeMargin, Account.Asset.Name);
                 }
             }
             catch (Exception ex)
@@ -242,7 +242,7 @@ namespace cAlgo.Robots
         // Peak-profit tracking is adaptive, not a fixed currency profit cap.
         private void ManageOpenPositions()
         {
-            foreach (Position position in Positions.FindAll(BotLabel))
+            foreach (Position position in Positions.ToArray())
             {
                 try
                 {
@@ -567,7 +567,7 @@ namespace cAlgo.Robots
                     string name = _scanQueue[_scanIndex++]; processed++;
                     Symbol symbol = Symbols.GetSymbol(name);
                     if (symbol == null || !symbol.MarketHours.IsOpened()) continue;
-                    int symbolPositionCount = Positions.FindAll(BotLabel, symbol.Name).Length;
+                    int symbolPositionCount = Positions.ToArray().Count(p => string.Equals(p.SymbolName, symbol.Name, StringComparison.OrdinalIgnoreCase));
                     if (AvoidDuplicateSymbols && symbolPositionCount > 0) continue;
                     if (symbolPositionCount >= MaximumPositionsPerSymbol) continue;
                     TradeCandidate candidate = EvaluateSymbol(symbol);
@@ -576,10 +576,10 @@ namespace cAlgo.Robots
                         _scanCandidates.Add(candidate);
                         Print("QUALIFIED {0} {1} | technical score={2:F1}% (not a statistically validated win probability); attempting immediate entry.",
                             candidate.Direction, name, candidate.Score);
-                        if (Positions.FindAll(BotLabel).Length < MaximumTotalPositions)
+                        if (Positions.ToArray().Length < MaximumTotalPositions)
                             TryOpenQualifiedCandidate(candidate);
                         else
-                            Print("PORTFOLIO FULL | {0}/{1} positions; continuing scan without new entries.", Positions.FindAll(BotLabel).Length, MaximumTotalPositions);
+                            Print("PORTFOLIO FULL | {0}/{1} positions; continuing scan without new entries.", Positions.ToArray().Length, MaximumTotalPositions);
                     }
                 }
                 Print("SCAN PROGRESS: {0}/{1} symbols processed; candidates={2}.", _scanIndex, _scanQueue.Count, _scanCandidates.Count);
@@ -596,13 +596,13 @@ namespace cAlgo.Robots
                 Print("ENTRY NOT SENT {0}: account equity/drawdown or free-margin safety check failed. Check the account values printed above.", candidate.Symbol.Name);
                 return;
             }
-            int totalOpenPositions = Positions.FindAll(BotLabel).Length;
+            int totalOpenPositions = Positions.ToArray().Length;
             if (totalOpenPositions >= MaximumTotalPositions)
             {
                 Print("ENTRY SKIPPED {0}: portfolio cap reached ({1}/{2} positions).", candidate.Symbol.Name, totalOpenPositions, MaximumTotalPositions);
                 return;
             }
-            int symbolPositionCount = Positions.FindAll(BotLabel, candidate.Symbol.Name).Length;
+            int symbolPositionCount = Positions.ToArray().Count(p => string.Equals(p.SymbolName, candidate.Symbol.Name, StringComparison.OrdinalIgnoreCase));
             if (AvoidDuplicateSymbols && symbolPositionCount > 0)
             {
                 Print("ENTRY SKIPPED {0}: duplicate-symbol setting is enabled.", candidate.Symbol.Name);
