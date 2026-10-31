@@ -48,3 +48,5 @@ jobs:
           path: ${{ env.ALGO_PATH }}
           if-no-files-found: error
           retention-days: 30
+
+# Rebuild after synthetic-index scanner update.
