@@ -246,8 +246,25 @@ namespace cAlgo.Robots
             {
                 try
                 {
-                    Symbol symbol = Symbols.GetSymbol(position.SymbolName);
-                    if (symbol == null || symbol.PipSize <= 0) continue;
+                    // Cash-loss protection must not depend on symbol lookup,
+                    // indicators, timeframes, or market-hours data. Existing/manual
+                    // positions may not have a fully loaded Symbol object at startup.
+                    if (position.NetProfit <= -Math.Abs(MaximumFloatingLossPerTrade))
+                    {
+                        Print("HARD CASH LOSS EXIT ATTEMPT | position={0} | {1} {2} | floating P/L={3:F2} {4} | limit=-{5:F2} {4}.",
+                            position.Id, position.TradeType, position.SymbolName, position.NetProfit,
+                            Account.Asset.Name, Math.Abs(MaximumFloatingLossPerTrade));
+                        TradeResult cashLossClose = ClosePosition(position);
+                        if (cashLossClose.IsSuccessful)
+                        {
+                            Print("HARD CASH LOSS EXIT SUCCESS | position={0} | {1} {2} | submitted P/L={3:F2} {4}.",
+                                position.Id, position.TradeType, position.SymbolName, position.NetProfit, Account.Asset.Name);
+                            _rescanRequested = true;
+                            continue;
+                        }
+                        Print("HARD CASH LOSS EXIT FAILED | position={0} | {1} {2} | error={3} | floating P/L={4:F2} {5}.",
+                            position.Id, position.TradeType, position.SymbolName, cashLossClose.Error, position.NetProfit, Account.Asset.Name);
+                    }
 
                     double peak;
                     if (!_peakNetProfit.TryGetValue(position.Id, out peak))
@@ -276,20 +293,14 @@ namespace cAlgo.Robots
                         Print("PEAK PROFIT LOCK EXIT FAILED | {0} {1}: {2}", position.SymbolName, position.Id, profitLockClose.Error);
                     }
 
-                    // Hard cash-loss guard is checked before indicator/context lookups,
-                    // so missing market context cannot bypass this protection.
-                    if (position.NetProfit <= -Math.Abs(MaximumFloatingLossPerTrade))
+                    // Load symbol/market context only after the account-currency
+                    // emergency loss check and peak-profit lock have been attempted.
+                    Symbol symbol = Symbols.GetSymbol(position.SymbolName);
+                    if (symbol == null || symbol.PipSize <= 0)
                     {
-                        TradeResult cashLossClose = ClosePosition(position);
-                        if (cashLossClose.IsSuccessful)
-                        {
-                            Print("HARD CASH LOSS EXIT | {0} {1} | floating P/L={2:F2} {3} | configured limit=-{4:F2} {3}.",
-                                position.TradeType, position.SymbolName, position.NetProfit, Account.Asset.Name,
-                                Math.Abs(MaximumFloatingLossPerTrade));
-                            _rescanRequested = true;
-                            continue;
-                        }
-                        Print("HARD CASH LOSS EXIT FAILED | {0} {1}: {2}", position.SymbolName, position.Id, cashLossClose.Error);
+                        Print("POSITION MARKET DATA UNAVAILABLE | position={0} | {1}; cash-loss guard was already checked.",
+                            position.Id, position.SymbolName);
+                        continue;
                     }
 
                     SymbolContext context = GetContext(symbol);
