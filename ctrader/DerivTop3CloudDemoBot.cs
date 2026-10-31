@@ -52,10 +52,7 @@ namespace cAlgo.Robots
         [Parameter("Minimum technical score (%)", DefaultValue = 80, MinValue = 80, MaxValue = 95)]
         public double MinimumScore { get; set; }
 
-        [Parameter("Maximum open bot positions", DefaultValue = 5, MinValue = 1, MaxValue = 10)]
-        public int MaximumOpenBotPositions { get; set; }
-
-        [Parameter("Fast EMA", DefaultValue = 9, MinValue = 3, MaxValue = 30)]
+                [Parameter("Fast EMA", DefaultValue = 9, MinValue = 3, MaxValue = 30)]
         public int FastEmaPeriod { get; set; }
 
         [Parameter("Middle EMA", DefaultValue = 21, MinValue = 5, MaxValue = 60)]
@@ -79,10 +76,10 @@ namespace cAlgo.Robots
         [Parameter("Maximum spread / ATR", DefaultValue = 0.20, MinValue = 0.05, MaxValue = 0.5, Step = 0.05)]
         public double MaximumSpreadToAtr { get; set; }
 
-        [Parameter("Avoid duplicate symbol positions", DefaultValue = true)]
+        [Parameter("Avoid duplicate symbol positions", DefaultValue = false)]
         public bool AvoidDuplicateSymbols { get; set; }
 
-        [Parameter("Limit correlated FX exposure", DefaultValue = true)]
+        [Parameter("Limit correlated FX exposure", DefaultValue = false)]
         public bool UseCurrencyExposureGuard { get; set; }
 
         private readonly Dictionary<string, SymbolContext> _contexts = new Dictionary<string, SymbolContext>(StringComparer.OrdinalIgnoreCase);
@@ -151,8 +148,8 @@ namespace cAlgo.Robots
 
             Timer.Start(TimeSpan.FromSeconds(BatchIntervalSeconds));
             Print("Analyzer.pro Deriv Top-3 Cloud Demo Bot v1.0 started.");
-            Print("Account: DEMO | Equity: {0} {1} | Risk/trade: {2}% | Maximum open bot positions: {3} | One open position per instrument.",
-                Account.Equity, Account.Asset.Name, RiskPercent, MaximumOpenBotPositions);
+            Print("Account: DEMO | Equity: {0} {1} | Risk/trade: {2}% | No fixed bot-wide position cap | Multiple positions per instrument allowed by default.",
+                Account.Equity, Account.Asset.Name, RiskPercent);
             Print("Markets: dynamically scans supported FX, Gold (XAU), Bitcoin (BTC), and Deriv synthetic-market families whenever the broker reports them open. Closed markets are skipped automatically; reopened markets are included on the next scan.");
             Print("Timeframes: M1, M5, M15, M30, H1, H4, D1, W1. Only closed candles are evaluated.");
 
@@ -161,7 +158,41 @@ namespace cAlgo.Robots
 
         protected override void OnTimer()
         {
+            ManageOpenPositions();
             ProcessScanBatch();
+        }
+
+        // Manage exits continuously, independently of the entry scan. Broker-side SL/TP
+        // remain the hard protection; an opposite qualifying signal closes the position
+        // so the bot can consider a fresh entry on a later scan.
+        private void ManageOpenPositions()
+        {
+            Position[] openPositions = Positions.FindAll(BotLabel);
+            foreach (Position position in openPositions)
+            {
+                try
+                {
+                    Symbol symbol = Symbols.GetSymbol(position.SymbolName);
+                    if (symbol == null || !symbol.MarketHours.IsOpened())
+                        continue;
+
+                    TradeCandidate signal = EvaluateSymbol(symbol);
+                    if (signal == null || signal.Score <= MinimumScore || signal.Direction == position.TradeType)
+                        continue;
+
+                    Print("EXIT SIGNAL {0} {1} | open direction={2} | opposite technical score={3:F1}% > {4:F1}%. Closing position to limit reversal exposure.",
+                        position.SymbolName, position.Id, position.TradeType, signal.Score, MinimumScore);
+                    TradeResult closeResult = ClosePosition(position);
+                    if (closeResult.IsSuccessful)
+                        Print("AUTO-CLOSED {0} {1} | gross P/L={2:F2} {3}.", position.TradeType, position.SymbolName, position.GrossProfit, Account.Asset.Name);
+                    else
+                        Print("AUTO-CLOSE FAILED {0} {1}: {2}", position.SymbolName, position.Id, closeResult.Error);
+                }
+                catch (Exception ex)
+                {
+                    Print("POSITION MANAGEMENT ERROR {0} {1}: {2}", position.SymbolName, position.Id, ex.Message);
+                }
+            }
         }
 
         protected override void OnStop()
@@ -251,12 +282,6 @@ namespace cAlgo.Robots
             if (!RiskGateAllowsEntries())
             {
                 Print("ENTRY SKIPPED {0}: account risk gate is active.", candidate.Symbol.Name);
-                return;
-            }
-            int openBotPositions = Positions.FindAll(BotLabel).Length;
-            if (openBotPositions >= MaximumOpenBotPositions)
-            {
-                Print("ENTRY SKIPPED {0}: safety cap of {1} open bot positions reached.", candidate.Symbol.Name, MaximumOpenBotPositions);
                 return;
             }
             if (AvoidDuplicateSymbols && Positions.FindAll(BotLabel, candidate.Symbol.Name).Length > 0)
