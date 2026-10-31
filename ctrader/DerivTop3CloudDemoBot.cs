@@ -232,117 +232,9 @@ namespace cAlgo.Robots
         // so the bot can consider a fresh entry on a later scan.
         private void ManageOpenPositions()
         {
-            Position[] openPositions = Positions.FindAll(BotLabel);
-            foreach (Position position in openPositions)
-            {
-                try
-                {
-                    Symbol symbol = Symbols.GetSymbol(position.SymbolName);
-                    if (symbol == null || !symbol.MarketHours.IsOpened())
-                        continue;
-
-                    // Hard per-position cash-risk guard: size the limit from current equity,
-                    // not from a fixed dollar amount, so it scales with the account.
-                    double maxLossCash = Account.Equity * MaximumPositionLossPercent / 100.0;
-                    if (position.NetProfit <= -maxLossCash)
-                    {
-                        Print("POSITION LOSS LIMIT: {0} {1} | net P/L={2:F2} {3} <= -{4:F2} ({5:F2}% of current equity). Closing.",
-                            position.SymbolName, position.Id, position.NetProfit, Account.Asset.Name,
-                            maxLossCash, MaximumPositionLossPercent);
-                        TradeResult lossClose = ClosePosition(position);
-                        if (lossClose.IsSuccessful)
-                            Print("LOSS-LIMIT AUTO-CLOSED {0} {1}.", position.SymbolName, position.Id);
-                        else
-                            Print("LOSS-LIMIT CLOSE FAILED {0} {1}: {2}", position.SymbolName, position.Id, lossClose.Error);
-                        continue;
-                    }
-
-                    double initialRisk;
-                    if (!_initialRiskPrice.TryGetValue(position.Id, out initialRisk))
-                    {
-                        initialRisk = ReadInitialRiskPrice(position);
-                        if (initialRisk <= 0)
-                        {
-                            Print("POSITION MANAGEMENT SKIPPED {0}: original risk metadata missing; refusing to guess R.", position.Id);
-                            continue;
-                        }
-                        _initialRiskPrice[position.Id] = initialRisk;
-                    }
-
-                    bool isBuy = position.TradeType == TradeType.Buy;
-                    double marketPrice = isBuy ? symbol.Bid : symbol.Ask;
-                    double direction = isBuy ? 1.0 : -1.0;
-                    double profitR = direction * (marketPrice - position.EntryPrice) / initialRisk;
-                    SymbolContext positionContext = GetContext(symbol);
-                    if (positionContext == null || positionContext.TimeFrames == null ||
-                        positionContext.TimeFrames[2] == null || positionContext.TimeFrames[2].Bars == null)
-                        continue;
-
-                    Bars managementBars = positionContext.TimeFrames[2].Bars;
-                    double atrNow = positionContext.Atr.Result.Last(1);
-
-                    if (profitR >= BreakevenR)
-                    {
-                        double beStop = position.EntryPrice + direction * symbol.TickSize;
-                        TryImprovePositionStop(position, symbol, beStop, marketPrice, isBuy);
-                    }
-
-                    if (profitR >= PartialProfitR && !_partialProfitTaken.Contains(position.Id))
-                    {
-                        double partialVolume = symbol.NormalizeVolumeInUnits(
-                            position.VolumeInUnits * PartialCloseFraction, RoundingMode.Down);
-                        double remainingVolume = position.VolumeInUnits - partialVolume;
-                        if (partialVolume >= symbol.VolumeInUnitsMin && remainingVolume >= symbol.VolumeInUnitsMin)
-                        {
-                            TradeResult partialResult = ClosePosition(position, partialVolume);
-                            if (partialResult.IsSuccessful)
-                            {
-                                _partialProfitTaken.Add(position.Id);
-                                Print("PARTIAL PROFIT BANKED {0} {1} | closed={2} | remaining={3} | {4:F2}R.",
-                                    position.SymbolName, position.Id, partialVolume, remainingVolume, profitR);
-                            }
-                            else
-                                Print("PARTIAL CLOSE FAILED {0} {1}: {2}", position.SymbolName, position.Id, partialResult.Error);
-                        }
-                        else
-                        {
-                            _partialProfitTaken.Add(position.Id);
-                            Print("PARTIAL CLOSE SKIPPED {0} {1}: broker volume minimum prevents a valid split.", position.SymbolName, position.Id);
-                        }
-                    }
-
-                    if (profitR >= PositionTrailStartR && atrNow > 0 &&
-                        managementBars.Count > PositionTrailLookback + 2)
-                    {
-                        double extreme = isBuy ? double.MinValue : double.MaxValue;
-                        for (int bar = 1; bar <= PositionTrailLookback; bar++)
-                        {
-                            double value = isBuy
-                                ? managementBars.HighPrices.Last(bar)
-                                : managementBars.LowPrices.Last(bar);
-                            extreme = isBuy ? Math.Max(extreme, value) : Math.Min(extreme, value);
-                        }
-                        double trailStop = isBuy
-                            ? extreme - atrNow * PositionTrailAtrMultiple
-                            : extreme + atrNow * PositionTrailAtrMultiple;
-                        TryImprovePositionStop(position, symbol, trailStop, marketPrice, isBuy);
-                    }
-
-                    // Fast candle-following exit: use closed M1/M5 candles regardless of current P/L.
-                    if (FastCandleReversalConfirmed(positionContext, isBuy))
-                    {
-                        Print("M1/M5 CANDLE REVERSAL EXIT {0} {1} | open result={2:F2}R | requesting fresh market scan.",
-                            position.SymbolName, position.Id, profitR);
-                        TradeResult reversalResult = ClosePosition(position);
-                        if (!reversalResult.IsSuccessful)
-                            Print("FAST REVERSAL CLOSE FAILED {0} {1}: {2}", position.SymbolName, position.Id, reversalResult.Error);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Print("POSITION MANAGEMENT ERROR {0} {1}: {2}", position.SymbolName, position.Id, ex.Message);
-                }
-            }
+            // Demo test mode: do not automatically close, partially close, or modify
+            // positions. Positions remain open until the user closes them manually.
+            // Orders in test mode are sent without broker-side SL/TP.
         }
 
         private double ReadInitialRiskPrice(Position position)
@@ -664,34 +556,11 @@ namespace cAlgo.Robots
 
         private bool RiskGateAllowsEntries()
         {
+            // Keep the hard demo-only guard; no account-level percentage locks.
             if (Account.IsLive)
             {
                 Print("EMERGENCY ENTRY BLOCK: account is live; demo-only cBot cannot trade.");
                 Stop();
-                return false;
-            }
-
-            double dailyFloor = _dayStartBalance * (1.0 - DailyLossLimitPercent / 100.0);
-            double drawdownFloor = _peakBalance * (1.0 - PeakDrawdownLimitPercent / 100.0);
-
-            if (Account.Equity <= dailyFloor || Account.Equity <= drawdownFloor)
-            {
-                if (!_riskLockLogged)
-                {
-                    Print("ENTRY SAFETY CHECK FAILED: equity={0}; daily-loss floor={1}; historical peak-balance floor={2}. New entries are paused by the configured account limits.",
-                        Account.Equity, dailyFloor, drawdownFloor);
-                    _riskLockLogged = true;
-                }
-                return false;
-            }
-
-            if (Account.FreeMargin <= 0)
-            {
-                if (!_riskLockLogged)
-                {
-                    Print("ENTRY SAFETY CHECK FAILED: free margin is zero or negative ({0:F2} {1}); broker margin requirements prevent new entries.", Account.FreeMargin, Account.Asset.Name);
-                    _riskLockLogged = true;
-                }
                 return false;
             }
 
@@ -895,14 +764,13 @@ namespace cAlgo.Robots
         private bool PlaceTrade(TradeCandidate candidate)
         {
             Symbol symbol = candidate.Symbol;
-            double riskCash = Account.Equity * RiskPercent / 100.0;
-            double volume = symbol.VolumeForFixedRisk(riskCash, candidate.StopPips, RoundingMode.Down);
-            volume = symbol.NormalizeVolumeInUnits(volume, RoundingMode.Down);
+            // Demo test mode: use the broker's minimum permitted trade volume rather
+            // than equity/risk-percentage sizing. No SL/TP is attached to the order.
+            double volume = symbol.NormalizeVolumeInUnits(symbol.VolumeInUnitsMin, RoundingMode.Down);
 
             if (volume < symbol.VolumeInUnitsMin || volume > symbol.VolumeInUnitsMax || double.IsNaN(volume))
             {
-                Print("Skipped {0}: calculated volume {1} is outside broker limits; risk budget was not rounded up.",
-                    symbol.Name, volume);
+                Print("Skipped {0}: broker minimum volume is outside allowed limits.", symbol.Name);
                 return false;
             }
 
@@ -911,10 +779,9 @@ namespace cAlgo.Robots
                 symbol.Name,
                 volume,
                 BotLabel,
-                candidate.StopPips,
-                candidate.TakeProfitPips,
-                "AP_RPIPS=" + candidate.StopPips.ToString("F6", CultureInfo.InvariantCulture) +
-                "| SCORE=" + candidate.Score.ToString("F1", CultureInfo.InvariantCulture));
+                null,
+                null,
+                "ANALYZERPRO_DEMO_TEST | SCORE=" + candidate.Score.ToString("F1", CultureInfo.InvariantCulture));
 
             if (!result.IsSuccessful)
             {
@@ -922,9 +789,8 @@ namespace cAlgo.Robots
                 return false;
             }
 
-            Print("OPENED {0} {1} | CALCULATED TECHNICAL CONFIDENCE {2:F1}% (not a win probability) | RSI {3:F1} | SL {4:F1} pips | TP {5:F1} pips | volume {6}",
-                candidate.Direction, symbol.Name, candidate.Score, candidate.Rsi,
-                candidate.StopPips, candidate.TakeProfitPips, volume);
+            Print("OPENED {0} {1} | technical score {2:F1}% (not a win probability) | RSI {3:F1} | volume {4} | DEMO TEST MODE: no automatic exits and no SL/TP.",
+                candidate.Direction, symbol.Name, candidate.Score, candidate.Rsi, volume);
             return true;
         }
 
