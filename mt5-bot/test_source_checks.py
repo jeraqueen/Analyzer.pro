@@ -31,8 +31,8 @@ checks = {
         "trade.Buy(lots,symbol,0.0,sl,tp" in code
         and "trade.Sell(lots,symbol,0.0,sl,tp" in code
     ),
-    "no automatic martingale/doubling": not any(
-        term in code.lower() for term in ("martingale multiplier", "recovery multiplier", "double lots")
+    "no recovery/lot multiplier variables": not any(
+        term in code for term in ("RecoveryMultiplier", "LotMultiplier", "LossRecoveryFactor")
     ),
 }
 
