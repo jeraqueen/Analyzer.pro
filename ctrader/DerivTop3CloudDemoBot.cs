@@ -205,7 +205,7 @@ namespace cAlgo.Robots
                 double stopDistance = Math.Max(atr * StopAtrMultiple, MinimumEmergencyStopPips * symbol.PipSize);
                 double stopPips = Math.Max(MinimumEmergencyStopPips, stopDistance / symbol.PipSize);
                 TradeResult result = ExecuteMarketOrder(direction, symbol.Name, volume, BotLabel, stopPips, (double?)null,
-                    ANALYZERPRO_M5_EARLY |  + candleOpen.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture));
+                    "ANALYZERPRO_M5_EARLY | " + candleOpen.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture));
 
                 if (!result.IsSuccessful)
                 {
