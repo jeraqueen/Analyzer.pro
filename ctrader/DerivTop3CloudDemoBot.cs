@@ -1,11 +1,11 @@
 // -----------------------------------------------------------------------------
 // JENZY? No. Analyzer.pro - Deriv cTrader Cloud Demo Bot
 // Version: 1.0.0 (development source; compile and validate in cTrader before use)
-// Purpose: multi-symbol, multi-timeframe demo automation for FX, XAUUSD and BTCUSD.
+// Purpose: multi-symbol, multi-timeframe demo automation for FX, Gold, Bitcoin and Deriv synthetic indices.
 // Safety: hard demo-account guard. This cBot refuses to start on a live account.
 // -----------------------------------------------------------------------------
 // Strategy notes:
-// - Scans broker-enabled FX symbols plus Gold (XAU*) and Bitcoin (BTC*).
+// - Scans broker-enabled FX, Gold (XAU*), Bitcoin (BTC*) and recognized Deriv synthetic indices.
 // - Uses closed candles on M1/M5/M15/M30/H1/H4/D1/W1.
 // - Scores trend alignment, then applies M15 RSI, ATR and spread filters.
 // - Ranks all eligible opportunities and opens only the best qualifying trades.
@@ -142,7 +142,7 @@ namespace cAlgo.Robots
             Print("Analyzer.pro Deriv Top-3 Cloud Demo Bot v1.0 started.");
             Print("Account: DEMO | Equity: {0} {1} | Risk/trade: {2}% | Max positions: {3}",
                 Account.Equity, Account.Asset.Name, RiskPercent, MaxOpenTrades);
-            Print("Markets: broker-enabled FX, Gold (XAU), Bitcoin (BTC). Synthetic indices are excluded.");
+            Print("Markets: broker-enabled FX, Gold (XAU), Bitcoin (BTC), and supported synthetic indices (Volatility, Boom, Crash, Step, Jump, Range).");
             Print("Timeframes: M1, M5, M15, M30, H1, H4, D1, W1. Only closed candles are evaluated.");
 
             ScanAndRank();
@@ -346,7 +346,22 @@ namespace cAlgo.Robots
 
         private bool IsTargetMarket(string rawName)
         {
+            if (string.IsNullOrWhiteSpace(rawName))
+                return false;
+
             string name = new string(rawName.Where(char.IsLetter).ToArray()).ToUpperInvariant();
+
+            // Deriv synthetic indices are identified by their broker-listed symbol names.
+            // This keeps the scan dynamic: newly listed variants with these families
+            // are included automatically without hard-coding every volatility level.
+            if (name.Contains("VOLATILITY") ||
+                name.Contains("BOOM") ||
+                name.Contains("CRASH") ||
+                name.Contains("STEP") ||
+                name.Contains("JUMP") ||
+                name.Contains("RANGEBREAK") ||
+                name.Contains("DRIFT"))
+                return true;
 
             if (name.StartsWith("XAU") || name.StartsWith("BTC"))
                 return true;
