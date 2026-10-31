@@ -240,6 +240,13 @@ namespace cAlgo.Robots
                     return;
                 }
 
+                foreach (TradeCandidate item in ranked.Take(5))
+                {
+                    Print("RANKED {0} {1} | TECHNICAL SCORE {2:F1}% (not win probability) | MTF {3:F1} | RSI {4:F1} | EMA strength {5:F1} | spread quality {6:F1} | RSI value {7:F1}",
+                        item.Direction, item.Symbol.Name, item.Score, item.AlignmentScore,
+                        item.RsiScore, item.TrendStrengthScore, item.SpreadEfficiencyScore, item.Rsi);
+                }
+
                 int opened = 0;
                 var currencyExposure = BuildCurrentCurrencyExposure();
 
@@ -447,6 +454,10 @@ namespace cAlgo.Robots
                 Symbol = symbol,
                 Direction = direction,
                 Score = score,
+                AlignmentScore = alignmentScore,
+                RsiScore = rsiScore,
+                TrendStrengthScore = trendStrengthScore,
+                SpreadEfficiencyScore = spreadEfficiencyScore,
                 Rsi = rsi,
                 AtrPrice = atr,
                 StopPips = stopPips,
@@ -614,6 +625,10 @@ namespace cAlgo.Robots
             public Symbol Symbol { get; set; }
             public TradeType Direction { get; set; }
             public double Score { get; set; }
+            public double AlignmentScore { get; set; }
+            public double RsiScore { get; set; }
+            public double TrendStrengthScore { get; set; }
+            public double SpreadEfficiencyScore { get; set; }
             public double Rsi { get; set; }
             public double AtrPrice { get; set; }
             public double StopPips { get; set; }
