@@ -40,7 +40,7 @@ namespace cAlgo.Robots
         [Parameter("Daily loss limit (%)", DefaultValue = 2.5, MinValue = 0.5, MaxValue = 5.0, Step = 0.25)]
         public double DailyLossLimitPercent { get; set; }
 
-        [Parameter("Peak drawdown lock (%)", DefaultValue = 8.0, MinValue = 2.0, MaxValue = 15.0, Step = 0.5)]
+        [Parameter("Peak balance drawdown lock (%)", DefaultValue = 8.0, MinValue = 2.0, MaxValue = 15.0, Step = 0.5)]
         public double PeakDrawdownLimitPercent { get; set; }
 
         [Parameter("Scan interval (seconds)", DefaultValue = 60, MinValue = 15, MaxValue = 300)]
@@ -81,8 +81,8 @@ namespace cAlgo.Robots
 
         private readonly Dictionary<string, SymbolContext> _contexts = new Dictionary<string, SymbolContext>(StringComparer.OrdinalIgnoreCase);
         private DateTime _riskDay;
-        private double _dayStartEquity;
-        private double _peakEquity;
+        private double _dayStartBalance;
+        private double _peakBalance;
         private bool _riskLockLogged;
 
         private static readonly TimeFrame[] ScanTimeFrames =
@@ -131,8 +131,8 @@ namespace cAlgo.Robots
             // Rebuild risk references from account history so a Cloud restart
             // cannot silently reset the daily-loss or historical peak-balance guard.
             _riskDay = DateTime.MinValue;
-            _dayStartEquity = 0;
-            _peakEquity = 0;
+            _dayStartBalance = 0;
+            _peakBalance = 0;
             RefreshRiskBaselines();
 
             Positions.Closed += OnPositionClosed;
@@ -290,14 +290,14 @@ namespace cAlgo.Robots
             // account trades closed today. Floating P/L remains included through Equity.
             double reconstructedStartBalance = Account.Balance - todayClosedNet;
             if (reconstructedStartBalance > 0)
-                _dayStartEquity = reconstructedStartBalance;
+                _dayStartBalance = reconstructedStartBalance;
 
             if (today != _riskDay)
             {
                 _riskDay = today;
                 _riskLockLogged = false;
-                Print("Daily risk reference reconstructed from account history: {0:F2} {1}.",
-                    _dayStartEquity, Account.Asset.Name);
+                Print("Daily opening-balance reference reconstructed from account history: {0:F2} {1}.",
+                    _dayStartBalance, Account.Asset.Name);
             }
 
             // Use the account's historical closed-balance high-water mark. Unlike
@@ -305,7 +305,7 @@ namespace cAlgo.Robots
             double historicalPeakBalance = accountHistory.Length > 0
                 ? accountHistory.Max(t => t.Balance)
                 : Account.Balance;
-            _peakEquity = Math.Max(_peakEquity, Math.Max(Account.Balance, historicalPeakBalance));
+            _peakBalance = Math.Max(_peakBalance, Math.Max(Account.Balance, historicalPeakBalance));
         }
 
         private bool RiskGateAllowsEntries()
@@ -317,14 +317,14 @@ namespace cAlgo.Robots
                 return false;
             }
 
-            double dailyFloor = _dayStartEquity * (1.0 - DailyLossLimitPercent / 100.0);
-            double drawdownFloor = _peakEquity * (1.0 - PeakDrawdownLimitPercent / 100.0);
+            double dailyFloor = _dayStartBalance * (1.0 - DailyLossLimitPercent / 100.0);
+            double drawdownFloor = _peakBalance * (1.0 - PeakDrawdownLimitPercent / 100.0);
 
             if (Account.Equity <= dailyFloor || Account.Equity <= drawdownFloor)
             {
                 if (!_riskLockLogged)
                 {
-                    Print("RISK LOCK ACTIVE. Equity={0}; daily floor={1}; peak drawdown floor={2}. New entries disabled.",
+                    Print("RISK LOCK ACTIVE. Equity={0}; daily-loss floor={1}; historical peak-balance floor={2}. New entries disabled.",
                         Account.Equity, dailyFloor, drawdownFloor);
                     _riskLockLogged = true;
                 }
