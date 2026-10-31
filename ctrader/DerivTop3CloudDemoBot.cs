@@ -135,6 +135,7 @@ namespace cAlgo.Robots
         private bool _rescanRequested;
         private DateTime _lastHeartbeatLog = DateTime.MinValue;
         private readonly Dictionary<long, double> _initialRiskPrice = new Dictionary<long, double>();
+        private readonly Dictionary<long, double> _peakNetProfit = new Dictionary<long, double>();
         private readonly HashSet<long> _partialProfitTaken = new HashSet<long>();
 
         private static readonly TimeFrame[] ScanTimeFrames =
@@ -227,14 +228,82 @@ namespace cAlgo.Robots
             Print("STACK TRACE: {0}", exception.StackTrace);
         }
 
-        // Manage exits continuously, independently of the entry scan. Broker-side SL/TP
-        // remain the hard protection; an opposite qualifying signal closes the position
-        // so the bot can consider a fresh entry on a later scan.
+        // Each position is managed independently. A broker-side ATR stop is the
+        // emergency protection; closed-candle reversal signals can exit earlier.
+        // Peak-profit tracking is adaptive, not a fixed currency profit cap.
         private void ManageOpenPositions()
         {
-            // Demo test mode: do not automatically close, partially close, or modify
-            // positions. Positions remain open until the user closes them manually.
-            // Orders in test mode are sent without broker-side SL/TP.
+            foreach (Position position in Positions.FindAll(BotLabel))
+            {
+                try
+                {
+                    Symbol symbol = Symbols.GetSymbol(position.SymbolName);
+                    if (symbol == null || symbol.PipSize <= 0) continue;
+
+                    double peak;
+                    if (!_peakNetProfit.TryGetValue(position.Id, out peak))
+                        peak = position.NetProfit;
+                    peak = Math.Max(peak, position.NetProfit);
+                    _peakNetProfit[position.Id] = peak;
+
+                    SymbolContext context = GetContext(symbol);
+                    if (context == null || context.TimeFrames == null) continue;
+
+                    bool isBuy = position.TradeType == TradeType.Buy;
+                    double riskPrice = ReadInitialRiskPrice(position);
+                    if (riskPrice <= 0 && position.StopLoss.HasValue)
+                        riskPrice = Math.Abs(position.EntryPrice - position.StopLoss.Value);
+                    if (riskPrice <= 0)
+                        riskPrice = context.Atr.Result.Last(1) * StopAtrMultiple;
+                    if (riskPrice <= 0) continue;
+
+                    double marketPrice = isBuy ? symbol.Bid : symbol.Ask;
+                    double favorableMove = isBuy ? marketPrice - position.EntryPrice : position.EntryPrice - marketPrice;
+                    double rMultiple = favorableMove / riskPrice;
+
+                    // Lock some of the open gain with a price-based trailing stop once
+                    // the move has room to breathe. It follows ATR and never loosens.
+                    if (rMultiple >= 1.0)
+                    {
+                        double trailDistance = Math.Max(symbol.TickSize * 2, context.Atr.Result.Last(1) * PositionTrailAtrMultiple);
+                        double proposed = isBuy ? marketPrice - trailDistance : marketPrice + trailDistance;
+                        TryImprovePositionStop(position, symbol, proposed, marketPrice, isBuy);
+                    }
+                    else if (favorableMove > 0 && rMultiple >= 0.5)
+                    {
+                        double proposed = position.EntryPrice;
+                        TryImprovePositionStop(position, symbol, proposed, marketPrice, isBuy);
+                    }
+
+                    bool fastReversal = FastCandleReversalConfirmed(context, isBuy);
+                    bool structuralReversal = ReversalConfirmed(context, isBuy);
+                    // Close only this position when price action confirms reversal.
+                    // At a small gain, the fast candle signal is enough; at larger gains
+                    // either fast reversal or broader structure confirmation can protect it.
+                    if (fastReversal && (position.NetProfit > 0 || rMultiple < 0))
+                    {
+                        TradeResult close = ClosePosition(position);
+                        if (close.IsSuccessful)
+                            Print("ADAPTIVE EXIT | {0} {1} closed on fast reversal | floating P/L={2:F2} {3} | peak P/L={4:F2} {3} | R={5:F2}.",
+                                position.TradeType, position.SymbolName, position.NetProfit, Account.Asset.Name, peak, rMultiple);
+                        else
+                            Print("ADAPTIVE EXIT FAILED | {0} {1}: {2}", position.SymbolName, position.Id, close.Error);
+                    }
+                    else if (structuralReversal && position.NetProfit > 0 && (rMultiple >= ReversalExitMinR || peak > position.NetProfit))
+                    {
+                        TradeResult close = ClosePosition(position);
+                        if (close.IsSuccessful)
+                            Print("PROFIT PROTECTION EXIT | {0} {1} closed on structural reversal | floating P/L={2:F2} {3} | peak P/L={4:F2} {3} | R={5:F2}.",
+                                position.TradeType, position.SymbolName, position.NetProfit, Account.Asset.Name, peak, rMultiple);
+                        else
+                            Print("PROFIT PROTECTION EXIT FAILED | {0} {1}: {2}", position.SymbolName, position.Id, close.Error);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Print("POSITION MANAGEMENT ERROR | {0} {1}: {2}", position.SymbolName, position.Id, ex.Message);
+                }
+            }
         }
 
         private double ReadInitialRiskPrice(Position position)
@@ -361,6 +430,7 @@ namespace cAlgo.Robots
         private void OnPositionClosed(PositionClosedEventArgs args)
         {
             _initialRiskPrice.Remove(args.Position.Id);
+            _peakNetProfit.Remove(args.Position.Id);
             _partialProfitTaken.Remove(args.Position.Id);
             PrintHistoricalPerformance();
             // Do not interrupt an active scan. Remaining open markets are evaluated
@@ -764,8 +834,8 @@ namespace cAlgo.Robots
         private bool PlaceTrade(TradeCandidate candidate)
         {
             Symbol symbol = candidate.Symbol;
-            // Demo test mode: use the broker's minimum permitted trade volume rather
-            // than equity/risk-percentage sizing. No SL/TP is attached to the order.
+            // Keep demo test sizing at broker minimum. Attach a real ATR-based
+            // protective stop; no fixed take-profit cap, so strong trades can run.
             double volume = symbol.NormalizeVolumeInUnits(symbol.VolumeInUnitsMin, RoundingMode.Down);
 
             if (volume < symbol.VolumeInUnitsMin || volume > symbol.VolumeInUnitsMax || double.IsNaN(volume))
@@ -779,9 +849,10 @@ namespace cAlgo.Robots
                 symbol.Name,
                 volume,
                 BotLabel,
+                candidate.StopPips,
                 (double?)null,
-                (double?)null,
-                "ANALYZERPRO_DEMO_TEST | SCORE=" + candidate.Score.ToString("F1", CultureInfo.InvariantCulture));
+                "ANALYZERPRO_DEMO_TEST | AP_RPIPS=" + candidate.StopPips.ToString("F1", CultureInfo.InvariantCulture) +
+                " | SCORE=" + candidate.Score.ToString("F1", CultureInfo.InvariantCulture));
 
             if (!result.IsSuccessful)
             {
@@ -789,8 +860,10 @@ namespace cAlgo.Robots
                 return false;
             }
 
-            Print("OPENED {0} {1} | technical score {2:F1}% (not a win probability) | RSI {3:F1} | volume {4} | DEMO TEST MODE: no automatic exits and no SL/TP.",
-                candidate.Direction, symbol.Name, candidate.Score, candidate.Rsi, volume);
+            _initialRiskPrice[result.Position.Id] = candidate.StopPips * symbol.PipSize;
+            _peakNetProfit[result.Position.Id] = result.Position.NetProfit;
+            Print("OPENED {0} {1} | technical score {2:F1}% (not a win probability) | RSI {3:F1} | volume {4} | broker-side ATR stop={5:F1} pips | adaptive exits enabled; no fixed TP cap.",
+                candidate.Direction, symbol.Name, candidate.Score, candidate.Rsi, volume, candidate.StopPips);
             return true;
         }
 
