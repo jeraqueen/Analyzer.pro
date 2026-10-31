@@ -10,7 +10,7 @@
 // - Scores trend alignment, then applies M15 RSI, ATR and spread filters.
 // - Ranks all eligible opportunities and opens only the best qualifying trades.
 // - Uses ATR-based SL, fixed-risk volume sizing and broker-side SL/TP.
-// - No forced entries. No averaging down, grid, martingale or position stacking.
+// - No forced entries. No averaging down, grid or martingale. Controlled multi-position entries are capped by portfolio limits.
 // - This is not a guarantee of profitability. Backtest and demo-forward-test first.
 // -----------------------------------------------------------------------------
 
@@ -53,10 +53,10 @@ namespace cAlgo.Robots
         [Parameter("Scan interval (seconds)", DefaultValue = 15, MinValue = 15, MaxValue = 300)]
         public int ScanIntervalSeconds { get; set; }
 
-        [Parameter("Symbols per batch", DefaultValue = 3, MinValue = 1, MaxValue = 10)]
+        [Parameter("Symbols per batch", DefaultValue = 5, MinValue = 1, MaxValue = 10)]
         public int SymbolsPerBatch { get; set; }
 
-        [Parameter("Batch interval (seconds)", DefaultValue = 5, MinValue = 1, MaxValue = 30)]
+        [Parameter("Batch interval (seconds)", DefaultValue = 2, MinValue = 1, MaxValue = 30)]
         public int BatchIntervalSeconds { get; set; }
 
         [Parameter("Minimum technical score (%)", DefaultValue = 88, MinValue = 80, MaxValue = 95)]
@@ -115,6 +115,12 @@ namespace cAlgo.Robots
 
         [Parameter("Maximum positions per symbol", DefaultValue = 2, MinValue = 1, MaxValue = 2)]
         public int MaximumPositionsPerSymbol { get; set; }
+
+        [Parameter("Maximum total open positions", DefaultValue = 8, MinValue = 1, MaxValue = 10)]
+        public int MaximumTotalPositions { get; set; }
+
+        [Parameter("Maximum new positions per scan", DefaultValue = 2, MinValue = 1, MaxValue = 5)]
+        public int MaximumNewPositionsPerScan { get; set; }
 
         private readonly Dictionary<string, SymbolContext> _contexts = new Dictionary<string, SymbolContext>(StringComparer.OrdinalIgnoreCase);
         private DateTime _riskDay;
@@ -185,8 +191,8 @@ namespace cAlgo.Robots
 
             Timer.Start(TimeSpan.FromSeconds(BatchIntervalSeconds));
             Print("Analyzer.pro Deriv Top-3 Cloud Demo Bot v1.0 started.");
-            Print("Account: DEMO | Equity: {0} {1} | Risk/trade: {2}% | No fixed bot-wide position cap | Multiple positions per instrument allowed by default.",
-                Account.Equity, Account.Asset.Name, RiskPercent);
+            Print("Account: DEMO | Equity: {0} {1} | Risk/trade: {2}% | Max total positions: {3} | Max new per completed scan: {4}.",
+                Account.Equity, Account.Asset.Name, RiskPercent, MaximumTotalPositions, MaximumNewPositionsPerScan);
             Print("Markets: dynamically scans supported FX, Gold (XAU), Bitcoin (BTC), and Deriv synthetic-market families whenever the broker reports them open. Closed markets are skipped automatically; reopened markets are included on the next scan.");
             Print("Timeframes: M1, M5, M15, M30, H1, H4, D1, W1. Only closed candles are evaluated.");
 
@@ -483,6 +489,12 @@ namespace cAlgo.Robots
                 Print("ENTRY SKIPPED {0}: account risk gate is active.", candidate.Symbol.Name);
                 return;
             }
+            int totalOpenPositions = Positions.FindAll(BotLabel).Length;
+            if (totalOpenPositions >= MaximumTotalPositions)
+            {
+                Print("ENTRY SKIPPED {0}: portfolio cap reached ({1}/{2} positions).", candidate.Symbol.Name, totalOpenPositions, MaximumTotalPositions);
+                return;
+            }
             int symbolPositionCount = Positions.FindAll(BotLabel, candidate.Symbol.Name).Length;
             if (AvoidDuplicateSymbols && symbolPositionCount > 0)
             {
@@ -514,13 +526,12 @@ namespace cAlgo.Robots
         {
             var ranked = _scanCandidates.OrderByDescending(c => c.Score).ThenByDescending(c => c.RewardRisk).ThenBy(c => c.SpreadToAtr).ToList();
             Print("SCAN COMPLETE | broker symbols={0} | supported markets={1} | qualifying={2} | opened during scan={3}.", Symbols.Count, _scanQueue.Count, ranked.Count, _openedThisScan);
-            // Wait for the complete scan, then try candidates in descending score order.
-            // Open only one new position per scan cycle; if the strongest order is rejected,
-            // continue to the next-ranked eligible candidate.
+            // Complete the scan first, then open up to the configured number of strongest eligible opportunities.
+            // Never exceed the portfolio cap and never force weak entries just to maintain a minimum count.
             foreach (TradeCandidate candidate in ranked)
             {
-                if (_openedThisScan > 0)
-                    break;
+                if (_openedThisScan >= MaximumNewPositionsPerScan) break;
+                if (Positions.FindAll(BotLabel).Length >= MaximumTotalPositions) break;
                 TryOpenQualifiedCandidate(candidate);
             }
 
