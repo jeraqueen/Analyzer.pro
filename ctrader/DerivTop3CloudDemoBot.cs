@@ -307,27 +307,74 @@ namespace cAlgo.Robots
                         if (!reversalResult.IsSuccessful)
                             Print("REVERSAL CLOSE FAILED {0} {1}: {2}", position.SymbolName, position.Id, reversalResult.Error);
                     }
-                    TradeCandidate signal = EvaluateSymbol(symbol);
-                    if (signal == null || signal.Score <= MinimumScore || signal.Direction == position.TradeType)
-                        continue;
-
-                    // Only reverse-close early when the current position is profitable.
-                    if (position.NetProfit <= 0)
-                        continue;
-
-                    Print("PROFITABLE REVERSAL EXIT {0} {1} | open direction={2} | opposite technical score={3:F1}% > {4:F1}%. Closing position to limit reversal exposure.",
-                        position.SymbolName, position.Id, position.TradeType, signal.Score, MinimumScore);
-                    TradeResult closeResult = ClosePosition(position);
-                    if (closeResult.IsSuccessful)
-                        Print("AUTO-CLOSED {0} {1} | gross P/L={2:F2} {3}.", position.TradeType, position.SymbolName, position.GrossProfit, Account.Asset.Name);
-                    else
-                        Print("AUTO-CLOSE FAILED {0} {1}: {2}", position.SymbolName, position.Id, closeResult.Error);
                 }
                 catch (Exception ex)
                 {
                     Print("POSITION MANAGEMENT ERROR {0} {1}: {2}", position.SymbolName, position.Id, ex.Message);
                 }
             }
+        }
+
+        private double ReadInitialRiskPrice(Position position)
+        {
+            const string marker = "AP_RPIPS=";
+            string comment = position.Comment ?? string.Empty;
+            int index = comment.IndexOf(marker, StringComparison.Ordinal);
+            if (index < 0) return 0;
+            string raw = comment.Substring(index + marker.Length).Split('|')[0];
+            double pips;
+            if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out pips) || pips <= 0)
+                return 0;
+            Symbol symbol = Symbols.GetSymbol(position.SymbolName);
+            return symbol == null ? 0 : pips * symbol.PipSize;
+        }
+
+        private void TryImprovePositionStop(Position position, Symbol symbol, double proposedStop, double marketPrice, bool isBuy)
+        {
+            proposedStop = Math.Round(proposedStop, symbol.Digits);
+            if (proposedStop <= 0) return;
+            if (isBuy && proposedStop >= marketPrice - symbol.TickSize) return;
+            if (!isBuy && proposedStop <= marketPrice + symbol.TickSize) return;
+            if (position.StopLoss.HasValue)
+            {
+                if (isBuy && proposedStop <= position.StopLoss.Value + symbol.TickSize * 0.5) return;
+                if (!isBuy && proposedStop >= position.StopLoss.Value - symbol.TickSize * 0.5) return;
+            }
+            TradeResult result = ModifyPosition(position, proposedStop, position.TakeProfit);
+            if (!result.IsSuccessful)
+                Print("POSITION STOP UPDATE FAILED {0} {1}: {2}", position.SymbolName, position.Id, result.Error);
+        }
+
+        private bool ReversalConfirmed(SymbolContext context, bool isBuy)
+        {
+            var m15 = context.TimeFrames[2];
+            if (m15 == null || m15.Bars == null || m15.Bars.Count < 15)
+                return false;
+
+            int votes = 0;
+            double fast = m15.Fast.Result.Last(1);
+            double middle = m15.Middle.Result.Last(1);
+            if (isBuy ? fast < middle : fast > middle) votes++;
+
+            double rsiNow = context.Rsi.Result.Last(1);
+            double extreme = isBuy ? 0.0 : 100.0;
+            for (int i = 2; i <= 11; i++)
+            {
+                double value = context.Rsi.Result.Last(i);
+                extreme = isBuy ? Math.Max(extreme, value) : Math.Min(extreme, value);
+            }
+            if (isBuy ? extreme > 60 && rsiNow < 50 : extreme < 40 && rsiNow > 50) votes++;
+
+            double close = m15.Bars.ClosePrices.Last(1);
+            double structure = isBuy ? double.MaxValue : double.MinValue;
+            for (int i = 2; i <= 6; i++)
+            {
+                structure = isBuy
+                    ? Math.Min(structure, m15.Bars.LowPrices.Last(i))
+                    : Math.Max(structure, m15.Bars.HighPrices.Last(i));
+            }
+            if (isBuy ? close < structure : close > structure) votes++;
+            return votes >= 2;
         }
 
         protected override void OnStop()
@@ -758,7 +805,8 @@ namespace cAlgo.Robots
                 BotLabel,
                 candidate.StopPips,
                 candidate.TakeProfitPips,
-                "Top-ranked demo signal; calculated technical confidence score " + candidate.Score.ToString("F1") + "%");
+                "AP_RPIPS=" + candidate.StopPips.ToString("F6", CultureInfo.InvariantCulture) +
+                "| SCORE=" + candidate.Score.ToString("F1", CultureInfo.InvariantCulture));
 
             if (!result.IsSuccessful)
             {
