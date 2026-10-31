@@ -34,16 +34,16 @@ namespace cAlgo.Robots
         [Parameter("Risk per trade (%)", DefaultValue = 0.25, MinValue = 0.05, MaxValue = 1.0, Step = 0.05)]
         public double RiskPercent { get; set; }
 
-        [Parameter("Daily loss limit (%)", DefaultValue = 3.0, MinValue = 0.5, MaxValue = 5.0, Step = 0.25)]
+        [Parameter("Daily loss limit (%)", DefaultValue = 2.0, MinValue = 0.5, MaxValue = 5.0, Step = 0.25)]
         public double DailyLossLimitPercent { get; set; }
 
-        [Parameter("Maximum loss per position (% equity)", DefaultValue = 1.5, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
+        [Parameter("Maximum loss per position (% equity)", DefaultValue = 1.0, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
         public double MaximumPositionLossPercent { get; set; }
 
         [Parameter("Profit trailing activation (% equity)", DefaultValue = 1.0, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
         public double ProfitTrailActivationPercent { get; set; }
 
-        [Parameter("Profit trailing distance (ATR multiple)", DefaultValue = 2.5, MinValue = 0.5, MaxValue = 3.0, Step = 0.25)]
+        [Parameter("Profit trailing distance (ATR multiple)", DefaultValue = 2.0, MinValue = 0.5, MaxValue = 3.0, Step = 0.25)]
         public double ProfitTrailAtrMultiple { get; set; }
 
         [Parameter("Peak balance drawdown lock (%)", DefaultValue = 8.0, MinValue = 2.0, MaxValue = 15.0, Step = 0.5)]
