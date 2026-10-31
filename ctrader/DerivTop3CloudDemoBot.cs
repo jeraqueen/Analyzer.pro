@@ -46,6 +46,9 @@ namespace cAlgo.Robots
         [Parameter("Symbols per batch", DefaultValue = 3, MinValue = 1, MaxValue = 10)]
         public int SymbolsPerBatch { get; set; }
 
+        [Parameter("Batch interval (seconds)", DefaultValue = 5, MinValue = 1, MaxValue = 30)]
+        public int BatchIntervalSeconds { get; set; }
+
         [Parameter("Minimum calculated confidence (%)", DefaultValue = 76, MinValue = 60, MaxValue = 95)]
         public double MinimumScore { get; set; }
 
@@ -142,7 +145,7 @@ namespace cAlgo.Robots
             Positions.Closed += OnPositionClosed;
             PrintHistoricalPerformance();
 
-            Timer.Start(TimeSpan.FromSeconds(ScanIntervalSeconds));
+            Timer.Start(TimeSpan.FromSeconds(BatchIntervalSeconds));
             Print("Analyzer.pro Deriv Top-3 Cloud Demo Bot v1.0 started.");
             Print("Account: DEMO | Equity: {0} {1} | Risk/trade: {2}% | Maximum selected instruments per scan: 3 | One open position per instrument.",
                 Account.Equity, Account.Asset.Name, RiskPercent);
