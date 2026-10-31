@@ -1,13 +1,14 @@
 // -----------------------------------------------------------------------------
 // Analyzer.pro - Deriv cTrader Cloud Demo Bot
-// Version 2.2.0 - event-driven synchronized M5 strategy
+// Version 2.3.0 - synchronized M5 scanner with provisional reversals
 // -----------------------------------------------------------------------------
 // Strategy:
 // - Preloads broker-listed supported FX, XAU, BTC and Deriv synthetic symbols.
-// - Uses each symbol's M5 Bars.Tick event; no rotating symbol scan queue.
-// - Enters on the first live green/red movement within the first 30 seconds of each M5 candle.
-// - Opposite colour during the first 30 seconds closes the provisional trade; no re-entry that candle.
-// - Caps successful entries at 8 per shared UTC M5 cycle and 8 concurrent bot positions by default.
+// - Preloads supported symbols and subscribes to every symbol's M5 tick events.
+// - Also checks every subscribed symbol on each one-second timer cycle; no rotating scan queue.
+// - Opens on the first directional candle movement in the first 30 seconds of the shared UTC M5 cycle.
+// - If direction reverses during those 30 seconds, closes the provisional trade and opens the opposite direction.
+// - Allows up to 8 distinct symbols per M5 cycle and 8 concurrent positions by default.
 // - Tracks executable-side peak MFE; closes on a 25% retracement, retaining approximately 75%.
 // - Otherwise closes at the originating M5 candle boundary; retries failed closes.
 // - Broker market hours and trading-enabled state are checked before entry.
@@ -55,6 +56,8 @@ namespace cAlgo.Robots
         private readonly Dictionary<long, DateTime> _originCandleByPosition = new Dictionary<long, DateTime>();
         private readonly Dictionary<long, double> _peakPriceByPosition = new Dictionary<long, double>();
         private readonly HashSet<long> _restartStateRecovered = new HashSet<long>();
+        private readonly HashSet<long> _reversalCloseInProgress = new HashSet<long>();
+        private readonly HashSet<string> _enteredSymbolsThisCycle = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _reportedDataErrors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _currencies = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -79,10 +82,11 @@ namespace cAlgo.Robots
             Positions.Closed += OnPositionClosed;
             RefreshSymbolCatalogue();
             InitializeMarketSubscriptions();
-            Print("Analyzer.pro cTrader Cloud Demo Bot v2.2 started.");
-            Print("ENTRY: event-driven M5 ticks; first clear direction within 30 seconds of each symbol candle.");
-            Print("CYCLE: maximum {0} successful entries per UTC M5 cycle; maximum {1} concurrent bot positions.", MaximumEntriesPerM5Cycle, MaximumConcurrentPositions);
-            Print("EXIT: first-30-second opposite-colour reversal; then close on 25% retracement from peak favourable movement; otherwise close at originating M5 boundary.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v2.3 started.");
+            Print("ENTRY: every subscribed symbol checked on ticks AND on each one-second timer cycle.");
+            Print("CYCLE: up to {0} distinct symbols per UTC M5 cycle; maximum {1} concurrent positions.", MaximumEntriesPerM5Cycle, MaximumConcurrentPositions);
+            Print("REVERSAL: during first 30 seconds, close provisional trade and immediately enter the new candle direction.");
+            Print("EXIT: after confirmation, close on 25% retracement from peak favourable movement; otherwise close at originating M5 boundary.");
             Print("MARKETS: subscribed to {0} supported broker-listed symbols; live market hours and trading mode checked per tick.", _m5Bars.Count);
             Print("SAFETY: demo-only guard, cash-loss limit and broker-side emergency stop active.");
             Timer.Start(TimeSpan.FromSeconds(1));
@@ -94,12 +98,18 @@ namespace cAlgo.Robots
             {
                 DateTime now = Server.Time;
                 ManagePositions(now);
+                EnsureCycle(now);
+
+                // Full pass over every preloaded symbol each second. This is deliberately
+                // not a 25-symbol rotating batch, so a busy symbol cannot starve the rest.
+                foreach (Bars bars in _m5Bars.Values.ToArray())
+                    ProcessLiveBar(bars, now);
 
                 if (_lastHeartbeat == DateTime.MinValue || (now - _lastHeartbeat).TotalSeconds >= 30)
                 {
                     _lastHeartbeat = now;
-                    Print("M5 HEARTBEAT | {0:yyyy-MM-dd HH:mm:ss} UTC | subscribed={1} | entries this cycle={2}/{3} | bot positions={4}/{5}.",
-                        now, _m5Bars.Count, _entriesThisCycle, MaximumEntriesPerM5Cycle, Positions.FindAll(BotLabel).Length, MaximumConcurrentPositions);
+                    Print("M5 HEARTBEAT | {0:yyyy-MM-dd HH:mm:ss} UTC | catalogue={1} | subscribed={2} | distinct symbols entered={3}/{4} | open positions={5}/{6}.",
+                        now, _symbols.Length, _m5Bars.Count, _enteredSymbolsThisCycle.Count, MaximumEntriesPerM5Cycle, Positions.FindAll(BotLabel).Length, MaximumConcurrentPositions);
                 }
             }
             catch (Exception ex)
@@ -139,6 +149,10 @@ namespace cAlgo.Robots
 
                     _m5Bars[name] = bars;
                     bars.Tick += OnBarsTick;
+                    if (bars.Count < 16)
+                    {
+                        bars.LoadMoreHistoryAsync(args => Print("M5 HISTORY LOAD | {0} | added={1} | total={2}.", name, args.Count, args.Bars.Count));
+                    }
                     loaded++;
                 }
                 catch (Exception ex)
@@ -173,8 +187,24 @@ namespace cAlgo.Robots
             }
         }
 
+        private void EnsureCycle(DateTime now)
+        {
+            DateTime cycleOpen = FloorToM5(now);
+            if (_currentCycleOpen == cycleOpen)
+                return;
+
+            _currentCycleOpen = cycleOpen;
+            _entriesThisCycle = 0;
+            _enteredSymbolsThisCycle.Clear();
+            Print("NEW SHARED UTC M5 CYCLE | {0:HH:mm:ss} | prepared symbols={1} | new-symbol entry allowance={2}.",
+                cycleOpen, _m5Bars.Count, MaximumEntriesPerM5Cycle);
+        }
+
         private void ProcessLiveBar(Bars bars, DateTime now)
         {
+            if (bars == null || bars.Count < 16)
+                return;
+
             string name = bars.SymbolName;
             Symbol symbol = Symbols.GetSymbol(name);
             if (symbol == null || symbol.PipSize <= 0 || symbol.Ask <= 0 || symbol.Bid <= 0)
@@ -183,61 +213,83 @@ namespace cAlgo.Robots
             if (!symbol.MarketHours.IsOpened() || !symbol.IsTradingEnabled || symbol.TradingMode != SymbolTradingMode.FullAccess)
                 return;
 
+            EnsureCycle(now);
             DateTime candleOpen = bars.LastBar.OpenTime;
             DateTime confirmationTime = candleOpen.AddSeconds(ConfirmationWindowSeconds);
             DateTime candleEnd = candleOpen.AddMinutes(CandleMinutes);
-            if (now >= candleEnd)
+            if (now < candleOpen || now >= candleEnd)
                 return;
+
+            double candleOpenPrice = bars.OpenPrices.Last(0);
+            double livePrice = bars.ClosePrices.Last(0);
+            TradeType? liveDirection = livePrice > candleOpenPrice ? TradeType.Buy
+                : livePrice < candleOpenPrice ? TradeType.Sell
+                : (TradeType?)null;
+
+            Position existing = Positions.FindAll(BotLabel)
+                .FirstOrDefault(p => string.Equals(p.SymbolName, name, StringComparison.OrdinalIgnoreCase));
+
+            if (existing != null)
+            {
+                // Only the initial 30-second window permits a direction flip.
+                // A successful close is followed immediately by a market entry in the
+                // newly observed candle direction. This is not treated as a new symbol slot.
+                if (now < confirmationTime && liveDirection.HasValue && liveDirection.Value != existing.TradeType)
+                {
+                    _reversalCloseInProgress.Add(existing.Id);
+                    TradeResult reversalClose = ClosePosition(existing);
+                    if (!reversalClose.IsSuccessful)
+                    {
+                        _reversalCloseInProgress.Remove(existing.Id);
+                        Print("DIRECTION REVERSAL CLOSE FAILED | {0} #{1} | {2}.", name, existing.Id, reversalClose.Error);
+                        return;
+                    }
+
+                    Print("M5 PROVISIONAL REVERSAL | {0} | closed {1}; entering {2} | candle={3:HH:mm:ss} UTC.",
+                        name, existing.TradeType, liveDirection.Value, candleOpen);
+
+                    if (OpenPosition(symbol, bars, liveDirection.Value, candleOpen))
+                    {
+                        _enteredSymbolsThisCycle.Add(name);
+                        _entriesThisCycle = _enteredSymbolsThisCycle.Count;
+                    }
+                }
+                return;
+            }
 
             DateTime lastDecision;
             if (_lastDecisionCandle.TryGetValue(name, out lastDecision) && lastDecision == candleOpen)
                 return;
 
-            if (Positions.FindAll(BotLabel).Any(p => string.Equals(p.SymbolName, name, StringComparison.OrdinalIgnoreCase)))
-            {
-                _lastDecisionCandle[name] = candleOpen;
-                return;
-            }
-
             if (now >= confirmationTime)
             {
-                Print("M5 ENTRY WINDOW MISSED | {0} | candle={1:HH:mm:ss} UTC | first directional tick not processed within 30 seconds.", name, candleOpen);
                 _lastDecisionCandle[name] = candleOpen;
+                Print("M5 NO ENTRY | {0} | first 30-second entry window elapsed without a position | candle={1:HH:mm:ss} UTC.",
+                    name, candleOpen);
                 return;
             }
 
-            DateTime cycleOpen = FloorToM5(now);
-            if (_currentCycleOpen != cycleOpen)
-            {
-                _currentCycleOpen = cycleOpen;
-                _entriesThisCycle = 0;
-                Print("NEW SHARED M5 CYCLE | {0:HH:mm:ss} UTC | entry allowance reset to {1}.", cycleOpen, MaximumEntriesPerM5Cycle);
-            }
+            if (!liveDirection.HasValue)
+                return;
 
-            int activePositions = Positions.FindAll(BotLabel).Length;
-            if (_entriesThisCycle >= MaximumEntriesPerM5Cycle || activePositions >= MaximumConcurrentPositions)
+            if (!_enteredSymbolsThisCycle.Contains(name) && _enteredSymbolsThisCycle.Count >= MaximumEntriesPerM5Cycle)
             {
                 _lastDecisionCandle[name] = candleOpen;
                 return;
             }
 
-            double open = bars.OpenPrices.Last(0);
-            double live = bars.ClosePrices.Last(0);
-            if (live > open)
+            if (Positions.FindAll(BotLabel).Length >= MaximumConcurrentPositions)
+                return;
+
+            if (OpenPosition(symbol, bars, liveDirection.Value, candleOpen))
             {
-                if (OpenPosition(symbol, bars, TradeType.Buy, candleOpen))
-                    _entriesThisCycle++;
-            }
-            else if (live < open)
-            {
-                if (OpenPosition(symbol, bars, TradeType.Sell, candleOpen))
-                    _entriesThisCycle++;
+                _enteredSymbolsThisCycle.Add(name);
+                _entriesThisCycle = _enteredSymbolsThisCycle.Count;
             }
         }
 
         private bool OpenPosition(Symbol symbol, Bars bars, TradeType direction, DateTime candleOpen)
         {
-            _lastDecisionCandle[symbol.Name] = candleOpen;
             try
             {
                 double volume = symbol.NormalizeVolumeInUnits(symbol.VolumeInUnitsMin, RoundingMode.Down);
@@ -333,28 +385,8 @@ namespace cAlgo.Robots
 
                     // First 30 seconds are a direction-confirmation window. If the live
                     // candle changes to the opposite colour, close immediately and do not re-enter.
-                    if (now < origin.AddSeconds(ConfirmationWindowSeconds))
-                    {
-                        Bars confirmBars;
-                        if (_m5Bars.TryGetValue(position.SymbolName, out confirmBars) && confirmBars != null && confirmBars.Count > 0)
-                        {
-                            double candleOpen = confirmBars.OpenPrices.Last(0);
-                            double candleLive = confirmBars.ClosePrices.Last(0);
-                            bool reversed = position.TradeType == TradeType.Buy
-                                ? candleLive < candleOpen
-                                : candleLive > candleOpen;
-                            if (reversed)
-                            {
-                                TradeResult reversalClose = ClosePosition(position);
-                                if (reversalClose.IsSuccessful)
-                                    Print("30-SECOND DIRECTION REVERSAL EXIT | {0} {1} | candle={2:HH:mm} UTC | trade closed; no re-entry this candle.",
-                                        position.TradeType, position.SymbolName, origin);
-                                else
-                                    Print("DIRECTION REVERSAL EXIT FAILED | {0} #{1} | {2}.", position.SymbolName, position.Id, reversalClose.Error);
-                                continue;
-                            }
-                        }
-                    }
+// Reversal handling is centralized in ProcessLiveBar so a successful close
+                    // can be followed by an immediate opposite-direction entry.
 
                     double executable = position.TradeType == TradeType.Buy ? symbol.Bid : symbol.Ask;
                     double peak;
@@ -439,6 +471,10 @@ namespace cAlgo.Robots
 
         private void OnPositionClosed(PositionClosedEventArgs args)
         {
+            DateTime closedOrigin;
+            bool wasReversal = _reversalCloseInProgress.Remove(args.Position.Id);
+            if (!wasReversal && _originCandleByPosition.TryGetValue(args.Position.Id, out closedOrigin))
+                _lastDecisionCandle[args.Position.SymbolName] = closedOrigin;
             _originCandleByPosition.Remove(args.Position.Id);
             _peakPriceByPosition.Remove(args.Position.Id);
             _restartStateRecovered.Remove(args.Position.Id);
