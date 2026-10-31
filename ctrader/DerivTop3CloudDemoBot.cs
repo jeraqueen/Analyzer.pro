@@ -49,8 +49,11 @@ namespace cAlgo.Robots
         [Parameter("Batch interval (seconds)", DefaultValue = 5, MinValue = 1, MaxValue = 30)]
         public int BatchIntervalSeconds { get; set; }
 
-        [Parameter("Minimum calculated confidence (%)", DefaultValue = 76, MinValue = 60, MaxValue = 95)]
+        [Parameter("Minimum technical score (%)", DefaultValue = 80, MinValue = 80, MaxValue = 95)]
         public double MinimumScore { get; set; }
+
+        [Parameter("Maximum open bot positions", DefaultValue = 5, MinValue = 1, MaxValue = 10)]
+        public int MaximumOpenBotPositions { get; set; }
 
         [Parameter("Fast EMA", DefaultValue = 9, MinValue = 3, MaxValue = 30)]
         public int FastEmaPeriod { get; set; }
@@ -90,6 +93,7 @@ namespace cAlgo.Robots
         private readonly List<string> _scanQueue = new List<string>();
         private readonly List<TradeCandidate> _scanCandidates = new List<TradeCandidate>();
         private int _scanIndex;
+        private int _openedThisScan;
         private DateTime _lastScanCompleted = DateTime.MinValue;
 
         private static readonly TimeFrame[] ScanTimeFrames =
@@ -147,8 +151,8 @@ namespace cAlgo.Robots
 
             Timer.Start(TimeSpan.FromSeconds(BatchIntervalSeconds));
             Print("Analyzer.pro Deriv Top-3 Cloud Demo Bot v1.0 started.");
-            Print("Account: DEMO | Equity: {0} {1} | Risk/trade: {2}% | Maximum selected instruments per scan: 3 | One open position per instrument.",
-                Account.Equity, Account.Asset.Name, RiskPercent);
+            Print("Account: DEMO | Equity: {0} {1} | Risk/trade: {2}% | Maximum open bot positions: {3} | One open position per instrument.",
+                Account.Equity, Account.Asset.Name, RiskPercent, MaximumOpenBotPositions);
             Print("Markets: dynamically scans supported FX, Gold (XAU), Bitcoin (BTC), and Deriv synthetic-market families whenever the broker reports them open. Closed markets are skipped automatically; reopened markets are included on the next scan.");
             Print("Timeframes: M1, M5, M15, M30, H1, H4, D1, W1. Only closed candles are evaluated.");
 
@@ -199,6 +203,7 @@ namespace cAlgo.Robots
             _scanQueue.Clear();
             _scanCandidates.Clear();
             _scanIndex = 0;
+            _openedThisScan = 0;
             RefreshRiskBaselines();
             if (!RiskGateAllowsEntries()) return;
             for (int i = 0; i < Symbols.Count; i++)
@@ -227,10 +232,11 @@ namespace cAlgo.Robots
                     if (symbol == null || !symbol.MarketHours.IsOpened()) continue;
                     if (AvoidDuplicateSymbols && Positions.FindAll(BotLabel, symbol.Name).Length > 0) continue;
                     TradeCandidate candidate = EvaluateSymbol(symbol);
-                    if (candidate != null && candidate.Score >= MinimumScore)
+                    if (candidate != null && candidate.Score > MinimumScore)
                     {
                         _scanCandidates.Add(candidate);
-                        Print("QUALIFIED {0} {1} | technical score={2:F1}% (not win probability).", candidate.Direction, name, candidate.Score);
+                        Print("QUALIFIED {0} {1} | technical score={2:F1}% (not a statistically validated win probability).", candidate.Direction, name, candidate.Score);
+                        TryOpenQualifiedCandidate(candidate);
                     }
                 }
                 Print("SCAN PROGRESS: {0}/{1} symbols processed; candidates={2}.", _scanIndex, _scanQueue.Count, _scanCandidates.Count);
@@ -239,19 +245,49 @@ namespace cAlgo.Robots
             catch (Exception ex) { Print("BATCH SCAN ERROR: {0}", ex.Message); }
         }
 
+
+        private void TryOpenQualifiedCandidate(TradeCandidate candidate)
+        {
+            if (!RiskGateAllowsEntries())
+            {
+                Print("ENTRY SKIPPED {0}: account risk gate is active.", candidate.Symbol.Name);
+                return;
+            }
+            int openBotPositions = Positions.FindAll(BotLabel).Length;
+            if (openBotPositions >= MaximumOpenBotPositions)
+            {
+                Print("ENTRY SKIPPED {0}: safety cap of {1} open bot positions reached.", candidate.Symbol.Name, MaximumOpenBotPositions);
+                return;
+            }
+            if (AvoidDuplicateSymbols && Positions.FindAll(BotLabel, candidate.Symbol.Name).Length > 0)
+            {
+                Print("ENTRY SKIPPED {0}: bot already has a position on this symbol.", candidate.Symbol.Name);
+                return;
+            }
+            var exposure = BuildCurrentCurrencyExposure();
+            if (UseCurrencyExposureGuard && candidate.IsForex && WouldIncreaseConcentratedExposure(candidate, exposure))
+            {
+                Print("ENTRY SKIPPED {0}: correlated FX exposure guard blocked this candidate.", candidate.Symbol.Name);
+                return;
+            }
+            Print("ENTRY ATTEMPT {0} {1} | score={2:F1}% | qualifying threshold > {3:F1}%.",
+                candidate.Direction, candidate.Symbol.Name, candidate.Score, MinimumScore);
+            if (PlaceTrade(candidate))
+            {
+                _openedThisScan++;
+                if (UseCurrencyExposureGuard && candidate.IsForex)
+                    ApplyExposure(candidate, exposure);
+            }
+        }
+
         private void CompleteScanCycle()
         {
             var ranked = _scanCandidates.OrderByDescending(c => c.Score).ThenByDescending(c => c.RewardRisk).ThenBy(c => c.SpreadToAtr).ToList();
-            Print("SCAN COMPLETE | broker symbols={0} | supported markets={1} | qualifying={2}.", Symbols.Count, _scanQueue.Count, ranked.Count);
-            var exposure = BuildCurrentCurrencyExposure();
-            foreach (TradeCandidate candidate in ranked.Take(3))
-            {
-                if (Positions.FindAll(BotLabel, candidate.Symbol.Name).Length > 0) continue;
-                if (UseCurrencyExposureGuard && candidate.IsForex && WouldIncreaseConcentratedExposure(candidate, exposure)) continue;
-                if (!RiskGateAllowsEntries()) break;
-                if (PlaceTrade(candidate) && UseCurrencyExposureGuard && candidate.IsForex) ApplyExposure(candidate, exposure);
-            }
-            if (ranked.Count == 0) Print("NO TRADE: no market met entry filters; no forced trades.");
+            Print("SCAN COMPLETE | broker symbols={0} | supported markets={1} | qualifying={2} | opened during scan={3}.", Symbols.Count, _scanQueue.Count, ranked.Count, _openedThisScan);
+            // Candidates are attempted as soon as they qualify during scanning.
+            // This completion pass is diagnostic only; it does not place duplicate orders.
+            if (ranked.Count == 0) Print("NO TRADE: no market scored above the strict threshold and passed all entry filters; no forced trades.");
+            else if (_openedThisScan == 0) Print("QUALIFIED CANDIDATES WERE FOUND, BUT NO ORDER OPENED: check entry-skip and broker-rejection messages above.");
             _lastScanCompleted = Server.Time;
             _scanQueue.Clear(); _scanIndex = 0; _scanCandidates.Clear();
         }
