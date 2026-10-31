@@ -389,7 +389,7 @@ SELECTED TRADING STYLE: ${mode.name}. Objective: ${mode.objective} Timeframe fra
 
 GLOBAL STRATEGY RULES: ${GLOBAL_STRATEGY_RULES}
 
-PAIR-SPECIFIC STRATEGY CATALOGUE (exclusive list): ${pair === "EURUSD" ? EURUSD_TOP25 : ((STRATEGY_LIBRARY[pair] || "") + "\n" + (SUPPLEMENTAL_STRATEGIES[pair] || ""))}
+PAIR-SPECIFIC STRATEGY CATALOGUE (exclusive list): ${(pair === "EURUSD" ? EURUSD_TOP25 + "\n" : (STRATEGY_LIBRARY[pair] || "") + "\n") + (PAIR_STRATEGIES[pair] || "") + "\n" + (SUPPLEMENTAL_STRATEGIES[pair] || "")}
 \n\nSTRATEGY SCREENING AND USAGE OUTPUT (mandatory on every scan):
 - Screen the complete candidate catalogue for the selected instrument, plus universal strategies 76–105 when the supplied timeframes and chart evidence make them applicable. Do not skip restored FX catalogues, XAUUSD or BTCUSD. Never apply another instrument's numerical thresholds.
 - Compare BUY and SELL candidates; report only strategies whose individual conditions are supported. A strategy may be PARTIAL or NOT SUPPORTED and must not be counted as used unless it materially contributes independent evidence to the selected plan.
