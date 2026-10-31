@@ -1,16 +1,16 @@
 // -----------------------------------------------------------------------------
 // Analyzer.pro - Deriv cTrader Cloud Demo Bot
-// Version 2.1.0 - M5 early-direction confirmation strategy
+// Version 2.2.0 - event-driven synchronized M5 strategy
 // -----------------------------------------------------------------------------
 // Strategy:
-// - Scans all broker-listed supported FX, XAU, BTC and Deriv synthetic symbols.
-// - Enters as soon as the live M5 candle first shows a clear green/red direction.
-// - During the first 30 seconds, an opposite colour closes the provisional trade.
-// - At +30 seconds, the surviving direction is confirmed; a still-flat candle is skipped.
-// - Tracks price-based maximum favourable excursion (MFE).
-// - Closes after a 25% retracement from peak MFE, retaining approximately 75%.
-// - If no retracement occurs, closes at the end of the originating M5 candle.
-// - One bot position per symbol; no portfolio-wide position cap.
+// - Preloads broker-listed supported FX, XAU, BTC and Deriv synthetic symbols.
+// - Uses each symbol's M5 Bars.Tick event; no rotating symbol scan queue.
+// - Enters on the first live green/red movement within the first 30 seconds of each M5 candle.
+// - Opposite colour during the first 30 seconds closes the provisional trade; no re-entry that candle.
+// - Caps successful entries at 8 per shared UTC M5 cycle and 8 concurrent bot positions by default.
+// - Tracks executable-side peak MFE; closes on a 25% retracement, retaining approximately 75%.
+// - Otherwise closes at the originating M5 candle boundary; retries failed closes.
+// - Broker market hours and trading-enabled state are checked before entry.
 // - Demo-account guard and broker-side emergency stop remain enabled.
 // - No M1/M15/H1/H4/D1/W1 data, indicators, filters or strategy logic.
 // -----------------------------------------------------------------------------
@@ -44,8 +44,11 @@ namespace cAlgo.Robots
         [Parameter("Emergency stop minimum (pips)", DefaultValue = 10.0, MinValue = 1.0, MaxValue = 1000.0)]
         public double MinimumEmergencyStopPips { get; set; }
 
-        [Parameter("Symbols per timer cycle", DefaultValue = 25, MinValue = 1, MaxValue = 250)]
-        public int SymbolsPerCycle { get; set; }
+        [Parameter("Maximum entries per M5 cycle", DefaultValue = 8, MinValue = 1, MaxValue = 50)]
+        public int MaximumEntriesPerM5Cycle { get; set; }
+
+        [Parameter("Maximum concurrent bot positions", DefaultValue = 8, MinValue = 1, MaxValue = 50)]
+        public int MaximumConcurrentPositions { get; set; }
 
         private readonly Dictionary<string, Bars> _m5Bars = new Dictionary<string, Bars>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, DateTime> _lastDecisionCandle = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
@@ -60,7 +63,8 @@ namespace cAlgo.Robots
         };
 
         private string[] _symbols = new string[0];
-        private int _symbolCursor;
+        private int _entriesThisCycle;
+        private DateTime _currentCycleOpen = DateTime.MinValue;
         private DateTime _lastHeartbeat = DateTime.MinValue;
 
         protected override void OnStart()
@@ -74,12 +78,13 @@ namespace cAlgo.Robots
 
             Positions.Closed += OnPositionClosed;
             RefreshSymbolCatalogue();
-            Print("Analyzer.pro cTrader Cloud Demo Bot v2.1 started.");
-            Print("MODE: M5 ONLY | enter on first clear candle colour | opposite colour during first 30 seconds closes trade | flat at +30s skips.");
-            Print("EXIT: opposite-colour reversal closes provisional entry; then 75% MFE lock after 25% retracement; otherwise close at M5 candle end.");
-            Print("MARKETS: broker-listed FX, XAU, BTC and supported Deriv synthetic symbols.");
-            Print("POSITION LIMIT: no global cap; one active position per symbol.");
-            Print("SAFETY: demo-only guard and broker-side emergency stop active.");
+            InitializeMarketSubscriptions();
+            Print("Analyzer.pro cTrader Cloud Demo Bot v2.2 started.");
+            Print("ENTRY: event-driven M5 ticks; first clear direction within 30 seconds of each symbol candle.");
+            Print("CYCLE: maximum {0} successful entries per UTC M5 cycle; maximum {1} concurrent bot positions.", MaximumEntriesPerM5Cycle, MaximumConcurrentPositions);
+            Print("EXIT: first-30-second opposite-colour reversal; then close on 25% retracement from peak favourable movement; otherwise close at originating M5 boundary.");
+            Print("MARKETS: subscribed to {0} supported broker-listed symbols; live market hours and trading mode checked per tick.", _m5Bars.Count);
+            Print("SAFETY: demo-only guard, cash-loss limit and broker-side emergency stop active.");
             Timer.Start(TimeSpan.FromSeconds(1));
         }
 
@@ -89,22 +94,12 @@ namespace cAlgo.Robots
             {
                 DateTime now = Server.Time;
                 ManagePositions(now);
-                if (_symbols.Length == 0 || _symbolCursor >= _symbols.Length)
-                    RefreshSymbolCatalogue();
-
-                int processed = 0;
-                while (_symbolCursor < _symbols.Length && processed < SymbolsPerCycle)
-                {
-                    string name = _symbols[_symbolCursor++];
-                    processed++;
-                    ProcessSymbol(name, now);
-                }
 
                 if (_lastHeartbeat == DateTime.MinValue || (now - _lastHeartbeat).TotalSeconds >= 30)
                 {
                     _lastHeartbeat = now;
-                    Print("M5 HEARTBEAT | {0:yyyy-MM-dd HH:mm:ss} UTC | symbols={1} | cursor={2} | bot positions={3}.",
-                        now, _symbols.Length, _symbolCursor, Positions.FindAll(BotLabel).Length);
+                    Print("M5 HEARTBEAT | {0:yyyy-MM-dd HH:mm:ss} UTC | subscribed={1} | entries this cycle={2}/{3} | bot positions={4}/{5}.",
+                        now, _m5Bars.Count, _entriesThisCycle, MaximumEntriesPerM5Cycle, Positions.FindAll(BotLabel).Length, MaximumConcurrentPositions);
                 }
             }
             catch (Exception ex)
@@ -123,38 +118,72 @@ namespace cAlgo.Robots
                     found.Add(name);
             }
             _symbols = found.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            _symbolCursor = 0;
             Print("MARKET CATALOGUE REFRESHED | broker symbols={0} | supported symbols={1}.", Symbols.Count, _symbols.Length);
         }
 
-        private void ProcessSymbol(string name, DateTime now)
+        private void InitializeMarketSubscriptions()
         {
-            Symbol symbol = Symbols.GetSymbol(name);
-            if (symbol == null || symbol.PipSize <= 0 || symbol.Ask <= 0 || symbol.Bid <= 0 || !symbol.MarketHours.IsOpened())
-                return;
-
-            Bars bars;
-            if (!_m5Bars.TryGetValue(name, out bars))
+            int loaded = 0;
+            int failed = 0;
+            foreach (string name in _symbols)
             {
                 try
                 {
-                    bars = MarketData.GetBars(TimeFrame.Minute5, name);
+                    Bars bars = MarketData.GetBars(TimeFrame.Minute5, name);
                     if (bars == null)
-                        return;
+                    {
+                        failed++;
+                        Print("M5 SUBSCRIPTION FAILED | {0} | GetBars returned null.", name);
+                        continue;
+                    }
+
                     _m5Bars[name] = bars;
+                    bars.Tick += OnBarsTick;
+                    loaded++;
                 }
                 catch (Exception ex)
                 {
-                    if (_reportedDataErrors.Add(name))
-                        Print("M5 DATA LOAD FAILED | {0}: {1}", name, ex.Message);
-                    return;
+                    failed++;
+                    Print("M5 SUBSCRIPTION FAILED | {0} | {1}: {2}", name, ex.GetType().Name, ex.Message);
                 }
             }
 
-            if (bars.Count < 16)
+            Print("M5 SUBSCRIPTIONS READY | catalogue={0} | subscribed={1} | failed={2}.", _symbols.Length, loaded, failed);
+        }
+
+        private void OnBarsTick(BarsTickEventArgs args)
+        {
+            try
+            {
+                Bars bars = args.Bars;
+                if (bars == null || bars.Count < 16)
+                    return;
+
+                DateTime now = Server.Time;
+                if (args.IsBarOpened)
+                    Print("M5 BAR OPEN EVENT | {0} | candle={1:HH:mm:ss} UTC | first tick received.", bars.SymbolName, bars.LastBar.OpenTime);
+
+                // Tick callbacks manage positions and detect entries immediately for that symbol.
+                ManagePositions(now);
+                ProcessLiveBar(bars, now);
+            }
+            catch (Exception ex)
+            {
+                Print("M5 TICK HANDLER ERROR | {0}: {1}", ex.GetType().Name, ex.Message);
+            }
+        }
+
+        private void ProcessLiveBar(Bars bars, DateTime now)
+        {
+            string name = bars.SymbolName;
+            Symbol symbol = Symbols.GetSymbol(name);
+            if (symbol == null || symbol.PipSize <= 0 || symbol.Ask <= 0 || symbol.Bid <= 0)
                 return;
 
-            DateTime candleOpen = bars.OpenTimes.Last(0);
+            if (!symbol.MarketHours.IsOpened() || !symbol.IsTradingEnabled || symbol.TradingMode != SymbolTradingMode.FullAccess)
+                return;
+
+            DateTime candleOpen = bars.LastBar.OpenTime;
             DateTime confirmationTime = candleOpen.AddSeconds(ConfirmationWindowSeconds);
             DateTime candleEnd = candleOpen.AddMinutes(CandleMinutes);
             if (now >= candleEnd)
@@ -170,30 +199,43 @@ namespace cAlgo.Robots
                 return;
             }
 
+            if (now >= confirmationTime)
+            {
+                Print("M5 ENTRY WINDOW MISSED | {0} | candle={1:HH:mm:ss} UTC | first directional tick not processed within 30 seconds.", name, candleOpen);
+                _lastDecisionCandle[name] = candleOpen;
+                return;
+            }
+
+            DateTime cycleOpen = FloorToM5(now);
+            if (_currentCycleOpen != cycleOpen)
+            {
+                _currentCycleOpen = cycleOpen;
+                _entriesThisCycle = 0;
+                Print("NEW SHARED M5 CYCLE | {0:HH:mm:ss} UTC | entry allowance reset to {1}.", cycleOpen, MaximumEntriesPerM5Cycle);
+            }
+
+            int activePositions = Positions.FindAll(BotLabel).Length;
+            if (_entriesThisCycle >= MaximumEntriesPerM5Cycle || activePositions >= MaximumConcurrentPositions)
+            {
+                _lastDecisionCandle[name] = candleOpen;
+                return;
+            }
+
             double open = bars.OpenPrices.Last(0);
             double live = bars.ClosePrices.Last(0);
-
-            // Entries are only allowed during the first 30 seconds of the M5 candle.
-            // If this symbol is first reached after that window, do not chase a candle
-            // that is already moving; the bot has missed the immediate first-direction entry.
-            if (now < confirmationTime)
+            if (live > open)
             {
-                if (live > open)
-                    OpenPosition(symbol, bars, TradeType.Buy, candleOpen);
-                else if (live < open)
-                    OpenPosition(symbol, bars, TradeType.Sell, candleOpen);
+                if (OpenPosition(symbol, bars, TradeType.Buy, candleOpen))
+                    _entriesThisCycle++;
             }
-            else
+            else if (live < open)
             {
-                string reason = Math.Abs(live - open) <= symbol.TickSize
-                    ? "flat/doji at confirmation"
-                    : "entry window elapsed before symbol was processed";
-                Print("M5 NO ENTRY | {0} | {1} | candle={2:HH:mm} UTC.", name, reason, candleOpen);
-                _lastDecisionCandle[name] = candleOpen;
+                if (OpenPosition(symbol, bars, TradeType.Sell, candleOpen))
+                    _entriesThisCycle++;
             }
         }
 
-        private void OpenPosition(Symbol symbol, Bars bars, TradeType direction, DateTime candleOpen)
+        private bool OpenPosition(Symbol symbol, Bars bars, TradeType direction, DateTime candleOpen)
         {
             _lastDecisionCandle[symbol.Name] = candleOpen;
             try
@@ -202,14 +244,14 @@ namespace cAlgo.Robots
                 if (volume < symbol.VolumeInUnitsMin || volume > symbol.VolumeInUnitsMax || double.IsNaN(volume))
                 {
                     Print("ENTRY SKIPPED | {0} | invalid broker minimum volume.", symbol.Name);
-                    return;
+                    return false;
                 }
 
                 double atr = CalculateM5Atr(bars, 14);
                 if (atr <= 0 || double.IsNaN(atr) || double.IsInfinity(atr))
                 {
                     Print("ENTRY SKIPPED | {0} | insufficient/invalid M5 ATR data.", symbol.Name);
-                    return;
+                    return false;
                 }
 
                 double stopDistance = Math.Max(atr * StopAtrMultiple, MinimumEmergencyStopPips * symbol.PipSize);
@@ -220,7 +262,7 @@ namespace cAlgo.Robots
                 if (!result.IsSuccessful)
                 {
                     Print("ORDER REJECTED | {0} {1} | {2}.", direction, symbol.Name, result.Error);
-                    return;
+                    return false;
                 }
 
                 Position position = result.Position;
@@ -228,10 +270,12 @@ namespace cAlgo.Robots
                 _peakPriceByPosition[position.Id] = direction == TradeType.Buy ? symbol.Bid : symbol.Ask;
                 Print("M5 TRADE OPENED | {0} {1} | entry={2} | volume={3} | candle={4:HH:mm} UTC | emergency SL={5:F1} pips.",
                     direction, symbol.Name, position.EntryPrice, volume, candleOpen, stopPips);
+                return true;
             }
             catch (Exception ex)
             {
                 Print("ENTRY ERROR | {0}: {1}", symbol.Name, ex.Message);
+                return false;
             }
         }
 
@@ -345,7 +389,9 @@ namespace cAlgo.Robots
                         }
                     }
 
-                    if (now >= origin.AddMinutes(CandleMinutes))
+                    Bars positionBars;
+                    bool newBarObserved = _m5Bars.TryGetValue(position.SymbolName, out positionBars) && positionBars != null && positionBars.Count > 0 && positionBars.LastBar.OpenTime > origin;
+                    if (now >= origin.AddMinutes(CandleMinutes) || newBarObserved)
                     {
                         TradeResult close = ClosePosition(position);
                         if (close.IsSuccessful)
@@ -417,7 +463,9 @@ namespace cAlgo.Robots
         {
             Timer.Stop();
             Positions.Closed -= OnPositionClosed;
-            Print("Analyzer.pro M5-only cBot stopped. Broker-side emergency stops remain attached to open positions.");
+            foreach (Bars bars in _m5Bars.Values)
+                bars.Tick -= OnBarsTick;
+            Print("Analyzer.pro event-driven M5 cBot stopped. Broker-side emergency stops remain attached to open positions.");
         }
 
         protected override void OnException(Exception exception)
