@@ -37,6 +37,15 @@ namespace cAlgo.Robots
         [Parameter("Daily loss limit (%)", DefaultValue = 2.5, MinValue = 0.5, MaxValue = 5.0, Step = 0.25)]
         public double DailyLossLimitPercent { get; set; }
 
+        [Parameter("Maximum loss per position (% equity)", DefaultValue = 1.0, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
+        public double MaximumPositionLossPercent { get; set; }
+
+        [Parameter("Profit trailing activation (% equity)", DefaultValue = 0.5, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
+        public double ProfitTrailActivationPercent { get; set; }
+
+        [Parameter("Profit trailing distance (ATR multiple)", DefaultValue = 1.5, MinValue = 0.5, MaxValue = 3.0, Step = 0.25)]
+        public double ProfitTrailAtrMultiple { get; set; }
+
         [Parameter("Peak balance drawdown lock (%)", DefaultValue = 8.0, MinValue = 2.0, MaxValue = 15.0, Step = 0.5)]
         public double PeakDrawdownLimitPercent { get; set; }
 
@@ -175,6 +184,56 @@ namespace cAlgo.Robots
                     Symbol symbol = Symbols.GetSymbol(position.SymbolName);
                     if (symbol == null || !symbol.MarketHours.IsOpened())
                         continue;
+
+                    // Hard per-position cash-risk guard: size the limit from current equity,
+                    // not from a fixed dollar amount, so it scales with the account.
+                    double maxLossCash = Account.Equity * MaximumPositionLossPercent / 100.0;
+                    if (position.NetProfit <= -maxLossCash)
+                    {
+                        Print("POSITION LOSS LIMIT: {0} {1} | net P/L={2:F2} {3} <= -{4:F2} ({5:F2}% of current equity). Closing.",
+                            position.SymbolName, position.Id, position.NetProfit, Account.Asset.Name,
+                            maxLossCash, MaximumPositionLossPercent);
+                        TradeResult lossClose = ClosePosition(position);
+                        if (lossClose.IsSuccessful)
+                            Print("LOSS-LIMIT AUTO-CLOSED {0} {1}.", position.SymbolName, position.Id);
+                        else
+                            Print("LOSS-LIMIT CLOSE FAILED {0} {1}: {2}", position.SymbolName, position.Id, lossClose.Error);
+                        continue;
+                    }
+
+                    // Once open profit reaches a threshold based on current account equity,
+                    // trail a stop using the instrument's ATR. Only tighten the stop; never
+                    // move it farther away. This lets winners run while protecting gains.
+                    SymbolContext positionContext = GetContext(symbol);
+                    double atrNow = positionContext?.Atr?.Result.Last(1) ?? 0;
+                    double activationCash = Account.Equity * ProfitTrailActivationPercent / 100.0;
+                    if (position.NetProfit >= activationCash && atrNow > 0)
+                    {
+                        double trailDistance = atrNow * ProfitTrailAtrMultiple;
+                        double? proposedStop = null;
+                        if (position.TradeType == TradeType.Buy)
+                        {
+                            double candidateStop = symbol.Bid - trailDistance;
+                            if (candidateStop > 0 && (!position.StopLoss.HasValue || candidateStop > position.StopLoss.Value + symbol.TickSize))
+                                proposedStop = candidateStop;
+                        }
+                        else
+                        {
+                            double candidateStop = symbol.Ask + trailDistance;
+                            if (candidateStop > 0 && (!position.StopLoss.HasValue || candidateStop < position.StopLoss.Value - symbol.TickSize))
+                                proposedStop = candidateStop;
+                        }
+
+                        if (proposedStop.HasValue)
+                        {
+                            TradeResult trailResult = ModifyPosition(position, proposedStop, position.TakeProfit);
+                            if (trailResult.IsSuccessful)
+                                Print("PROFIT TRAIL UPDATED {0} {1} | net P/L={2:F2} {3} | stop={4}.",
+                                    position.SymbolName, position.Id, position.NetProfit, Account.Asset.Name, proposedStop.Value);
+                            else
+                                Print("PROFIT TRAIL UPDATE FAILED {0} {1}: {2}", position.SymbolName, position.Id, trailResult.Error);
+                        }
+                    }
 
                     TradeCandidate signal = EvaluateSymbol(symbol);
                     if (signal == null || signal.Score <= MinimumScore || signal.Direction == position.TradeType)
