@@ -34,16 +34,16 @@ namespace cAlgo.Robots
         [Parameter("Risk per trade (%)", DefaultValue = 0.25, MinValue = 0.05, MaxValue = 1.0, Step = 0.05)]
         public double RiskPercent { get; set; }
 
-        [Parameter("Daily loss limit (%)", DefaultValue = 2.5, MinValue = 0.5, MaxValue = 5.0, Step = 0.25)]
+        [Parameter("Daily loss limit (%)", DefaultValue = 3.0, MinValue = 0.5, MaxValue = 5.0, Step = 0.25)]
         public double DailyLossLimitPercent { get; set; }
 
-        [Parameter("Maximum loss per position (% equity)", DefaultValue = 1.0, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
+        [Parameter("Maximum loss per position (% equity)", DefaultValue = 1.5, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
         public double MaximumPositionLossPercent { get; set; }
 
-        [Parameter("Profit trailing activation (% equity)", DefaultValue = 0.5, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
+        [Parameter("Profit trailing activation (% equity)", DefaultValue = 1.0, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
         public double ProfitTrailActivationPercent { get; set; }
 
-        [Parameter("Profit trailing distance (ATR multiple)", DefaultValue = 1.5, MinValue = 0.5, MaxValue = 3.0, Step = 0.25)]
+        [Parameter("Profit trailing distance (ATR multiple)", DefaultValue = 2.5, MinValue = 0.5, MaxValue = 3.0, Step = 0.25)]
         public double ProfitTrailAtrMultiple { get; set; }
 
         [Parameter("Peak balance drawdown lock (%)", DefaultValue = 8.0, MinValue = 2.0, MaxValue = 15.0, Step = 0.5)]
@@ -58,7 +58,7 @@ namespace cAlgo.Robots
         [Parameter("Batch interval (seconds)", DefaultValue = 5, MinValue = 1, MaxValue = 30)]
         public int BatchIntervalSeconds { get; set; }
 
-        [Parameter("Minimum technical score (%)", DefaultValue = 80, MinValue = 80, MaxValue = 95)]
+        [Parameter("Minimum technical score (%)", DefaultValue = 88, MinValue = 80, MaxValue = 95)]
         public double MinimumScore { get; set; }
 
                 [Parameter("Fast EMA", DefaultValue = 9, MinValue = 3, MaxValue = 30)]
@@ -79,17 +79,20 @@ namespace cAlgo.Robots
         [Parameter("Stop Loss ATR multiple", DefaultValue = 2.0, MinValue = 1.0, MaxValue = 4.0, Step = 0.25)]
         public double StopAtrMultiple { get; set; }
 
-        [Parameter("Take Profit (R multiple)", DefaultValue = 1.5, MinValue = 1.0, MaxValue = 3.0, Step = 0.25)]
+        [Parameter("Take Profit (R multiple)", DefaultValue = 2.0, MinValue = 1.0, MaxValue = 3.0, Step = 0.25)]
         public double TakeProfitR { get; set; }
 
-        [Parameter("Maximum spread / ATR", DefaultValue = 0.20, MinValue = 0.05, MaxValue = 0.5, Step = 0.05)]
+        [Parameter("Maximum spread / ATR", DefaultValue = 0.10, MinValue = 0.05, MaxValue = 0.5, Step = 0.05)]
         public double MaximumSpreadToAtr { get; set; }
 
         [Parameter("Avoid duplicate symbol positions", DefaultValue = false)]
         public bool AvoidDuplicateSymbols { get; set; }
 
-        [Parameter("Limit correlated FX exposure", DefaultValue = false)]
+        [Parameter("Limit correlated FX exposure", DefaultValue = true)]
         public bool UseCurrencyExposureGuard { get; set; }
+
+        [Parameter("Maximum positions per symbol", DefaultValue = 2, MinValue = 1, MaxValue = 2)]
+        public int MaximumPositionsPerSymbol { get; set; }
 
         private readonly Dictionary<string, SymbolContext> _contexts = new Dictionary<string, SymbolContext>(StringComparer.OrdinalIgnoreCase);
         private DateTime _riskDay;
@@ -362,7 +365,9 @@ namespace cAlgo.Robots
                     string name = _scanQueue[_scanIndex++]; processed++;
                     Symbol symbol = Symbols.GetSymbol(name);
                     if (symbol == null || !symbol.MarketHours.IsOpened()) continue;
-                    if (AvoidDuplicateSymbols && Positions.FindAll(BotLabel, symbol.Name).Length > 0) continue;
+                    int symbolPositionCount = Positions.FindAll(BotLabel, symbol.Name).Length;
+                    if (AvoidDuplicateSymbols && symbolPositionCount > 0) continue;
+                    if (symbolPositionCount >= MaximumPositionsPerSymbol) continue;
                     TradeCandidate candidate = EvaluateSymbol(symbol);
                     if (candidate != null && candidate.Score > MinimumScore)
                     {
@@ -385,9 +390,15 @@ namespace cAlgo.Robots
                 Print("ENTRY SKIPPED {0}: account risk gate is active.", candidate.Symbol.Name);
                 return;
             }
-            if (AvoidDuplicateSymbols && Positions.FindAll(BotLabel, candidate.Symbol.Name).Length > 0)
+            int symbolPositionCount = Positions.FindAll(BotLabel, candidate.Symbol.Name).Length;
+            if (AvoidDuplicateSymbols && symbolPositionCount > 0)
             {
-                Print("ENTRY SKIPPED {0}: bot already has a position on this symbol.", candidate.Symbol.Name);
+                Print("ENTRY SKIPPED {0}: duplicate-symbol setting is enabled.", candidate.Symbol.Name);
+                return;
+            }
+            if (symbolPositionCount >= MaximumPositionsPerSymbol)
+            {
+                Print("ENTRY SKIPPED {0}: maximum positions per symbol reached ({1}).", candidate.Symbol.Name, MaximumPositionsPerSymbol);
                 return;
             }
             var exposure = BuildCurrentCurrencyExposure();
