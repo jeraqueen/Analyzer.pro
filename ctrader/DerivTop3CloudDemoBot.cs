@@ -260,9 +260,10 @@ namespace cAlgo.Robots
                     // if it gives back the configured fraction while still profitable.
                     // This is separate from the distant broker-side R-multiple target.
                     double givebackFraction = Math.Max(0.10, Math.Min(0.75, PeakProfitGivebackPercent / 100.0));
+                    double protectedProfitFloor = Math.Max(PeakProfitLockActivation, peak * (1.0 - givebackFraction));
                     if (peak >= PeakProfitLockActivation &&
                         position.NetProfit > 0 &&
-                        position.NetProfit <= peak * (1.0 - givebackFraction))
+                        position.NetProfit <= protectedProfitFloor)
                     {
                         TradeResult profitLockClose = ClosePosition(position);
                         if (profitLockClose.IsSuccessful)
