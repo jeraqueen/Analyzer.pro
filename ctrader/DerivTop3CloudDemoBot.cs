@@ -35,7 +35,7 @@ namespace cAlgo.Robots
         [Parameter("Risk per trade (%)", DefaultValue = 0.25, MinValue = 0.05, MaxValue = 1.0, Step = 0.05)]
         public double RiskPercent { get; set; }
 
-        [Parameter("Daily loss limit (%)", DefaultValue = 2.0, MinValue = 0.5, MaxValue = 5.0, Step = 0.25)]
+        [Parameter("Daily loss limit (%)", DefaultValue = 10.0, MinValue = 0.5, MaxValue = 10.0, Step = 0.5)]
         public double DailyLossLimitPercent { get; set; }
 
         [Parameter("Maximum loss per position (% equity)", DefaultValue = 1.0, MinValue = 0.25, MaxValue = 2.0, Step = 0.25)]
