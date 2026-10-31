@@ -45,3 +45,7 @@ These settings are initial test defaults, not a promise of safety. Even a demo p
 3. Add session scheduling with DST-aware London/New York windows and per-symbol trading hours.
 4. Add stronger entry validation, spread/news/volatility filters, trade management and correlation-aware portfolio limits.
 5. Add controlled recovery tracking and a phone-friendly dashboard only after the execution core is verified.
+
+
+## Repeatable source checks
+Run `python test_source_checks.py` from this folder to verify key safety guards remain present after code edits. These are static regression checks only; they do not compile the EA or prove trading performance.
