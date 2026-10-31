@@ -229,65 +229,84 @@ namespace cAlgo.Robots
                         continue;
                     }
 
-                    // Track each position's peak floating profit. Close a winner after
-                    // a meaningful account-scaled profit retracement instead of waiting for
-                    // a distant fixed TP. This scales with equity, not a fixed dollar target.
-                    double activationCash = Account.Equity * ProfitTrailActivationPercent / 100.0;
-                    double peakProfit;
-                    if (!_peakOpenProfit.TryGetValue(position.Id, out peakProfit))
-                        peakProfit = Math.Max(0, position.NetProfit);
-                    if (position.NetProfit > peakProfit)
-                        peakProfit = position.NetProfit;
-                    _peakOpenProfit[position.Id] = peakProfit;
-
-                    double givebackLimit = Math.Min(activationCash, peakProfit * 0.25);
-                    if (peakProfit >= activationCash && position.NetProfit > 0 &&
-                        peakProfit - position.NetProfit >= givebackLimit && givebackLimit > 0)
+                    double initialRisk;
+                    if (!_initialRiskPrice.TryGetValue(position.Id, out initialRisk))
                     {
-                        Print("PROFIT PROTECTION EXIT: {0} {1} | peak={2:F2} {3}, current={4:F2} {3}, giveback limit={5:F2}.",
-                            position.SymbolName, position.Id, peakProfit, Account.Asset.Name, position.NetProfit, givebackLimit);
-                        TradeResult profitClose = ClosePosition(position);
-                        if (profitClose.IsSuccessful)
+                        initialRisk = ReadInitialRiskPrice(position);
+                        if (initialRisk <= 0)
                         {
-                            _peakOpenProfit.Remove(position.Id);
-                            Print("PROFIT BANKED {0} {1} | net P/L={2:F2} {3}.", position.SymbolName, position.Id, position.NetProfit, Account.Asset.Name);
+                            Print("POSITION MANAGEMENT SKIPPED {0}: original risk metadata missing; refusing to guess R.", position.Id);
+                            continue;
                         }
-                        else
-                            Print("PROFIT PROTECTION CLOSE FAILED {0} {1}: {2}", position.SymbolName, position.Id, profitClose.Error);
-                        continue;
+                        _initialRiskPrice[position.Id] = initialRisk;
                     }
 
-                    // Keep ATR-based broker-side stop trailing as an additional safeguard.
+                    bool isBuy = position.TradeType == TradeType.Buy;
+                    double marketPrice = isBuy ? symbol.Bid : symbol.Ask;
+                    double direction = isBuy ? 1.0 : -1.0;
+                    double profitR = direction * (marketPrice - position.EntryPrice) / initialRisk;
                     SymbolContext positionContext = GetContext(symbol);
-                    double atrNow = positionContext?.Atr?.Result.Last(1) ?? 0;
-                    if (position.NetProfit >= activationCash && atrNow > 0)
+                    if (positionContext == null || positionContext.TimeFrames == null ||
+                        positionContext.TimeFrames[2] == null || positionContext.TimeFrames[2].Bars == null)
+                        continue;
+
+                    Bars managementBars = positionContext.TimeFrames[2].Bars;
+                    double atrNow = positionContext.Atr.Result.Last(1);
+
+                    if (profitR >= BreakevenR)
                     {
-                        double trailDistance = atrNow * ProfitTrailAtrMultiple;
-                        double? proposedStop = null;
-                        if (position.TradeType == TradeType.Buy)
+                        double beStop = position.EntryPrice + direction * symbol.TickSize;
+                        TryImprovePositionStop(position, symbol, beStop, marketPrice, isBuy);
+                    }
+
+                    if (profitR >= PartialProfitR && !_partialProfitTaken.Contains(position.Id))
+                    {
+                        double partialVolume = symbol.NormalizeVolumeInUnits(
+                            position.VolumeInUnits * PartialCloseFraction, RoundingMode.Down);
+                        double remainingVolume = position.VolumeInUnits - partialVolume;
+                        if (partialVolume >= symbol.VolumeInUnitsMin && remainingVolume >= symbol.VolumeInUnitsMin)
                         {
-                            double candidateStop = symbol.Bid - trailDistance;
-                            if (candidateStop > 0 && (!position.StopLoss.HasValue || candidateStop > position.StopLoss.Value + symbol.TickSize))
-                                proposedStop = candidateStop;
+                            TradeResult partialResult = ClosePosition(position, partialVolume);
+                            if (partialResult.IsSuccessful)
+                            {
+                                _partialProfitTaken.Add(position.Id);
+                                Print("PARTIAL PROFIT BANKED {0} {1} | closed={2} | remaining={3} | {4:F2}R.",
+                                    position.SymbolName, position.Id, partialVolume, remainingVolume, profitR);
+                            }
+                            else
+                                Print("PARTIAL CLOSE FAILED {0} {1}: {2}", position.SymbolName, position.Id, partialResult.Error);
                         }
                         else
                         {
-                            double candidateStop = symbol.Ask + trailDistance;
-                            if (candidateStop > 0 && (!position.StopLoss.HasValue || candidateStop < position.StopLoss.Value - symbol.TickSize))
-                                proposedStop = candidateStop;
-                        }
-
-                        if (proposedStop.HasValue)
-                        {
-                            TradeResult trailResult = ModifyPosition(position, proposedStop, position.TakeProfit);
-                            if (trailResult.IsSuccessful)
-                                Print("PROFIT TRAIL UPDATED {0} {1} | net P/L={2:F2} {3} | stop={4}.",
-                                    position.SymbolName, position.Id, position.NetProfit, Account.Asset.Name, proposedStop.Value);
-                            else
-                                Print("PROFIT TRAIL UPDATE FAILED {0} {1}: {2}", position.SymbolName, position.Id, trailResult.Error);
+                            _partialProfitTaken.Add(position.Id);
+                            Print("PARTIAL CLOSE SKIPPED {0} {1}: broker volume minimum prevents a valid split.", position.SymbolName, position.Id);
                         }
                     }
 
+                    if (profitR >= PositionTrailStartR && atrNow > 0 &&
+                        managementBars.Count > PositionTrailLookback + 2)
+                    {
+                        double extreme = isBuy ? double.MinValue : double.MaxValue;
+                        for (int bar = 1; bar <= PositionTrailLookback; bar++)
+                        {
+                            double value = isBuy
+                                ? managementBars.HighPrices.Last(bar)
+                                : managementBars.LowPrices.Last(bar);
+                            extreme = isBuy ? Math.Max(extreme, value) : Math.Min(extreme, value);
+                        }
+                        double trailStop = isBuy
+                            ? extreme - atrNow * PositionTrailAtrMultiple
+                            : extreme + atrNow * PositionTrailAtrMultiple;
+                        TryImprovePositionStop(position, symbol, trailStop, marketPrice, isBuy);
+                    }
+
+                    if (profitR >= ReversalExitMinR && ReversalConfirmed(positionContext, isBuy))
+                    {
+                        Print("CONFIRMED REVERSAL EXIT {0} {1} | open result={2:F2}R.", position.SymbolName, position.Id, profitR);
+                        TradeResult reversalResult = ClosePosition(position);
+                        if (!reversalResult.IsSuccessful)
+                            Print("REVERSAL CLOSE FAILED {0} {1}: {2}", position.SymbolName, position.Id, reversalResult.Error);
+                    }
                     TradeCandidate signal = EvaluateSymbol(symbol);
                     if (signal == null || signal.Score <= MinimumScore || signal.Direction == position.TradeType)
                         continue;
@@ -320,7 +339,8 @@ namespace cAlgo.Robots
 
         private void OnPositionClosed(PositionClosedEventArgs args)
         {
-            _peakOpenProfit.Remove(args.Position.Id);
+            _initialRiskPrice.Remove(args.Position.Id);
+            _partialProfitTaken.Remove(args.Position.Id);
             PrintHistoricalPerformance();
             // Discard any stale/incomplete ranking. The next timer tick starts a fresh
             // full-universe scan so the best currently available opportunity is reconsidered.
