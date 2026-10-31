@@ -107,7 +107,7 @@ namespace cAlgo.Robots
         [Parameter("Maximum spread / ATR", DefaultValue = 0.10, MinValue = 0.05, MaxValue = 0.5, Step = 0.05)]
         public double MaximumSpreadToAtr { get; set; }
 
-        [Parameter("Avoid duplicate symbol positions", DefaultValue = false)]
+        [Parameter("Avoid duplicate symbol positions", DefaultValue = true)]
         public bool AvoidDuplicateSymbols { get; set; }
 
         [Parameter("Limit correlated FX exposure", DefaultValue = true)]
@@ -280,12 +280,16 @@ namespace cAlgo.Robots
                     // Close only this position when price action confirms reversal.
                     // At a small gain, the fast candle signal is enough; at larger gains
                     // either fast reversal or broader structure confirmation can protect it.
-                    if (fastReversal && (position.NetProfit > 0 || rMultiple < 0))
+                    // Loss-control exit: do not allow an adverse move to drift all the
+                    // way to the wider emergency stop when price has moved at least
+                    // half an initial risk unit against the entry.
+                    bool adverseLossLimit = rMultiple <= -0.5;
+                    if (adverseLossLimit || (fastReversal && (position.NetProfit > 0 || rMultiple < 0)))
                     {
                         TradeResult close = ClosePosition(position);
                         if (close.IsSuccessful)
-                            Print("ADAPTIVE EXIT | {0} {1} closed on fast reversal | floating P/L={2:F2} {3} | peak P/L={4:F2} {3} | R={5:F2}.",
-                                position.TradeType, position.SymbolName, position.NetProfit, Account.Asset.Name, peak, rMultiple);
+                            Print("ADAPTIVE EXIT | {0} {1} closed on {6} | floating P/L={2:F2} {3} | peak P/L={4:F2} {3} | R={5:F2}.",
+                                position.TradeType, position.SymbolName, position.NetProfit, Account.Asset.Name, peak, rMultiple, adverseLossLimit ? "adverse-loss limit (-0.5R)" : "fast reversal");
                         else
                             Print("ADAPTIVE EXIT FAILED | {0} {1}: {2}", position.SymbolName, position.Id, close.Error);
                     }
