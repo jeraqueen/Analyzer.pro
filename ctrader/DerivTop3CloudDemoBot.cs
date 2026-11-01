@@ -3,7 +3,7 @@
 // Version 3.1.0 - full-catalogue live-movement ranking and ATR/risk filters
 // -----------------------------------------------------------------------------
 // Strategy:
-// - Discovers the full broker-listed supported catalogue (the full broker-listed supported catalogue, ranking open/moving markets before selecting up to 25 by default).
+// - Discovers the full broker-listed supported catalogue, ranking open/moving markets before selecting up to 25 by default.
 // - Scores all supported candidates using current/recent M5 movement, ATR and spread; subscribes to the strongest open/tradable markets.
 // - Also checks every subscribed symbol on each one-second timer cycle; no rotating scan queue.
 // - Opens on the first directional candle movement in the first 30 seconds of the shared UTC M5 cycle.
