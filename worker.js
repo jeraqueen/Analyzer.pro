@@ -252,6 +252,56 @@ function validateTradePlan(raw) {
   return text;
 }
 
+
+async function tradePlanFingerprint(payload, pair, requestedMode, present, charts, failedSetupHistory) {
+  const relevant = {
+    pair, requestedMode, present,
+    direction: payload.direction || "",
+    levels: payload.levels || {},
+    thesis: payload.thesis || "",
+    invalidation: payload.invalidation || "",
+    timeframeNotes: payload.timeframeNotes || {},
+    analysisTools: Array.isArray(payload.analysisTools) ? payload.analysisTools : [],
+    failedSetupHistory,
+    charts: present.map(tf => [tf, charts[tf]])
+  };
+  const bytes = new TextEncoder().encode(JSON.stringify(relevant));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function extractStablePlan(text) {
+  const lines = String(text || "").split("\n");
+  const picked = {};
+  const labelRe = /^\s*(?:\d+\.\s*)?(ENTRY ZONE|STOP LOSS(?:\s*\([^)]*\))?|TP[123](?:\s*\([^)]*\))?)\s*:\s*.*$/i;
+  for (const line of lines) {
+    const m = line.match(labelRe);
+    if (m) {
+      const key = m[1].toUpperCase().replace(/\s*\([^)]*\)/, "").replace(/\s+/g, " ");
+      if (!picked[key]) picked[key] = line.trim();
+    }
+  }
+  const verdict = (text.match(/^\s*(?:\d+\.\s*)?(?:TRADING SIGNAL|EXECUTIVE VERDICT|DIRECTION)\s*:\s*([^\n]+)/im) || [,""])[1].toUpperCase();
+  const side = /\bBUY(?: NOW| SETUP)?\b/.test(verdict) ? "BUY" : /\bSELL(?: NOW| SETUP)?\b/.test(verdict) ? "SELL" : "";
+  if (!side || !picked["ENTRY ZONE"] || !picked["STOP LOSS"] || !picked.TP1 || !picked.TP2) return null;
+  return { side, lines: picked, savedAt: Date.now() };
+}
+
+function applyStablePlan(text, stable) {
+  if (!stable) return text;
+  const currentVerdict = (text.match(/^\s*(?:\d+\.\s*)?(?:TRADING SIGNAL|EXECUTIVE VERDICT|DIRECTION)\s*:\s*([^\n]+)/im) || [,""])[1].toUpperCase();
+  const currentSide = /\bBUY(?: NOW| SETUP)?\b/.test(currentVerdict) ? "BUY" : /\bSELL(?: NOW| SETUP)?\b/.test(currentVerdict) ? "SELL" : "";
+  if (currentSide !== stable.side) return text;
+  const keys = new Map(Object.entries(stable.lines));
+  return String(text).split("\n").map(line => {
+    const m = line.match(/^\s*(?:\d+\.\s*)?(ENTRY ZONE|STOP LOSS(?:\s*\([^)]*\))?|TP[123](?:\s*\([^)]*\))?)\s*:/i);
+    if (!m) return line;
+    const key = m[1].toUpperCase().replace(/\s*\([^)]*\)/, "").replace(/\s+/g, " ");
+    const cached = keys.get(key);
+    return cached || line;
+  }).join("\n");
+}
+
 async function handleAnalyze(request, env) {
   const cors = corsHeaders(request);
   if (!cors) return json({ error: "Cross-origin requests are not allowed." }, 403);
@@ -316,6 +366,10 @@ async function handleAnalyze(request, env) {
       source: String(item?.source || "user-marked").slice(0, 40)
     }))
     .filter(item => ["BUY", "SELL"].includes(item.side));
+
+  const stablePlanKey = await tradePlanFingerprint(payload, pair, requestedMode, present, charts, failedSetupHistory);
+  const stablePlanCache = caches.default;
+  const stablePlanRequest = new Request(new URL("/__analyzer-plan-cache/" + stablePlanKey, request.url).toString(), { method: "GET" });
 
   const prompt = `Act as a practical chart analyst for ${pair}, not a broker or execution system. Analyze all supplied screenshots together. Each image is labelled with its exact timeframe; never confuse their order. Screenshots are the only chart evidence. Never invent prices, indicators, candles, live quotes, spreads, news, or backtest results. If price labels are unreadable, say exact numeric prices are NOT IDENTIFIABLE and describe visible zones qualitatively.
 
@@ -551,7 +605,28 @@ Always calculate the next relevant candle-close time in Africa/Nairobi (EAT) fro
         retryable: true
       }, 502, cors);
     }
-    const checkedText = validateTradePlan(analysis);
+    let stablePlan = null;
+    try {
+      const cached = await stablePlanCache.match(stablePlanRequest);
+      if (cached) stablePlan = await cached.json();
+    } catch (error) {
+      console.warn("Trade-plan consistency cache read failed", String(error).slice(0, 160));
+    }
+    let consistentAnalysis = analysis;
+    const currentPlan = extractStablePlan(analysis);
+    if (stablePlan && Date.now() - Number(stablePlan.savedAt || 0) <= 10 * 60 * 1000) {
+      consistentAnalysis = applyStablePlan(analysis, stablePlan);
+    } else if (currentPlan) {
+      try {
+        const cacheResponse = new Response(JSON.stringify(currentPlan), {
+          headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=600" }
+        });
+        await stablePlanCache.put(stablePlanRequest, cacheResponse);
+      } catch (error) {
+        console.warn("Trade-plan consistency cache write failed", String(error).slice(0, 160));
+      }
+    }
+    const checkedText = validateTradePlan(consistentAnalysis);
     return json({ text: checkedText, model, provider: "Google Gemini" }, 200, cors);
   }
 
