@@ -85,6 +85,33 @@ const STRATEGY_LIBRARY = {
 `
 };
 
+const USER_ADDED_STRATEGIES = `ADDITIONAL USER-REQUESTED STRATEGY CATALOGUE — SCREEN THESE ON EVERY APPLICABLE SCAN. These are candidate methods, not proven profitable systems. Use only when required indicators, candle data, session timestamps, volume, funding and event context are actually supplied or reliably computable. Never fabricate missing inputs.
+TREND AND MOMENTUM:
+U1 EMA 9/21 crossover — M15/M30; require completed candle cross, avoid tangled averages, exit/invalidate on opposite confirmed cross or time stop up to 4h.
+U2 VWAP trend pullback — M15/H1; buy pullbacks to VWAP in established uptrend or sell rallies in downtrend; require rejection/continuation confirmation.
+U3 MACD + higher-timeframe trend filter — M30/H1; take MACD momentum signals only aligned with confirmed H4 trend; skip flat/whipsaw MACD.
+U4 Supertrend — M30/H1; follow confirmed band flip, use band as trailing/invalidation reference; avoid repeated flips in ranges.
+U5 Break of structure — H1/H4; require a confirmed higher-high/lower-low break, then retest and hold; distinguish wick sweep from candle close.
+BREAKOUTS:
+U6 Opening range breakout — M15/M30; define first 30–60 minutes of Asia/London/New York using chart timestamps; require close beyond range and retest/acceptance.
+U7 Range breakout + volume — M15/H1; close beyond a defined range with meaningful relative volume expansion; if volume unavailable mark CANNOT ASSESS.
+U8 Bollinger squeeze expansion — M30/H1; identify objectively compressed bands then confirmed expansion close; avoid chasing extended candles.
+U9 Triangle/flag breakout — H1/H4; validate converging boundaries or flag impulse/consolidation, trade confirmed break/retest; measured move is a projection, not guarantee.
+U10 Previous-day high/low break or failure — H1; derive prior day levels from timestamps, distinguish acceptance beyond level from failed break/reclaim.
+MEAN REVERSION:
+U11 RSI(14) extremes — M15/M30; readings below 25 or above 75 are context only; fade only at verified support/resistance with reversal confirmation, never blindly against strong trend.
+U12 Bollinger outer-band fade — M15/M30; only in a confirmed range with rejection back inside; do not fade a band ride/trend.
+U13 VWAP deviation fade — M15/H1; fade 2+ standard deviation extension only if VWAP/deviation data is available and price stalls/reclaims; otherwise cannot assess.
+U14 Range support/resistance — M30/H1; buy range floor/sell ceiling only after rejection confirmation; invalidate on accepted breakout.
+PRICE ACTION AND LEVELS:
+U15 Liquidity sweep reversal — M15/H1; wick beyond obvious swing high/low then completed close back inside and confirmation.
+U16 Order block / supply-demand — H1/H4; define zone as origin of a strong displacement that breaks structure; prefer first retest, reject arbitrary boxes.
+U17 Fibonacci 50–61.8% retracement — H1/H4; anchor to a confirmed impulse swing and require golden-zone hold plus trend/trigger confluence.
+U18 Engulfing/pin bar at key levels — M30/H1; completed candle pattern at independently identified support/resistance; candle pattern alone is insufficient.
+VOLATILITY / DERIVATIVES / EVENTS:
+U19 Funding-rate/liquidation fade — M15/H1, crypto only; require actual funding/open-interest/liquidation data and price stall/reclaim after extreme; otherwise CANNOT ASSESS.
+U20 News/event volatility retest — M15; require verified event time/data supplied by user or connected feed; never trade first impulse candle; wait for post-event structure/retest and account for spread/slippage. If no news feed, mark CANNOT ASSESS, not NOT SUPPORTED.
+For every U1–U20 report FIT / PARTIAL FIT / NOT SUPPORTED / CANNOT ASSESS internally. Only count as USED if it contributes distinct evidence to the selected direction. Do not pretend unsupported indicators or data exist. `;
 const GLOBAL_STRATEGY_RULES = `GLOBAL STRATEGY RULES (internal decision logic):
 - Position-sizing preference: use the user's explicitly supplied per-trade risk percentage. Never substitute a default percentage or impose daily/weekly loss caps. This percentage sizes the position only; it must not move the chart-derived entry, structural stop or targets. Do not imply the site can automatically close trading accounts unless it actually has broker execution integration.
 - News blackout: no new entries from 30 minutes before to 30 minutes after a verified high-impact release relevant to the instrument: Fed/CPI/NFP for USD and gold, RBA for AUDUSD, major verified crypto-regulation headlines for BTCUSD. If calendar/headline data is unavailable, clearly say blackout status cannot be verified; do not claim a calendar check.
@@ -381,7 +408,10 @@ The user account settings are supplied in the request JSON under accountRisk: ${
 - The supplied risk percentage is a maximum position-sizing budget only. It must not alter or tighten the chart-based entry, structural stop-loss, or TP1/TP2/TP3. The analyzer determines these levels from market evidence. State the cash risk budget explicitly.
 - Do NOT invent spread, commission, tick value, lot size, live price, or exact net P/L. User-estimated costs are only estimates. If broker details are missing, label lot size/affordability UNVERIFIED and require broker calculator confirmation before entry.
 - Account currency conversion may be needed; if rates are not supplied, do not pretend a USD quote's price movement equals cash risk in another currency.
-- Output a clear ACCOUNT-AWARE PLAN section including: balance/currency; selected risk percentage and calculated cash risk budget; estimated costs assumption; entry; structural SL; TP1/TP2/TP3; rationale for each target; broker sizing status (VERIFIED only with actual broker contract inputs, otherwise UNVERIFIED); and the exact missing broker details needed to verify affordability.
+- Output a clear ACCOUNT-AWARE PLAN section with explicit labelled lines: ACCOUNT BALANCE; ACCOUNT CURRENCY; RISK PERCENT; CASH RISK BUDGET; ENTRY; STRUCTURAL SL; TP1; TP2; TP3; ESTIMATED COSTS; LOT SIZE; VOLUME STEP / MINIMUM LOT; MARGIN / LEVERAGE NOTE; BROKER SIZING STATUS; MISSING BROKER SPECS.
+- Calculate and show the cash budget = balance × riskPercent / 100. If actual tick size, tick value per lot in account currency, contract specification, volume step and cost assumptions are unavailable, state LOT SIZE: NOT VERIFIED — DO NOT GUESS; BROKER SIZING STATUS: UNVERIFIED; list the exact symbol specification fields required. Do not omit the account plan just because lot size is unverified.
+- If verified inputs are provided, compute risk per 1.00 lot from absolute entry-to-structural-stop distance, tick size and tick value; subtract estimated costs from the cash budget, round DOWN to broker volume step, enforce minimum lot, and explicitly state if minimum lot would exceed the risk budget (then say NO AFFORDABLE POSITION). Do not use leverage as a substitute for tick value.
+- Account percentage and cash budget affect position size only. Never change market-derived entry, SL or TP1/TP2/TP3 to fit account size.
 - Distinguish a target's chart plausibility from probability of being reached. Never promise any TP will be hit. Costs and slippage can exceed estimates.
 - Signal strength is not account affordability: score signal strength from chart evidence only. Explain its actual observations and vary the score honestly by evidence; never default to repeated 58/62 scores. If the chart does not support a strong signal, keep it weak/moderate rather than inflating it.
  
@@ -454,6 +484,7 @@ PAIR-SPECIFIC EAT TIMING AND WAIT FLOW: The website must NOT count down to every
 SELECTED TRADING STYLE: ${mode.name}. Objective: ${mode.objective} Timeframe framework: ${mode.context} Mode-specific requirements: ${mode.required} Holding horizon: ${mode.horizon} Uploaded timeframes: ${present.join(", ")}. Use the selected mode as the primary timeframe priority; do not require every timeframe if the relevant mode can be assessed from the available screenshots. Always state which missing timeframe would materially improve the assessment. For intraday/scalp modes, use D1/W1/MN1 only as optional background and do not let a distant higher-timeframe trend automatically override a clear, locally confirmed intraday setup; still disclose major nearby conflicts. For swing/position modes, give greater weight to W1/D1/H4 structure. Missing images must be called out. User direction preference (unverified context only, not a required bias): ${payload.direction || "Undecided"}. User-supplied chart notes/levels (annotations only; independently verify and do not copy into trade levels): ${JSON.stringify(payload.levels || {})}. User thesis (unverified annotation only): ${String(payload.thesis || "")}. User invalidation note (unverified annotation only): ${String(payload.invalidation || "")}. Timeframe notes (context only; independently verify): ${JSON.stringify(payload.timeframeNotes || {})}. Requested technical-analysis tools/methods: ${JSON.stringify(Array.isArray(payload.analysisTools) ? payload.analysisTools : [])}. Inspect the requested methods only where supported by visible chart information. Use visible trendlines, horizontal support/resistance, prior-day levels, Fibonacci zones, EMA overlays, RSI/MACD, Bollinger Bands, ATR/ADX, VWAP and volume when actually present/readable; if not visible or calculable from supplied candle data, mark the specific tool unavailable instead of inventing its values. Independently verify all drawn levels and treat user drawings as hypotheses, not proof. No verified live price/news data is supplied.\n\nMARKET-SPECIFIC RESEARCH FRAMEWORK: ${MARKET_RESEARCH[pair]}
 
 GLOBAL STRATEGY RULES: ${GLOBAL_STRATEGY_RULES}
+ADDITIONAL USER-REQUESTED STRATEGIES: ${USER_ADDED_STRATEGIES}
 
 PAIR-SPECIFIC STRATEGY CATALOGUE (exclusive list): ${(pair === "EURUSD" ? EURUSD_TOP25 + "\n" : (STRATEGY_LIBRARY[pair] || "") + "\n") + (PAIR_STRATEGIES[pair] || "") + "\n" + (SUPPLEMENTAL_STRATEGIES[pair] || "")}
 \n\nSTRATEGY SCREENING AND USAGE OUTPUT (mandatory on every scan):
