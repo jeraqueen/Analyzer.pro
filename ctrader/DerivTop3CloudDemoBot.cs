@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------------------
 // Analyzer.pro - Deriv cTrader Cloud Demo Bot
-// Version 3.5.0 - full catalogue progress, candle-start entries and net-positive MFE exits
+// Version 3.6 - probe-capped scanning, account-wide position management and identifiable startup
 // -----------------------------------------------------------------------------
 // Strategy:
 // - Discovers the full broker-listed supported catalogue, ranking open/moving markets before selecting up to 25 by default.
@@ -476,7 +476,7 @@ namespace cAlgo.Robots
                 else if (previousClose < previousOpen) liveDirection = TradeType.Sell;
             }
 
-            Position existing = Positions.FindAll(BotLabel)
+            Position existing = Positions
                 .FirstOrDefault(p => string.Equals(p.SymbolName, name, StringComparison.OrdinalIgnoreCase));
 
             // A position from an earlier M5 candle must never be treated as a provisional
