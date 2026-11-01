@@ -780,7 +780,7 @@ function renderTradeResult(raw){
   $('resultTp23').textContent='TP2: '+get(['TP2','TAKE PROFIT 2','TAKE-PROFIT 2'])+'\nTP3: '+get(['TP3','TAKE PROFIT 3','TAKE-PROFIT 3']);const accountPlan=get(['ACCOUNT-AWARE PLAN','ACCOUNT AWARE PLAN']);$('resultAccountPlan').textContent=accountPlan||'The AI did not return the required account plan. Re-run the scan after confirming balance and risk settings.';
   $('resultRR').textContent=get(['REWARD:RISK','REWARD RISK','REWARD-TO-RISK','R:R']);
   let pattern=get(['PATTERN','PATTERN IDENTIFIED','MARKET STRUCTURE']);
-  if(pattern.startsWith('Not clearly identified'))pattern=setup;
+  if(!pattern || pattern.startsWith('Not clearly identified'))pattern=setup && !setup.startsWith('Not clearly identified')?setup:($('pair')?.value||'Selected market')+' — instrument selected in the market selector; see INSTRUMENT IDENTIFICATION in the full report.';
   $('resultPattern').textContent=pattern;
   $('resultTrigger').textContent=get(['ENTRY CONDITION','ENTRY TRIGGER / REQUIREMENTS','ENTRY TRIGGER','CONFIRMATION']);
   $('resultInvalidation').textContent=get(['INVALIDATION','CANCELLATION']);
