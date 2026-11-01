@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------------------
 // Analyzer.pro - Deriv cTrader Cloud Demo Bot
-// Version 3.1.0 - full-catalogue live-movement ranking and ATR/risk filters
+// Version 3.2.0 - per-candle live candidate ranking and ATR/risk filters
 // -----------------------------------------------------------------------------
 // Strategy:
 // - Discovers the full broker-listed supported catalogue, ranking open/moving markets before selecting up to 25 by default.
@@ -104,8 +104,8 @@ namespace cAlgo.Robots
             RefreshSymbolCatalogue();
             InitializeMarketSubscriptions();
             _lastCatalogueRefresh = Server.Time;
-            Print("Analyzer.pro cTrader Cloud Demo Bot v3.1 started.");
-            Print("ENTRY: every subscribed symbol checked on ticks AND on each one-second timer cycle.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.2 started.");
+            Print("ENTRY: every subscribed symbol checked on ticks AND on each one-second timer cycle; eligible live setups are ranked before entry.");
             Print("CYCLE: up to {0} distinct symbols per UTC M5 cycle; maximum {1} concurrent positions.", MaximumEntriesPerM5Cycle, MaximumConcurrentPositions);
             Print("REVERSAL: during first 30 seconds, close provisional trade and immediately enter the new candle direction.");
             Print("EXIT: after confirmation, close on 25% retracement from peak favourable movement; otherwise close at originating M5 boundary.");
@@ -508,6 +508,9 @@ namespace cAlgo.Robots
             if (Positions.FindAll(BotLabel).Length >= MaximumConcurrentPositions)
                 return;
 
+            if (!IsAmongBestCurrentCandidates(name, candleOpen, now))
+                return;
+
             if (OpenPosition(symbol, bars, liveDirection.Value, candleOpen))
             {
                 _enteredSymbolsThisCycle.Add(name);
@@ -515,6 +518,70 @@ namespace cAlgo.Robots
             }
         }
 
+        private bool IsAmongBestCurrentCandidates(string requestedName, DateTime candleOpen, DateTime now)
+        {
+            int enteredSlotsRemaining = MaximumEntriesPerM5Cycle - _enteredSymbolsThisCycle.Count;
+            int positionSlotsRemaining = MaximumConcurrentPositions - Positions.FindAll(BotLabel).Length;
+            int slots = Math.Min(enteredSlotsRemaining, positionSlotsRemaining);
+            if (slots <= 0)
+                return false;
+
+            var candidates = new List<KeyValuePair<string, double>>();
+            foreach (KeyValuePair<string, Bars> item in _m5Bars)
+            {
+                string name = item.Key;
+                Bars candidateBars = item.Value;
+                if (candidateBars == null || candidateBars.Count < 16 || _enteredSymbolsThisCycle.Contains(name))
+                    continue;
+                if (Positions.FindAll(BotLabel).Any(p => string.Equals(p.SymbolName, name, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+                DateTime lastDecision;
+                if (_lastDecisionCandle.TryGetValue(name, out lastDecision) && lastDecision == candleOpen)
+                    continue;
+                if (candidateBars.LastBar.OpenTime != candleOpen || now < candleOpen || now >= candleOpen.AddSeconds(ConfirmationWindowSeconds))
+                    continue;
+
+                Symbol candidateSymbol = Symbols.GetSymbol(name);
+                if (candidateSymbol == null || candidateSymbol.PipSize <= 0 || candidateSymbol.Ask <= 0 || candidateSymbol.Bid <= 0)
+                    continue;
+                if (!candidateSymbol.MarketHours.IsOpened() || !candidateSymbol.IsTradingEnabled || candidateSymbol.TradingMode != SymbolTradingMode.FullAccess)
+                    continue;
+
+                double atr = CalculateM5Atr(candidateBars, 14);
+                if (atr <= 0 || double.IsNaN(atr) || double.IsInfinity(atr))
+                    continue;
+                double spreadAtr = (candidateSymbol.Ask - candidateSymbol.Bid) / atr;
+                if (spreadAtr > MaxSpreadToAtr)
+                    continue;
+                double liveMove = Math.Abs(candidateBars.ClosePrices.Last(0) - candidateBars.OpenPrices.Last(0));
+                double moveAtr = liveMove / atr;
+                if (moveAtr < MinMoveAtr)
+                    continue;
+
+                double priorBodyAtr = Math.Abs(candidateBars.ClosePrices.Last(1) - candidateBars.OpenPrices.Last(1)) / atr;
+                double priorRangeAtr = (candidateBars.HighPrices.Last(1) - candidateBars.LowPrices.Last(1)) / atr;
+                double score = moveAtr * 3.0 + priorBodyAtr * 0.75 + priorRangeAtr * 0.25 - spreadAtr * 2.0;
+                candidates.Add(new KeyValuePair<string, double>(name, score));
+            }
+
+            List<KeyValuePair<string, double>> ranked = candidates
+                .OrderByDescending(x => x.Value)
+                .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            int rank = ranked.FindIndex(x => string.Equals(x.Key, requestedName, StringComparison.OrdinalIgnoreCase));
+            if (rank < 0)
+                return false;
+
+            Print("M5 CANDIDATE RANK | candle={0:HH:mm:ss} UTC | {1} rank={2}/{3} | score={4:F3} | available entry slots={5}.",
+                candleOpen, requestedName, rank + 1, ranked.Count, ranked[rank].Value, slots);
+            if (rank >= slots)
+            {
+                Print("ENTRY DEFERRED BY RANK | {0} | current rank {1} is outside the {2} currently available slot(s); it may qualify on a later tick within the first 30 seconds.",
+                    requestedName, rank + 1, slots);
+                return false;
+            }
+            return true;
+        }
         private bool OpenPosition(Symbol symbol, Bars bars, TradeType direction, DateTime candleOpen)
         {
             try
