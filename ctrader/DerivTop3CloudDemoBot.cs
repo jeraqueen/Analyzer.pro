@@ -109,7 +109,7 @@ namespace cAlgo.Robots
             RefreshSymbolCatalogue();
             InitializeMarketSubscriptions();
             _lastCatalogueRefresh = Server.Time;
-            Print("Analyzer.pro cTrader Cloud Demo Bot v3.5 started.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.6 started | source=probe-capped | position-management=account-wide.");
             Print("ENTRY: attempts an entry on the first tick of each new M5 candle, using the previous completed candle direction; eligible setups are ranked before entry.");
             Print("CYCLE: up to {0} distinct symbols per UTC M5 cycle; maximum {1} concurrent positions.", MaximumEntriesPerM5Cycle, MaximumConcurrentPositions);
             Print("REVERSAL: during first 30 seconds, close provisional trade and attempt the opposite direction when candle direction changes and safety filters pass.");
@@ -142,7 +142,7 @@ namespace cAlgo.Robots
                 {
                     _lastHeartbeat = now;
                     Print("M5 HEARTBEAT | {0:yyyy-MM-dd HH:mm:ss} UTC | selected={1} | moving candidates={2} | subscribed={3} | distinct symbols entered={4}/{5} | open positions={6}/{7}.",
-                        now, _symbols.Length, _movingMarketsCount, _m5Bars.Count, _enteredSymbolsThisCycle.Count, MaximumEntriesPerM5Cycle, Positions.FindAll(BotLabel).Length, MaximumConcurrentPositions);
+                        now, _symbols.Length, _movingMarketsCount, _m5Bars.Count, _enteredSymbolsThisCycle.Count, MaximumEntriesPerM5Cycle, Positions.Count, MaximumConcurrentPositions);
                 }
             }
             catch (Exception ex)
@@ -171,7 +171,7 @@ namespace cAlgo.Robots
             _supportedCatalogueCount = catalogue.Length;
 
             var heldNames = new HashSet<string>(
-                Positions.FindAll(BotLabel).Select(p => p.SymbolName),
+                Positions.ToArray().Select(p => p.SymbolName),
                 StringComparer.OrdinalIgnoreCase);
 
             // Cheap prioritisation only: no GetBars calls occur until after this list
@@ -351,7 +351,7 @@ namespace cAlgo.Robots
         private void InitializeMarketSubscriptions()
         {
             var desired = new HashSet<string>(_symbols, StringComparer.OrdinalIgnoreCase);
-            foreach (Position position in Positions.FindAll(BotLabel))
+            foreach (Position position in Positions.ToArray())
                 desired.Add(position.SymbolName);
 
             foreach (string existingName in _m5Bars.Keys.ToArray())
@@ -568,7 +568,7 @@ namespace cAlgo.Robots
                 return;
             }
 
-            if (Positions.FindAll(BotLabel).Length >= MaximumConcurrentPositions)
+            if (Positions.Count >= MaximumConcurrentPositions)
                 return;
 
             if (!IsAmongBestCurrentCandidates(name, candleOpen, now))
@@ -584,7 +584,7 @@ namespace cAlgo.Robots
         private bool IsAmongBestCurrentCandidates(string requestedName, DateTime candleOpen, DateTime now)
         {
             int enteredSlotsRemaining = MaximumEntriesPerM5Cycle - _enteredSymbolsThisCycle.Count;
-            int positionSlotsRemaining = MaximumConcurrentPositions - Positions.FindAll(BotLabel).Length;
+            int positionSlotsRemaining = MaximumConcurrentPositions - Positions.Count;
             int slots = Math.Min(enteredSlotsRemaining, positionSlotsRemaining);
             if (slots <= 0)
                 return false;
@@ -596,7 +596,7 @@ namespace cAlgo.Robots
                 Bars candidateBars = item.Value;
                 if (candidateBars == null || candidateBars.Count < 16 || _enteredSymbolsThisCycle.Contains(name))
                     continue;
-                if (Positions.FindAll(BotLabel).Any(p => string.Equals(p.SymbolName, name, StringComparison.OrdinalIgnoreCase)))
+                if (Positions.Any(p => string.Equals(p.SymbolName, name, StringComparison.OrdinalIgnoreCase)))
                     continue;
                 DateTime lastDecision;
                 if (_lastDecisionCandle.TryGetValue(name, out lastDecision) && lastDecision == candleOpen)
@@ -721,7 +721,9 @@ namespace cAlgo.Robots
 
         private void ManagePositions(DateTime now)
         {
-            foreach (Position position in Positions.FindAll(BotLabel))
+            // This account is demo-only. Manage positions opened by this cBot as well as
+            // positions left open by an older cBot instance, as requested.
+            foreach (Position position in Positions.ToArray())
             {
                 try
                 {
@@ -899,7 +901,7 @@ namespace cAlgo.Robots
             Positions.Closed -= OnPositionClosed;
             foreach (Bars bars in _m5Bars.Values)
                 bars.Tick -= OnBarsTick;
-            Print("Analyzer.pro cTrader Cloud Demo Bot v3.5 stopped. Broker-side emergency stops remain attached to open positions.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.6 stopped. Broker-side emergency stops remain attached to positions that have them.");
         }
 
         protected override void OnException(Exception exception)
