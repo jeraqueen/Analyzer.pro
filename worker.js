@@ -86,7 +86,7 @@ const STRATEGY_LIBRARY = {
 };
 
 const GLOBAL_STRATEGY_RULES = `GLOBAL STRATEGY RULES (internal decision logic):
-- Risk budget: default maximum 1% equity risk per trade; stop new trades at -3% daily and -6% weekly. These are configurable guardrails, not guarantees. Do not imply the site can automatically close trading accounts unless it actually has broker execution integration.
+- Position-sizing preference: use the user's explicitly supplied per-trade risk percentage. Never substitute a default percentage or impose daily/weekly loss caps. This percentage sizes the position only; it must not move the chart-derived entry, structural stop or targets. Do not imply the site can automatically close trading accounts unless it actually has broker execution integration.
 - News blackout: no new entries from 30 minutes before to 30 minutes after a verified high-impact release relevant to the instrument: Fed/CPI/NFP for USD and gold, RBA for AUDUSD, major verified crypto-regulation headlines for BTCUSD. If calendar/headline data is unavailable, clearly say blackout status cannot be verified; do not claim a calendar check.
 - Regime filter: use actual H4 ADX(14) only if readable/calculable from supplied candle data. ADX<20 permits testing MR/VS; ADX>25 permits BO/PB; 20–25 reduce planned risk by half. ADX is not directional. If ADX cannot be verified, label regime filter unknown rather than inventing a value.
 - EAT reference windows: Asia 03:00–10:00; London 11:00–14:00; New York 15:30–19:00. BTCUSD trades 24/7. These are approximate and shift with daylight saving; use them as context, not proof of an edge.
@@ -256,7 +256,7 @@ function validateTradePlan(raw) {
 async function tradePlanFingerprint(payload, pair, requestedMode, present, charts, failedSetupHistory) {
   const relevant = {
     pair, requestedMode, present,
-    accountRisk: payload.accountRisk && typeof payload.accountRisk === "object" ? {balance:Number(payload.accountRisk.balance),currency:String(payload.accountRisk.currency||"USD"),estimatedRoundTripCosts:Number(payload.accountRisk.estimatedRoundTripCosts)} : null,
+    accountRisk: payload.accountRisk && typeof payload.accountRisk === "object" ? {balance:Number(payload.accountRisk.balance),currency:String(payload.accountRisk.currency||"USD"),riskPercent:Number(payload.accountRisk.riskPercent),estimatedRoundTripCosts:Number(payload.accountRisk.estimatedRoundTripCosts)} : null,
     direction: payload.direction || "",
     levels: payload.levels || {},
     thesis: payload.thesis || "",
@@ -375,13 +375,13 @@ async function handleAnalyze(request, env) {
   const prompt = `Act as a practical chart analyst for ${pair}, not a broker or execution system. Analyze all supplied screenshots together. Each image is labelled with its exact timeframe; never confuse their order. Screenshots are the only chart evidence. Never invent prices, indicators, candles, live quotes, spreads, news, or backtest results. If price labels are unreadable, say exact numeric prices are NOT IDENTIFIABLE and describe visible zones qualitatively.
 
 ACCOUNT-AWARE RISK AND TARGETS — REQUIRED:
-The user account settings are supplied in the request JSON under accountRisk: ${JSON.stringify(payload.accountRisk && typeof payload.accountRisk === "object" ? { balance: payload.accountRisk.balance, currency: payload.accountRisk.currency, estimatedRoundTripCosts: payload.accountRisk.estimatedRoundTripCosts } : {})}. Use them as a hard planning constraint, not as chart evidence. If absent or invalid, explicitly say account-aware sizing is unavailable and do not claim the plan is affordable.
-- Account balance/currency, maximum risk percentage, maximum planned cash risk, and user-estimated round-trip costs must be considered in the plan.
+The user account settings are supplied in the request JSON under accountRisk: ${JSON.stringify(payload.accountRisk && typeof payload.accountRisk === "object" ? { balance: payload.accountRisk.balance, currency: payload.accountRisk.currency, riskPercent: payload.accountRisk.riskPercent, estimatedRoundTripCosts: payload.accountRisk.estimatedRoundTripCosts } : {})}. Use them as a hard planning constraint, not as chart evidence. If absent or invalid, explicitly say account-aware sizing is unavailable and do not claim the plan is affordable.
+- Account balance/currency, user-selected risk percentage, resulting cash risk budget, and user-estimated round-trip costs must be considered in the plan. Calculate the cash budget as balance × riskPercent ÷ 100.
 - Recommend an entry, structural stop, and TP1/TP2/TP3 based on visible price structure and realistic movement for the chosen setup/horizon. Targets are conditional price levels, NOT guarantees that price will reach them. Never move targets closer solely to promise a hit; if realistic movement cannot support the target, say so.
-- Use the supplied account balance and currency as context for the plan; do not impose a fixed cash-loss cap or alter the chart-based stop-loss/TP1/TP2/TP3 merely to fit an arbitrary percentage. The analyzer determines structural SL and targets from market evidence.
+- The supplied risk percentage is a maximum position-sizing budget only. It must not alter or tighten the chart-based entry, structural stop-loss, or TP1/TP2/TP3. The analyzer determines these levels from market evidence. State the cash risk budget explicitly.
 - Do NOT invent spread, commission, tick value, lot size, live price, or exact net P/L. User-estimated costs are only estimates. If broker details are missing, label lot size/affordability UNVERIFIED and require broker calculator confirmation before entry.
 - Account currency conversion may be needed; if rates are not supplied, do not pretend a USD quote's price movement equals cash risk in another currency.
-- Output a clear ACCOUNT-AWARE PLAN section including: balance/currency; estimated costs assumption; entry; structural SL; TP1/TP2/TP3; rationale for each target; broker sizing status (VERIFIED only with actual broker contract inputs, otherwise UNVERIFIED); and the exact missing broker details needed to verify affordability.
+- Output a clear ACCOUNT-AWARE PLAN section including: balance/currency; selected risk percentage and calculated cash risk budget; estimated costs assumption; entry; structural SL; TP1/TP2/TP3; rationale for each target; broker sizing status (VERIFIED only with actual broker contract inputs, otherwise UNVERIFIED); and the exact missing broker details needed to verify affordability.
 - Distinguish a target's chart plausibility from probability of being reached. Never promise any TP will be hit. Costs and slippage can exceed estimates.
 - Signal strength is not account affordability: score signal strength from chart evidence only. Explain its actual observations and vary the score honestly by evidence; never default to repeated 58/62 scores. If the chart does not support a strong signal, keep it weak/moderate rather than inflating it.
  
