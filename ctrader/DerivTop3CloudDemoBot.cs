@@ -1,10 +1,10 @@
 // -----------------------------------------------------------------------------
 // Analyzer.pro - Deriv cTrader Cloud Demo Bot
-// Version 3.0.0 - prioritized market scanner and ATR/risk filters
+// Version 3.1.0 - full-catalogue live-movement ranking and ATR/risk filters
 // -----------------------------------------------------------------------------
 // Strategy:
-// - Discovers the full broker-listed supported catalogue (up to 386 symbols by default).
-// - Subscribes to the full selected catalogue; entries require open markets and passing M5 movement/spread filters.
+// - Discovers the full broker-listed supported catalogue (the full broker-listed supported catalogue, ranking open/moving markets before selecting up to 25 by default).
+// - Scores all supported candidates using current/recent M5 movement, ATR and spread; subscribes to the strongest open/tradable markets.
 // - Also checks every subscribed symbol on each one-second timer cycle; no rotating scan queue.
 // - Opens on the first directional candle movement in the first 30 seconds of the shared UTC M5 cycle.
 // - If direction reverses during those 30 seconds, closes the provisional trade and opens the opposite direction.
@@ -36,7 +36,7 @@ namespace cAlgo.Robots
         [Parameter("Demo only (mandatory)", DefaultValue = true)]
         public bool DemoOnly { get; set; }
 
-        [Parameter("Maximum symbols to scan", DefaultValue = 386, MinValue = 1, MaxValue = 386)]
+        [Parameter("Maximum symbols to subscribe", DefaultValue = 25, MinValue = 1, MaxValue = 386)]
         public int MaximumSymbolsToScan { get; set; }
 
         [Parameter("Symbol name filter (comma-separated; blank = all)", DefaultValue = "")]
@@ -85,6 +85,7 @@ namespace cAlgo.Robots
 
         private string[] _symbols = new string[0];
         private int _supportedCatalogueCount;
+        private int _movingMarketsCount;
         private DateTime _lastCatalogueRefresh = DateTime.MinValue;
         private int _entriesThisCycle;
         private DateTime _currentCycleOpen = DateTime.MinValue;
@@ -103,7 +104,7 @@ namespace cAlgo.Robots
             RefreshSymbolCatalogue();
             InitializeMarketSubscriptions();
             _lastCatalogueRefresh = Server.Time;
-            Print("Analyzer.pro cTrader Cloud Demo Bot v3.0 started.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.1 started.");
             Print("ENTRY: every subscribed symbol checked on ticks AND on each one-second timer cycle.");
             Print("CYCLE: up to {0} distinct symbols per UTC M5 cycle; maximum {1} concurrent positions.", MaximumEntriesPerM5Cycle, MaximumConcurrentPositions);
             Print("REVERSAL: during first 30 seconds, close provisional trade and immediately enter the new candle direction.");
@@ -135,8 +136,8 @@ namespace cAlgo.Robots
                 if (_lastHeartbeat == DateTime.MinValue || (now - _lastHeartbeat).TotalSeconds >= 30)
                 {
                     _lastHeartbeat = now;
-                    Print("M5 HEARTBEAT | {0:yyyy-MM-dd HH:mm:ss} UTC | catalogue={1} | subscribed={2} | distinct symbols entered={3}/{4} | open positions={5}/{6}.",
-                        now, _symbols.Length, _m5Bars.Count, _enteredSymbolsThisCycle.Count, MaximumEntriesPerM5Cycle, Positions.FindAll(BotLabel).Length, MaximumConcurrentPositions);
+                    Print("M5 HEARTBEAT | {0:yyyy-MM-dd HH:mm:ss} UTC | selected={1} | moving candidates={2} | subscribed={3} | distinct symbols entered={4}/{5} | open positions={6}/{7}.",
+                        now, _symbols.Length, _movingMarketsCount, _m5Bars.Count, _enteredSymbolsThisCycle.Count, MaximumEntriesPerM5Cycle, Positions.FindAll(BotLabel).Length, MaximumConcurrentPositions);
                 }
             }
             catch (Exception ex)
@@ -147,6 +148,9 @@ namespace cAlgo.Robots
 
         private void RefreshSymbolCatalogue()
         {
+            // First inspect the complete broker catalogue. The scan cap applies only
+            // after every supported candidate has been checked for open hours,
+            // current M5 movement, ATR and spread.
             var found = new List<string>();
             for (int i = 0; i < Symbols.Count; i++)
             {
@@ -162,31 +166,98 @@ namespace cAlgo.Robots
                 Positions.FindAll(BotLabel).Select(p => p.SymbolName),
                 StringComparer.OrdinalIgnoreCase);
 
-            var held = catalogue.Where(n => heldNames.Contains(n))
+            var scores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            var openAndTradable = new List<string>();
+            var movingAndTradable = new List<string>();
+
+            foreach (string name in catalogue)
+            {
+                if (heldNames.Contains(name))
+                {
+                    scores[name] = double.MaxValue;
+                    openAndTradable.Add(name);
+                    continue;
+                }
+
+                Symbol symbol = Symbols.GetSymbol(name);
+                if (symbol == null || !IsMarketOpen(name))
+                    continue;
+
+                Bars bars;
+                try
+                {
+                    bars = MarketData.GetBars(TimeFrame.Minute5, name);
+                }
+                catch (Exception ex)
+                {
+                    Print("SCAN DATA UNAVAILABLE | {0} | {1}: {2}", name, ex.GetType().Name, ex.Message);
+                    continue;
+                }
+
+                if (bars == null || bars.Count < 16 || symbol.PipSize <= 0 || symbol.Ask <= 0 || symbol.Bid <= 0)
+                    continue;
+
+                double atr = CalculateM5Atr(bars, 14);
+                if (atr <= 0 || double.IsNaN(atr) || double.IsInfinity(atr))
+                    continue;
+
+                double spread = symbol.Ask - symbol.Bid;
+                double spreadAtr = spread / atr;
+                if (spreadAtr > MaxSpreadToAtr)
+                    continue;
+
+                double liveMove = Math.Abs(bars.ClosePrices.Last(0) - bars.OpenPrices.Last(0));
+                double moveAtr = liveMove / atr;
+                // Add recent candle activity so a market with a quiet current candle
+                // but strong recent movement remains ranked behind currently moving ones.
+                double priorMove = Math.Abs(bars.ClosePrices.Last(1) - bars.OpenPrices.Last(1)) / atr;
+                double priorRange = (bars.HighPrices.Last(1) - bars.LowPrices.Last(1)) / atr;
+                double score = (moveAtr * 3.0) + (priorMove * 0.75) + (priorRange * 0.25) - (spreadAtr * 2.0);
+                scores[name] = score;
+                openAndTradable.Add(name);
+                if (moveAtr >= MinMoveAtr)
+                    movingAndTradable.Add(name);
+            }
+
+            _movingMarketsCount = movingAndTradable.Count;
+
+            Func<string, double> scoreOf = name => scores.ContainsKey(name) ? scores[name] : double.MinValue;
+            var held = catalogue.Where(heldNames.Contains)
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
 
-            var crypto = catalogue.Where(n => !heldNames.Contains(n) && IsCryptoName(n))
-                .OrderByDescending(IsMarketOpen)
+            var rankedMovingCrypto = movingAndTradable.Where(IsCryptoName)
+                .OrderByDescending(scoreOf)
                 .ThenBy(n => n, StringComparer.OrdinalIgnoreCase)
                 .Take(Math.Max(0, CryptoSlots)).ToList();
 
-            var rest = catalogue.Where(n => !heldNames.Contains(n) && !crypto.Contains(n, StringComparer.OrdinalIgnoreCase))
-                .OrderByDescending(IsMarketOpen)
+            var rankedMovingRest = movingAndTradable.Where(n => !IsCryptoName(n))
+                .OrderByDescending(scoreOf)
                 .ThenByDescending(IsSyntheticName)
-                .ThenBy(n => n, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+                .ThenBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
 
-            var ordered = held.Concat(crypto).Concat(rest)
+            // Fill any remaining slots with other open, tradable markets ranked by
+            // live movement/spread score, so the bot can monitor a market before it
+            // crosses the minimum entry-movement threshold.
+            var fallbackCrypto = openAndTradable.Where(n => !heldNames.Contains(n) &&
+                    IsCryptoName(n) && !rankedMovingCrypto.Contains(n, StringComparer.OrdinalIgnoreCase))
+                .OrderByDescending(scoreOf).ThenBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+            var fallbackRest = openAndTradable.Where(n => !heldNames.Contains(n) &&
+                    !IsCryptoName(n) && !rankedMovingRest.Contains(n, StringComparer.OrdinalIgnoreCase))
+                .OrderByDescending(scoreOf).ThenByDescending(IsSyntheticName)
+                .ThenBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+
+            var ordered = held.Concat(rankedMovingCrypto).Concat(rankedMovingRest)
+                .Concat(fallbackCrypto).Concat(fallbackRest)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Take(Math.Max(1, MaximumSymbolsToScan))
                 .ToArray();
 
-            // Keep any open-position symbols subscribed even if a filter or scan cap
-            // removes them from the new entry scan list.
             _symbols = ordered;
-            Print("MARKET CATALOGUE REFRESHED | broker symbols={0} | supported catalogue={1} | selected for scan={2}.",
-                Symbols.Count, _supportedCatalogueCount, _symbols.Length);
-            Print("SCANNING: {0}", _symbols.Length == 0 ? "(no supported markets matched the filter)" : string.Join(", ", _symbols));
+            Print("FULL CATALOGUE SCAN | broker symbols={0} | supported candidates={1} | open/tradable={2} | currently moving above {3:F2} ATR={4} | selected subscriptions={5}.",
+                Symbols.Count, _supportedCatalogueCount, openAndTradable.Count, MinMoveAtr, _movingMarketsCount, _symbols.Length);
+            Print("SCANNING: {0}", _symbols.Length == 0 ? "(no open supported markets passed the spread/data checks)" : string.Join(", ", _symbols));
+            if (movingAndTradable.Count == 0)
+                Print("SCAN NOTE | No open market currently passes the minimum movement threshold; subscribing to the best open/spread-eligible markets to keep monitoring.");
         }
 
         private bool MatchesSymbolFilter(string name)
@@ -678,7 +749,7 @@ namespace cAlgo.Robots
             Positions.Closed -= OnPositionClosed;
             foreach (Bars bars in _m5Bars.Values)
                 bars.Tick -= OnBarsTick;
-            Print("Analyzer.pro cTrader Cloud Demo Bot v3.0 stopped. Broker-side emergency stops remain attached to open positions.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.1 stopped. Broker-side emergency stops remain attached to open positions.");
         }
 
         protected override void OnException(Exception exception)
