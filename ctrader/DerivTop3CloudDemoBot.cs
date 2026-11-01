@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------------------
 // Analyzer.pro - Deriv cTrader Cloud Demo Bot
-// Version 3.4.0 - full catalogue progress, candle-start entries and exit retries
+// Version 3.5.0 - full catalogue progress, candle-start entries and net-positive MFE exits
 // -----------------------------------------------------------------------------
 // Strategy:
 // - Discovers the full broker-listed supported catalogue, ranking open/moving markets before selecting up to 25 by default.
@@ -73,6 +73,7 @@ namespace cAlgo.Robots
         private readonly Dictionary<string, DateTime> _lastDecisionCandle = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<long, DateTime> _originCandleByPosition = new Dictionary<long, DateTime>();
         private readonly Dictionary<long, double> _peakPriceByPosition = new Dictionary<long, double>();
+        private readonly Dictionary<long, double> _entryExecutablePriceByPosition = new Dictionary<long, double>();
         private readonly HashSet<long> _restartStateRecovered = new HashSet<long>();
         private readonly HashSet<long> _reversalCloseInProgress = new HashSet<long>();
         private readonly HashSet<string> _enteredSymbolsThisCycle = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -104,7 +105,7 @@ namespace cAlgo.Robots
             RefreshSymbolCatalogue();
             InitializeMarketSubscriptions();
             _lastCatalogueRefresh = Server.Time;
-            Print("Analyzer.pro cTrader Cloud Demo Bot v3.4 started.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.5 started.");
             Print("ENTRY: attempts an entry on the first tick of each new M5 candle, using the previous completed candle direction; eligible setups are ranked before entry.");
             Print("CYCLE: up to {0} distinct symbols per UTC M5 cycle; maximum {1} concurrent positions.", MaximumEntriesPerM5Cycle, MaximumConcurrentPositions);
             Print("REVERSAL: during first 30 seconds, close provisional trade and attempt the opposite direction when candle direction changes and safety filters pass.");
@@ -640,7 +641,9 @@ namespace cAlgo.Robots
 
                 Position position = result.Position;
                 _originCandleByPosition[position.Id] = candleOpen;
-                _peakPriceByPosition[position.Id] = direction == TradeType.Buy ? symbol.Bid : symbol.Ask;
+                double entryExecutable = direction == TradeType.Buy ? symbol.Bid : symbol.Ask;
+                _entryExecutablePriceByPosition[position.Id] = entryExecutable;
+                _peakPriceByPosition[position.Id] = entryExecutable;
                 Print("M5 TRADE OPENED | {0} {1} | entry={2} | volume={3} | candle={4:HH:mm} UTC | emergency SL={5:F1} pips.",
                     direction, symbol.Name, position.EntryPrice, volume, candleOpen, stopPips);
                 return true;
@@ -702,9 +705,11 @@ namespace cAlgo.Robots
                         // after a Cloud restart. The peak begins at the first observed quote.
                         origin = FloorToM5(position.EntryTime);
                         _originCandleByPosition[position.Id] = origin;
-                        _peakPriceByPosition[position.Id] = position.TradeType == TradeType.Buy ? symbol.Bid : symbol.Ask;
+                        double recoveredExecutable = position.TradeType == TradeType.Buy ? symbol.Bid : symbol.Ask;
+                        _entryExecutablePriceByPosition[position.Id] = recoveredExecutable;
+                        _peakPriceByPosition[position.Id] = recoveredExecutable;
                         _restartStateRecovered.Add(position.Id);
-                        Print("POSITION STATE RECOVERED | {0} {1} | origin candle={2:HH:mm} UTC | MFE tracking resumed from current quote.",
+                        Print("POSITION STATE RECOVERED | {0} {1} | origin candle={2:HH:mm} UTC | MFE tracking resumed from current quote; pre-restart peak is unavailable.",
                             position.TradeType, position.SymbolName, origin);
                     }
 
@@ -720,30 +725,43 @@ namespace cAlgo.Robots
                     peak = position.TradeType == TradeType.Buy ? Math.Max(peak, executable) : Math.Min(peak, executable);
                     _peakPriceByPosition[position.Id] = peak;
 
+                    double entryExecutablePrice;
+                    if (!_entryExecutablePriceByPosition.TryGetValue(position.Id, out entryExecutablePrice))
+                    {
+                        entryExecutablePrice = position.TradeType == TradeType.Buy ? symbol.Bid : symbol.Ask;
+                        _entryExecutablePriceByPosition[position.Id] = entryExecutablePrice;
+                    }
                     double maxFavourable = position.TradeType == TradeType.Buy
-                        ? peak - position.EntryPrice
-                        : position.EntryPrice - peak;
+                        ? peak - entryExecutablePrice
+                        : entryExecutablePrice - peak;
+                    double currentFavourable = position.TradeType == TradeType.Buy
+                        ? executable - entryExecutablePrice
+                        : entryExecutablePrice - executable;
+                    double spreadNow = Math.Max(0, symbol.Ask - symbol.Bid);
 
-                    if (now >= origin.AddSeconds(ConfirmationWindowSeconds) && maxFavourable > symbol.TickSize)
+                    // Do not treat a one-tick move inside the spread as profit-taking.
+                    // Require enough favourable movement to clear the current spread,
+                    // and only close on the retracement rule when net P/L is positive.
+                    if (now >= origin.AddSeconds(ConfirmationWindowSeconds) && maxFavourable > spreadNow + symbol.TickSize)
                     {
                         double lockLevel = position.TradeType == TradeType.Buy
-                            ? position.EntryPrice + maxFavourable * RetainedMfeFraction
-                            : position.EntryPrice - maxFavourable * RetainedMfeFraction;
+                            ? entryExecutablePrice + maxFavourable * RetainedMfeFraction
+                            : entryExecutablePrice - maxFavourable * RetainedMfeFraction;
                         bool retraced = position.TradeType == TradeType.Buy
                             ? executable <= lockLevel
                             : executable >= lockLevel;
 
-                        if (retraced)
+                        if (retraced && currentFavourable > 0 && position.NetProfit > 0)
                         {
                             TradeResult close = ClosePosition(position);
                             if (close.IsSuccessful)
                             {
                                 _lastDecisionCandle[position.SymbolName] = origin;
-                                Print("75% MFE EXIT | {0} {1} | entry={2} | peak={3} | exit={4} | retracement=25%.",
-                                    position.TradeType, position.SymbolName, position.EntryPrice, peak, executable);
+                                Print("75% MFE PROFIT EXIT | {0} {1} | executable entry={2} | peak={3} | exit={4} | retained target=75% of favourable excursion | net P/L={5:F2} {6}.",
+                                    position.TradeType, position.SymbolName, entryExecutablePrice, peak, executable, position.NetProfit, Account.Asset.Name);
                                 continue;
                             }
-                            Print("MFE EXIT FAILED | {0} #{1} | {2}.", position.SymbolName, position.Id, close.Error);
+                            Print("75% MFE EXIT RETRY | {0} #{1} | close rejected: {2}. Will retry on next management cycle.", position.SymbolName, position.Id, close.Error);
                         }
                     }
 
@@ -809,6 +827,7 @@ namespace cAlgo.Robots
                 _lastDecisionCandle[args.Position.SymbolName] = closedOrigin;
             _originCandleByPosition.Remove(args.Position.Id);
             _peakPriceByPosition.Remove(args.Position.Id);
+            _entryExecutablePriceByPosition.Remove(args.Position.Id);
             _restartStateRecovered.Remove(args.Position.Id);
             Print("POSITION CLOSED | {0} {1} | final P/L={2:F2} {3}.",
                 args.Position.TradeType, args.Position.SymbolName, args.Position.NetProfit, Account.Asset.Name);
@@ -833,7 +852,7 @@ namespace cAlgo.Robots
             Positions.Closed -= OnPositionClosed;
             foreach (Bars bars in _m5Bars.Values)
                 bars.Tick -= OnBarsTick;
-            Print("Analyzer.pro cTrader Cloud Demo Bot v3.4 stopped. Broker-side emergency stops remain attached to open positions.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.5 stopped. Broker-side emergency stops remain attached to open positions.");
         }
 
         protected override void OnException(Exception exception)
