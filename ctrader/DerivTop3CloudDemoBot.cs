@@ -1,16 +1,16 @@
 // -----------------------------------------------------------------------------
 // Analyzer.pro - Deriv cTrader Cloud Demo Bot
-// Version 3.2.0 - per-candle live candidate ranking and ATR/risk filters
+// Version 3.3.0 - first-tick M5 entries and strict candle-boundary exits
 // -----------------------------------------------------------------------------
 // Strategy:
 // - Discovers the full broker-listed supported catalogue, ranking open/moving markets before selecting up to 25 by default.
 // - Scores all supported candidates using current/recent M5 movement, ATR and spread; subscribes to the strongest open/tradable markets.
 // - Also checks every subscribed symbol on each one-second timer cycle; no rotating scan queue.
-// - Opens on the first directional candle movement in the first 30 seconds of the shared UTC M5 cycle.
-// - If direction reverses during those 30 seconds, closes the provisional trade and opens the opposite direction.
+// - Attempts entry on the first available tick of each new M5 candle, using the previous completed M5 candle direction as the initial direction.
+// - If the new candle direction reverses during the first 30 seconds, closes the provisional trade and attempts the opposite direction, subject to safety filters.
 // - Allows up to 8 distinct symbols per M5 cycle and 8 concurrent positions by default.
 // - Tracks executable-side peak MFE; closes on a 25% retracement, retaining approximately 75%.
-// - Otherwise closes at the originating M5 candle boundary; retries failed closes.
+// - Otherwise attempts to close at the originating M5 candle boundary; retries failed closes. Exact execution is subject to ticks, broker availability and order acceptance.
 // - Broker market hours and trading-enabled state are checked before entry.
 // - Demo-account guard and broker-side emergency stop remain enabled.
 // - No M1/M15/H1/H4/D1/W1 data, indicators, filters or strategy logic.
@@ -104,10 +104,10 @@ namespace cAlgo.Robots
             RefreshSymbolCatalogue();
             InitializeMarketSubscriptions();
             _lastCatalogueRefresh = Server.Time;
-            Print("Analyzer.pro cTrader Cloud Demo Bot v3.2 started.");
-            Print("ENTRY: every subscribed symbol checked on ticks AND on each one-second timer cycle; eligible live setups are ranked before entry.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.3 started.");
+            Print("ENTRY: attempts an entry on the first tick of each new M5 candle, using the previous completed candle direction; eligible setups are ranked before entry.");
             Print("CYCLE: up to {0} distinct symbols per UTC M5 cycle; maximum {1} concurrent positions.", MaximumEntriesPerM5Cycle, MaximumConcurrentPositions);
-            Print("REVERSAL: during first 30 seconds, close provisional trade and immediately enter the new candle direction.");
+            Print("REVERSAL: during first 30 seconds, close provisional trade and attempt the opposite direction when candle direction changes and safety filters pass.");
             Print("EXIT: after confirmation, close on 25% retracement from peak favourable movement; otherwise close at originating M5 boundary.");
             Print("MARKETS: supported catalogue={0} | selected scan list={1} | active subscriptions={2}; markets are checked for live hours before entries.",
                 _supportedCatalogueCount, _symbols.Length, _m5Bars.Count);
@@ -407,10 +407,22 @@ namespace cAlgo.Robots
             double atrForSignal = CalculateM5Atr(bars, 14);
             double spread = symbol.Ask - symbol.Bid;
             bool spreadAllowed = atrForSignal > 0 && spread <= MaxSpreadToAtr * atrForSignal;
-            bool moveAllowed = atrForSignal > 0 && Math.Abs(livePrice - candleOpenPrice) >= MinMoveAtr * atrForSignal;
+            double currentMove = Math.Abs(livePrice - candleOpenPrice);
+            double priorBodyMove = Math.Abs(bars.ClosePrices.Last(1) - bars.OpenPrices.Last(1));
+            bool moveAllowed = atrForSignal > 0 && Math.Max(currentMove, priorBodyMove) >= MinMoveAtr * atrForSignal;
             TradeType? liveDirection = livePrice > candleOpenPrice ? TradeType.Buy
                 : livePrice < candleOpenPrice ? TradeType.Sell
                 : (TradeType?)null;
+            // On the first tick, the current candle has no direction yet. Use the
+            // previous completed candle direction so an entry can be attempted at
+            // the start rather than waiting for the current candle to develop.
+            if (!liveDirection.HasValue)
+            {
+                double previousOpen = bars.OpenPrices.Last(1);
+                double previousClose = bars.ClosePrices.Last(1);
+                if (previousClose > previousOpen) liveDirection = TradeType.Buy;
+                else if (previousClose < previousOpen) liveDirection = TradeType.Sell;
+            }
 
             Position existing = Positions.FindAll(BotLabel)
                 .FirstOrDefault(p => string.Equals(p.SymbolName, name, StringComparison.OrdinalIgnoreCase));
@@ -554,7 +566,8 @@ namespace cAlgo.Robots
                 if (spreadAtr > MaxSpreadToAtr)
                     continue;
                 double liveMove = Math.Abs(candidateBars.ClosePrices.Last(0) - candidateBars.OpenPrices.Last(0));
-                double moveAtr = liveMove / atr;
+                double priorBodyMove = Math.Abs(candidateBars.ClosePrices.Last(1) - candidateBars.OpenPrices.Last(1));
+                double moveAtr = Math.Max(liveMove, priorBodyMove) / atr;
                 if (moveAtr < MinMoveAtr)
                     continue;
 
@@ -816,7 +829,7 @@ namespace cAlgo.Robots
             Positions.Closed -= OnPositionClosed;
             foreach (Bars bars in _m5Bars.Values)
                 bars.Tick -= OnBarsTick;
-            Print("Analyzer.pro cTrader Cloud Demo Bot v3.1 stopped. Broker-side emergency stops remain attached to open positions.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.3 stopped. Broker-side emergency stops remain attached to open positions.");
         }
 
         protected override void OnException(Exception exception)
