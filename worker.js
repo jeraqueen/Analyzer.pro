@@ -256,7 +256,7 @@ function validateTradePlan(raw) {
 async function tradePlanFingerprint(payload, pair, requestedMode, present, charts, failedSetupHistory) {
   const relevant = {
     pair, requestedMode, present,
-    accountRisk: payload.accountRisk && typeof payload.accountRisk === "object" ? {balance:Number(payload.accountRisk.balance),currency:String(payload.accountRisk.currency||"USD"),maxRiskPercent:Number(payload.accountRisk.maxRiskPercent),maxRiskAmount:Number(payload.accountRisk.maxRiskAmount),estimatedRoundTripCosts:Number(payload.accountRisk.estimatedRoundTripCosts)} : null,
+    accountRisk: payload.accountRisk && typeof payload.accountRisk === "object" ? {balance:Number(payload.accountRisk.balance),currency:String(payload.accountRisk.currency||"USD"),estimatedRoundTripCosts:Number(payload.accountRisk.estimatedRoundTripCosts)} : null,
     direction: payload.direction || "",
     levels: payload.levels || {},
     thesis: payload.thesis || "",
@@ -378,11 +378,10 @@ ACCOUNT-AWARE RISK AND TARGETS — REQUIRED:
 The user account settings are supplied in the request JSON under accountRisk: ${JSON.stringify(relevant.accountRisk)}. Use them as a hard planning constraint, not as chart evidence. If absent or invalid, explicitly say account-aware sizing is unavailable and do not claim the plan is affordable.
 - Account balance/currency, maximum risk percentage, maximum planned cash risk, and user-estimated round-trip costs must be considered in the plan.
 - Recommend an entry, structural stop, and TP1/TP2/TP3 based on visible price structure and realistic movement for the chosen setup/horizon. Targets are conditional price levels, NOT guarantees that price will reach them. Never move targets closer solely to promise a hit; if realistic movement cannot support the target, say so.
-- Explicitly show the maximum planned cash risk at stop, estimate whether the structure-based stop and spread/cost allowance fit the risk cap, and state broker-specific position size cannot be verified without contract size, minimum lot/lot step, tick value, and live spread from the user's broker.
+- Use the supplied account balance and currency as context for the plan; do not impose a fixed cash-loss cap or alter the chart-based stop-loss/TP1/TP2/TP3 merely to fit an arbitrary percentage. The analyzer determines structural SL and targets from market evidence.
 - Do NOT invent spread, commission, tick value, lot size, live price, or exact net P/L. User-estimated costs are only estimates. If broker details are missing, label lot size/affordability UNVERIFIED and require broker calculator confirmation before entry.
 - Account currency conversion may be needed; if rates are not supplied, do not pretend a USD quote's price movement equals cash risk in another currency.
-- If the minimum broker lot would exceed the cap, or the stop is too wide for the balance, output NO TRADE — RISK EXCEEDS ACCOUNT LIMIT. Never suggest increasing risk to force a trade.
-- Output a clear ACCOUNT-AWARE PLAN section including: balance/currency; risk cap % and cash; estimated costs assumption; entry; structural SL; TP1/TP2/TP3; rationale for each target; broker sizing status (VERIFIED only with actual broker contract inputs, otherwise UNVERIFIED); and the exact missing broker details needed to verify affordability.
+- Output a clear ACCOUNT-AWARE PLAN section including: balance/currency; estimated costs assumption; entry; structural SL; TP1/TP2/TP3; rationale for each target; broker sizing status (VERIFIED only with actual broker contract inputs, otherwise UNVERIFIED); and the exact missing broker details needed to verify affordability.
 - Distinguish a target's chart plausibility from probability of being reached. Never promise any TP will be hit. Costs and slippage can exceed estimates.
 - Signal strength is not account affordability: score signal strength from chart evidence only. Explain its actual observations and vary the score honestly by evidence; never default to repeated 58/62 scores. If the chart does not support a strong signal, keep it weak/moderate rather than inflating it.
  
