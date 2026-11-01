@@ -539,7 +539,7 @@ Always calculate the next relevant candle-close time in Africa/Nairobi (EAT) fro
 
   const model = env.GEMINI_MODEL || "gemini-3.1-flash-lite";
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`;
-  const payload = JSON.stringify({
+  const aiRequestBody = JSON.stringify({
     contents: [{ role: "user", parts }],
     generationConfig: { temperature: 0, maxOutputTokens: 5000 }
   });
@@ -554,7 +554,7 @@ Always calculate the next relevant candle-close time in Africa/Nairobi (EAT) fro
       response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: payload
+        body: aiRequestBody
       });
       result = await response.json().catch(() => ({}));
     } catch {
@@ -616,7 +616,7 @@ Always calculate the next relevant candle-close time in Africa/Nairobi (EAT) fro
     const currentPlan = extractStablePlan(analysis);
     if (stablePlan && Date.now() - Number(stablePlan.savedAt || 0) <= 10 * 60 * 1000) {
       consistentAnalysis = applyStablePlan(analysis, stablePlan);
-    } else if (currentPlan) {
+    } else if (currentPlan && !validateTradePlan(analysis).includes("INVALID PRICE GEOMETRY")) {
       try {
         const cacheResponse = new Response(JSON.stringify(currentPlan), {
           headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=600" }
