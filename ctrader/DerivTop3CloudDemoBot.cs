@@ -158,6 +158,7 @@ namespace cAlgo.Robots
 
         private void RefreshSymbolCatalogue()
         {
+            _probedBars.Clear();
             // Build the full name list with cheap checks first. Do not request M5
             // history for every broker symbol: only the capped probe list gets bars/score.
             var catalogueList = new List<string>();
@@ -511,6 +512,13 @@ namespace cAlgo.Robots
                         name, existingOrigin, candleOpen);
                     existing = null;
                 }
+            }
+
+            if (existing != null && !string.Equals(existing.Label, BotLabel, StringComparison.Ordinal))
+            {
+                // Legacy/manual positions are managed by ManagePositions, but the entry
+                // engine must not reverse a position it did not open itself.
+                return;
             }
 
             if (existing != null)
