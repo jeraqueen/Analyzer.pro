@@ -3,8 +3,8 @@
 // Version 3.0.0 - prioritized market scanner and ATR/risk filters
 // -----------------------------------------------------------------------------
 // Strategy:
-// - Preloads broker-listed supported FX, XAU, BTC and Deriv synthetic symbols.
-// - Preloads supported symbols and subscribes to every symbol's M5 tick events.
+// - Discovers the full broker-listed supported catalogue (up to 386 symbols by default).
+// - Subscribes to the full selected catalogue; entries require open markets and passing M5 movement/spread filters.
 // - Also checks every subscribed symbol on each one-second timer cycle; no rotating scan queue.
 // - Opens on the first directional candle movement in the first 30 seconds of the shared UTC M5 cycle.
 // - If direction reverses during those 30 seconds, closes the provisional trade and opens the opposite direction.
@@ -36,7 +36,7 @@ namespace cAlgo.Robots
         [Parameter("Demo only (mandatory)", DefaultValue = true)]
         public bool DemoOnly { get; set; }
 
-        [Parameter("Maximum symbols to scan", DefaultValue = 25, MinValue = 1, MaxValue = 386)]
+        [Parameter("Maximum symbols to scan", DefaultValue = 386, MinValue = 1, MaxValue = 386)]
         public int MaximumSymbolsToScan { get; set; }
 
         [Parameter("Symbol name filter (comma-separated; blank = all)", DefaultValue = "")]
