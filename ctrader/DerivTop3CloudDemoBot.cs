@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------------------
 // Analyzer.pro - Deriv cTrader Cloud Demo Bot
-// Version 3.3.0 - first-tick M5 entries and strict candle-boundary exits
+// Version 3.4.0 - full catalogue progress, candle-start entries and exit retries
 // -----------------------------------------------------------------------------
 // Strategy:
 // - Discovers the full broker-listed supported catalogue, ranking open/moving markets before selecting up to 25 by default.
@@ -104,7 +104,7 @@ namespace cAlgo.Robots
             RefreshSymbolCatalogue();
             InitializeMarketSubscriptions();
             _lastCatalogueRefresh = Server.Time;
-            Print("Analyzer.pro cTrader Cloud Demo Bot v3.3 started.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.4 started.");
             Print("ENTRY: attempts an entry on the first tick of each new M5 candle, using the previous completed candle direction; eligible setups are ranked before entry.");
             Print("CYCLE: up to {0} distinct symbols per UTC M5 cycle; maximum {1} concurrent positions.", MaximumEntriesPerM5Cycle, MaximumConcurrentPositions);
             Print("REVERSAL: during first 30 seconds, close provisional trade and attempt the opposite direction when candle direction changes and safety filters pass.");
@@ -155,8 +155,12 @@ namespace cAlgo.Robots
             for (int i = 0; i < Symbols.Count; i++)
             {
                 string name = Symbols[i];
-                if (!string.IsNullOrWhiteSpace(name) && IsTargetMarket(name) && MatchesSymbolFilter(name))
+                // Discover all broker-listed symbols. Data, spread and trading checks
+                // later determine eligibility; avoid excluding unfamiliar broker names.
+                if (!string.IsNullOrWhiteSpace(name) && MatchesSymbolFilter(name))
                     found.Add(name);
+                if ((i + 1) % 5 == 0 || i + 1 == Symbols.Count)
+                    Print("CATALOGUE SCAN PROGRESS | checked={0}/{1} broker symbols | names accepted by filter={2}.", i + 1, Symbols.Count, found.Count);
             }
 
             string[] catalogue = found.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -502,12 +506,11 @@ namespace cAlgo.Robots
             if (!liveDirection.HasValue)
                 return;
 
-            if (!spreadAllowed || !moveAllowed)
+            // Initial entries should not wait for the new candle to build movement.
+            // Use the previous completed candle for direction; retain spread protection.
+            if (!spreadAllowed)
             {
-                if (!spreadAllowed)
-                    Print("ENTRY SKIPPED | {0} | spread={1} exceeds {2} x M5 ATR={3}.", name, spread, MaxSpreadToAtr, atrForSignal);
-                else
-                    Print("ENTRY SKIPPED | {0} | candle move={1} is below {2} x M5 ATR={3}.", name, Math.Abs(livePrice - candleOpenPrice), MinMoveAtr, atrForSignal);
+                Print("ENTRY SKIPPED | {0} | spread={1} exceeds {2} x M5 ATR={3}.", name, spread, MaxSpreadToAtr, atrForSignal);
                 return;
             }
 
@@ -568,7 +571,8 @@ namespace cAlgo.Robots
                 double liveMove = Math.Abs(candidateBars.ClosePrices.Last(0) - candidateBars.OpenPrices.Last(0));
                 double priorBodyMove = Math.Abs(candidateBars.ClosePrices.Last(1) - candidateBars.OpenPrices.Last(1));
                 double moveAtr = Math.Max(liveMove, priorBodyMove) / atr;
-                if (moveAtr < MinMoveAtr)
+                // A candle-start candidate can qualify from the previous completed candle.
+                if (priorBodyMove <= candidateSymbol.TickSize && liveMove <= candidateSymbol.TickSize)
                     continue;
 
                 double priorBodyAtr = Math.Abs(candidateBars.ClosePrices.Last(1) - candidateBars.OpenPrices.Last(1)) / atr;
@@ -829,7 +833,7 @@ namespace cAlgo.Robots
             Positions.Closed -= OnPositionClosed;
             foreach (Bars bars in _m5Bars.Values)
                 bars.Tick -= OnBarsTick;
-            Print("Analyzer.pro cTrader Cloud Demo Bot v3.3 stopped. Broker-side emergency stops remain attached to open positions.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.4 stopped. Broker-side emergency stops remain attached to open positions.");
         }
 
         protected override void OnException(Exception exception)
