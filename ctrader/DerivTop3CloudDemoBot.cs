@@ -39,6 +39,9 @@ namespace cAlgo.Robots
         [Parameter("Maximum symbols to subscribe", DefaultValue = 25, MinValue = 1, MaxValue = 386)]
         public int MaximumSymbolsToScan { get; set; }
 
+        [Parameter("Maximum symbols to probe", DefaultValue = 40, MinValue = 5, MaxValue = 100)]
+        public int MaximumSymbolsToProbe { get; set; }
+
         [Parameter("Symbol name filter (comma-separated; blank = all)", DefaultValue = "")]
         public string SymbolNameFilter { get; set; }
 
@@ -78,6 +81,7 @@ namespace cAlgo.Robots
         private readonly HashSet<long> _reversalCloseInProgress = new HashSet<long>();
         private readonly HashSet<string> _enteredSymbolsThisCycle = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _reportedDataErrors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _skipLogsThisCandle = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _currencies = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "SEK", "NOK", "DKK",
@@ -149,44 +153,76 @@ namespace cAlgo.Robots
 
         private void RefreshSymbolCatalogue()
         {
-            // First inspect the complete broker catalogue. The scan cap applies only
-            // after every supported candidate has been checked for open hours,
-            // current M5 movement, ATR and spread.
-            var found = new List<string>();
+            // Build the full name list with cheap checks first. Do not request M5
+            // history for every broker symbol: only the capped probe list gets bars/score.
+            var catalogueList = new List<string>();
             for (int i = 0; i < Symbols.Count; i++)
             {
                 string name = Symbols[i];
-                // Discover all broker-listed symbols. Data, spread and trading checks
-                // later determine eligibility; avoid excluding unfamiliar broker names.
                 if (!string.IsNullOrWhiteSpace(name) && MatchesSymbolFilter(name))
-                    found.Add(name);
+                    catalogueList.Add(name);
+
                 if ((i + 1) % 5 == 0 || i + 1 == Symbols.Count)
-                    Print("CATALOGUE SCAN PROGRESS | checked={0}/{1} broker symbols | names accepted by filter={2}.", i + 1, Symbols.Count, found.Count);
+                    Print("CATALOGUE DISCOVERY | checked={0}/{1} broker symbols | names accepted by filter={2}.",
+                        i + 1, Symbols.Count, catalogueList.Count);
             }
 
-            string[] catalogue = found.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            string[] catalogue = catalogueList.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             _supportedCatalogueCount = catalogue.Length;
 
             var heldNames = new HashSet<string>(
                 Positions.FindAll(BotLabel).Select(p => p.SymbolName),
                 StringComparer.OrdinalIgnoreCase);
 
+            // Cheap prioritisation only: no GetBars calls occur until after this list
+            // is ordered and truncated to MaximumSymbolsToProbe.
+            var held = catalogue.Where(heldNames.Contains)
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+
+            var openCrypto = catalogue.Where(n => !heldNames.Contains(n) && IsCryptoName(n) && IsMarketOpen(n))
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                .Take(Math.Max(0, CryptoSlots)).ToList();
+
+            var openOther = catalogue.Where(n => !heldNames.Contains(n) && !openCrypto.Contains(n, StringComparer.OrdinalIgnoreCase)
+                    && !IsCryptoName(n) && IsMarketOpen(n))
+                .OrderByDescending(IsSyntheticName)
+                .ThenBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+
+            var remainingAlphabetical = catalogue.Where(n => !heldNames.Contains(n)
+                    && !openCrypto.Contains(n, StringComparer.OrdinalIgnoreCase)
+                    && !openOther.Contains(n, StringComparer.OrdinalIgnoreCase))
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+
+            var probeList = held.Concat(openCrypto).Concat(openOther).Concat(remainingAlphabetical)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(Math.Max(5, Math.Min(100, MaximumSymbolsToProbe)))
+                .ToArray();
+
+            Print("PROBE PRIORITY | bot positions={0} | open crypto={1} (CryptoSlots={2}) | other open markets={3} | alphabetical remainder={4} | probe cap={5} | probing={6}.",
+                held.Count, openCrypto.Count, CryptoSlots, openOther.Count, remainingAlphabetical.Count,
+                MaximumSymbolsToProbe, probeList.Length);
+
             var scores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             var openAndTradable = new List<string>();
             var movingAndTradable = new List<string>();
 
-            foreach (string name in catalogue)
+            for (int i = 0; i < probeList.Length; i++)
             {
+                string name = probeList[i];
                 if (heldNames.Contains(name))
                 {
                     scores[name] = double.MaxValue;
                     openAndTradable.Add(name);
+                    Print("PROBE PROGRESS | {0}/{1} | {2} | existing bot position retained.", i + 1, probeList.Length, name);
                     continue;
                 }
 
                 Symbol symbol = Symbols.GetSymbol(name);
                 if (symbol == null || !IsMarketOpen(name))
+                {
+                    Print("PROBE PROGRESS | {0}/{1} | {2} | skipped: market not open/tradable.", i + 1, probeList.Length, name);
                     continue;
+                }
 
                 Bars bars;
                 try
@@ -200,7 +236,10 @@ namespace cAlgo.Robots
                 }
 
                 if (bars == null || bars.Count < 16 || symbol.PipSize <= 0 || symbol.Ask <= 0 || symbol.Bid <= 0)
+                {
+                    Print("PROBE PROGRESS | {0}/{1} | {2} | skipped: insufficient M5 data/quotes.", i + 1, probeList.Length, name);
                     continue;
+                }
 
                 double atr = CalculateM5Atr(bars, 14);
                 if (atr <= 0 || double.IsNaN(atr) || double.IsInfinity(atr))
@@ -213,8 +252,6 @@ namespace cAlgo.Robots
 
                 double liveMove = Math.Abs(bars.ClosePrices.Last(0) - bars.OpenPrices.Last(0));
                 double moveAtr = liveMove / atr;
-                // Add recent candle activity so a market with a quiet current candle
-                // but strong recent movement remains ranked behind currently moving ones.
                 double priorMove = Math.Abs(bars.ClosePrices.Last(1) - bars.OpenPrices.Last(1)) / atr;
                 double priorRange = (bars.HighPrices.Last(1) - bars.LowPrices.Last(1)) / atr;
                 double score = (moveAtr * 3.0) + (priorMove * 0.75) + (priorRange * 0.25) - (spreadAtr * 2.0);
@@ -222,27 +259,23 @@ namespace cAlgo.Robots
                 openAndTradable.Add(name);
                 if (moveAtr >= MinMoveAtr)
                     movingAndTradable.Add(name);
+
+                Print("PROBE PROGRESS | {0}/{1} | {2} | scored={3} | move={4:F3} ATR | spread={5:F3} ATR.",
+                    i + 1, probeList.Length, name, scores.ContainsKey(name), moveAtr, spreadAtr);
             }
 
             _movingMarketsCount = movingAndTradable.Count;
-
             Func<string, double> scoreOf = name => scores.ContainsKey(name) ? scores[name] : double.MinValue;
-            var held = catalogue.Where(heldNames.Contains)
+
+            var heldScored = held.Where(n => scores.ContainsKey(n))
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
-
             var rankedMovingCrypto = movingAndTradable.Where(IsCryptoName)
-                .OrderByDescending(scoreOf)
-                .ThenBy(n => n, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(scoreOf).ThenBy(n => n, StringComparer.OrdinalIgnoreCase)
                 .Take(Math.Max(0, CryptoSlots)).ToList();
-
             var rankedMovingRest = movingAndTradable.Where(n => !IsCryptoName(n))
-                .OrderByDescending(scoreOf)
-                .ThenByDescending(IsSyntheticName)
+                .OrderByDescending(scoreOf).ThenByDescending(IsSyntheticName)
                 .ThenBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
 
-            // Fill any remaining slots with other open, tradable markets ranked by
-            // live movement/spread score, so the bot can monitor a market before it
-            // crosses the minimum entry-movement threshold.
             var fallbackCrypto = openAndTradable.Where(n => !heldNames.Contains(n) &&
                     IsCryptoName(n) && !rankedMovingCrypto.Contains(n, StringComparer.OrdinalIgnoreCase))
                 .OrderByDescending(scoreOf).ThenBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
@@ -251,18 +284,32 @@ namespace cAlgo.Robots
                 .OrderByDescending(scoreOf).ThenByDescending(IsSyntheticName)
                 .ThenBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
 
-            var ordered = held.Concat(rankedMovingCrypto).Concat(rankedMovingRest)
+            _symbols = heldScored.Concat(rankedMovingCrypto).Concat(rankedMovingRest)
                 .Concat(fallbackCrypto).Concat(fallbackRest)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Take(Math.Max(1, MaximumSymbolsToScan))
                 .ToArray();
 
-            _symbols = ordered;
-            Print("FULL CATALOGUE SCAN | broker symbols={0} | supported candidates={1} | open/tradable={2} | currently moving above {3:F2} ATR={4} | selected subscriptions={5}.",
-                Symbols.Count, _supportedCatalogueCount, openAndTradable.Count, MinMoveAtr, _movingMarketsCount, _symbols.Length);
+            Print("PROBE SCAN COMPLETE | broker symbols={0} | names accepted={1} | symbols probed={2} | open/tradable scored={3} | moving={4} | selected subscriptions={5}.",
+                Symbols.Count, _supportedCatalogueCount, probeList.Length, openAndTradable.Count, _movingMarketsCount, _symbols.Length);
             Print("SCANNING: {0}", _symbols.Length == 0 ? "(no open supported markets passed the spread/data checks)" : string.Join(", ", _symbols));
             if (movingAndTradable.Count == 0)
-                Print("SCAN NOTE | No open market currently passes the minimum movement threshold; subscribing to the best open/spread-eligible markets to keep monitoring.");
+                Print("SCAN NOTE | No probed open market currently passes the minimum movement threshold; selected markets are limited to the probe cap.");
+        }
+
+        private void LogSkipOnce(string category, string symbolName, DateTime candleOpen, string message, params object[] args)
+        {
+            string key = category + "|" + symbolName + "|" + candleOpen.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture);
+            if (!_skipLogsThisCandle.Add(key))
+                return;
+
+            Print(message, args);
+            // Bound memory use while retaining the current/recent candle keys.
+            if (_skipLogsThisCandle.Count > 2000)
+            {
+                _skipLogsThisCandle.Clear();
+                _skipLogsThisCandle.Add(key);
+            }
         }
 
         private bool MatchesSymbolFilter(string name)
@@ -467,7 +514,7 @@ namespace cAlgo.Robots
                 {
                     if (!spreadAllowed || !moveAllowed)
                     {
-                        Print("REVERSAL SKIPPED | {0} | spread={1} ATR={2} move={3} | spread limit={4} ATR, move minimum={5} ATR.",
+                        LogSkipOnce("REVERSAL SKIPPED", name, candleOpen, "REVERSAL SKIPPED | {0} | spread={1} ATR={2} move={3} | spread limit={4} ATR, move minimum={5} ATR.",
                             name, spread, atrForSignal, Math.Abs(livePrice - candleOpenPrice), MaxSpreadToAtr, MinMoveAtr);
                         return;
                     }
@@ -511,7 +558,7 @@ namespace cAlgo.Robots
             // Use the previous completed candle for direction; retain spread protection.
             if (!spreadAllowed)
             {
-                Print("ENTRY SKIPPED | {0} | spread={1} exceeds {2} x M5 ATR={3}.", name, spread, MaxSpreadToAtr, atrForSignal);
+                LogSkipOnce("ENTRY SKIPPED", name, candleOpen, "ENTRY SKIPPED | {0} | spread={1} exceeds {2} x M5 ATR={3}.", name, spread, MaxSpreadToAtr, atrForSignal);
                 return;
             }
 
@@ -607,7 +654,7 @@ namespace cAlgo.Robots
                 double atr = CalculateM5Atr(bars, 14);
                 if (atr <= 0 || double.IsNaN(atr) || double.IsInfinity(atr))
                 {
-                    Print("ENTRY SKIPPED | {0} | insufficient/invalid M5 ATR data.", symbol.Name);
+                    LogSkipOnce("ENTRY SKIPPED", symbol.Name, candleOpen, "ENTRY SKIPPED | {0} | insufficient/invalid M5 ATR data.", symbol.Name);
                     return false;
                 }
 
@@ -625,7 +672,7 @@ namespace cAlgo.Robots
                     volume = symbol.NormalizeVolumeInUnits(maxVolume, RoundingMode.Down);
                 if (double.IsNaN(volume) || double.IsInfinity(volume) || volume < symbol.VolumeInUnitsMin)
                 {
-                    Print("ENTRY SKIPPED | {0} | risk-based volume invalid; minimum={1}, calculated={2}.",
+                    LogSkipOnce("ENTRY SKIPPED", symbol.Name, candleOpen, "ENTRY SKIPPED | {0} | risk-based volume invalid; minimum={1}, calculated={2}.",
                         symbol.Name, symbol.VolumeInUnitsMin, calculatedVolume);
                     return false;
                 }
