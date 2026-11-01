@@ -184,7 +184,7 @@ namespace cAlgo.Robots
                 .Take(Math.Max(0, CryptoSlots)).ToList();
 
             var openOther = catalogue.Where(n => !heldNames.Contains(n) && !openCrypto.Contains(n, StringComparer.OrdinalIgnoreCase)
-                    && !IsCryptoName(n) && IsMarketOpen(n))
+                    && IsMarketOpen(n))
                 .OrderByDescending(IsSyntheticName)
                 .ThenBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
 
