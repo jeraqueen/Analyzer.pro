@@ -229,6 +229,32 @@ namespace cAlgo.Robots
             Position existing = Positions.FindAll(BotLabel)
                 .FirstOrDefault(p => string.Equals(p.SymbolName, name, StringComparison.OrdinalIgnoreCase));
 
+            // A position from an earlier M5 candle must never be treated as a provisional
+            // position in the new candle. Close it first; only then may the new candle
+            // be evaluated for a fresh entry.
+            if (existing != null)
+            {
+                DateTime existingOrigin;
+                if (!_originCandleByPosition.TryGetValue(existing.Id, out existingOrigin))
+                    existingOrigin = FloorToM5(existing.EntryTime);
+
+                if (existingOrigin < candleOpen)
+                {
+                    TradeResult staleClose = ClosePosition(existing);
+                    if (!staleClose.IsSuccessful)
+                    {
+                        Print("PREVIOUS CANDLE POSITION STILL OPEN | {0} #{1} | close failed: {2}.",
+                            name, existing.Id, staleClose.Error);
+                        return;
+                    }
+
+                    _lastDecisionCandle[name] = existingOrigin;
+                    Print("STALE M5 POSITION CLOSED AT NEW BAR | {0} | old candle={1:HH:mm:ss} | new candle={2:HH:mm:ss} UTC.",
+                        name, existingOrigin, candleOpen);
+                    existing = null;
+                }
+            }
+
             if (existing != null)
             {
                 // Only the initial 30-second window permits a direction flip.
@@ -359,6 +385,10 @@ namespace cAlgo.Robots
                         TradeResult lossClose = ClosePosition(position);
                         if (lossClose.IsSuccessful)
                         {
+                            DateTime lossOrigin;
+                            if (!_originCandleByPosition.TryGetValue(position.Id, out lossOrigin))
+                                lossOrigin = FloorToM5(position.EntryTime);
+                            _lastDecisionCandle[position.SymbolName] = lossOrigin;
                             Print("HARD CASH LOSS EXIT | {0} {1} | P/L={2:F2} {3}.",
                                 position.TradeType, position.SymbolName, position.NetProfit, Account.Asset.Name);
                             continue;
@@ -413,6 +443,7 @@ namespace cAlgo.Robots
                             TradeResult close = ClosePosition(position);
                             if (close.IsSuccessful)
                             {
+                                _lastDecisionCandle[position.SymbolName] = origin;
                                 Print("75% MFE EXIT | {0} {1} | entry={2} | peak={3} | exit={4} | retracement=25%.",
                                     position.TradeType, position.SymbolName, position.EntryPrice, peak, executable);
                                 continue;
@@ -427,8 +458,11 @@ namespace cAlgo.Robots
                     {
                         TradeResult close = ClosePosition(position);
                         if (close.IsSuccessful)
+                        {
+                            _lastDecisionCandle[position.SymbolName] = origin;
                             Print("M5 CANDLE-END EXIT | {0} {1} | origin={2:HH:mm} UTC | P/L={3:F2} {4}.",
                                 position.TradeType, position.SymbolName, origin, position.NetProfit, Account.Asset.Name);
+                        }
                         else
                             Print("CANDLE-END EXIT FAILED | {0} #{1} | {2}.", position.SymbolName, position.Id, close.Error);
                     }
