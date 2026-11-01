@@ -73,6 +73,7 @@ namespace cAlgo.Robots
         public int MaximumConcurrentPositions { get; set; }
 
         private readonly Dictionary<string, Bars> _m5Bars = new Dictionary<string, Bars>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Bars> _probedBars = new Dictionary<string, Bars>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, DateTime> _lastDecisionCandle = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<long, DateTime> _originCandleByPosition = new Dictionary<long, DateTime>();
         private readonly Dictionary<long, double> _peakPriceByPosition = new Dictionary<long, double>();
@@ -105,11 +106,15 @@ namespace cAlgo.Robots
                 return;
             }
 
+            // Print the version before any market-history calls. If startup is killed
+            // during scanning, the journal still proves which source actually started.
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.6 started | source=probe-capped | position-management=account-wide.");
+            Print("STARTUP CONFIG | max symbols to probe={0} | max subscriptions={1} | max concurrent positions={2} | loss threshold={3:F2} {4}.",
+                MaximumSymbolsToProbe, MaximumSymbolsToScan, MaximumConcurrentPositions, MaximumFloatingLossPerTrade, Account.Asset.Name);
             Positions.Closed += OnPositionClosed;
             RefreshSymbolCatalogue();
             InitializeMarketSubscriptions();
             _lastCatalogueRefresh = Server.Time;
-            Print("Analyzer.pro cTrader Cloud Demo Bot v3.6 started | source=probe-capped | position-management=account-wide.");
             Print("ENTRY: attempts an entry on the first tick of each new M5 candle, using the previous completed candle direction; eligible setups are ranked before entry.");
             Print("CYCLE: up to {0} distinct symbols per UTC M5 cycle; maximum {1} concurrent positions.", MaximumEntriesPerM5Cycle, MaximumConcurrentPositions);
             Print("REVERSAL: during first 30 seconds, close provisional trade and attempt the opposite direction when candle direction changes and safety filters pass.");
@@ -241,6 +246,7 @@ namespace cAlgo.Robots
                     continue;
                 }
 
+                _probedBars[name] = bars;
                 double atr = CalculateM5Atr(bars, 14);
                 if (atr <= 0 || double.IsNaN(atr) || double.IsInfinity(atr))
                     continue;
@@ -374,7 +380,9 @@ namespace cAlgo.Robots
 
                 try
                 {
-                    Bars bars = MarketData.GetBars(TimeFrame.Minute5, name);
+                    Bars bars;
+                    if (!_probedBars.TryGetValue(name, out bars))
+                        bars = MarketData.GetBars(TimeFrame.Minute5, name);
                     if (bars == null)
                     {
                         failed++;
