@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------------------
 // Analyzer.pro - Deriv cTrader Cloud Demo Bot
-// Version 2.3.0 - synchronized M5 scanner with provisional reversals
+// Version 3.0.0 - prioritized market scanner and ATR/risk filters
 // -----------------------------------------------------------------------------
 // Strategy:
 // - Preloads broker-listed supported FX, XAU, BTC and Deriv synthetic symbols.
@@ -36,6 +36,24 @@ namespace cAlgo.Robots
         [Parameter("Demo only (mandatory)", DefaultValue = true)]
         public bool DemoOnly { get; set; }
 
+        [Parameter("Maximum symbols to scan", DefaultValue = 25, MinValue = 1, MaxValue = 386)]
+        public int MaximumSymbolsToScan { get; set; }
+
+        [Parameter("Symbol name filter (comma-separated; blank = all)", DefaultValue = "")]
+        public string SymbolNameFilter { get; set; }
+
+        [Parameter("Crypto slots", DefaultValue = 6, MinValue = 0, MaxValue = 386)]
+        public int CryptoSlots { get; set; }
+
+        [Parameter("Risk percent of balance", DefaultValue = 0.25, MinValue = 0.01, MaxValue = 5.0, Step = 0.01)]
+        public double RiskPercent { get; set; }
+
+        [Parameter("Minimum move in ATR", DefaultValue = 0.05, MinValue = 0.0, MaxValue = 2.0, Step = 0.01)]
+        public double MinMoveAtr { get; set; }
+
+        [Parameter("Maximum spread in ATR", DefaultValue = 0.20, MinValue = 0.01, MaxValue = 2.0, Step = 0.01)]
+        public double MaxSpreadToAtr { get; set; }
+
         [Parameter("Maximum floating loss per trade (account currency)", DefaultValue = 0.95, MinValue = 0.10, MaxValue = 1000.0, Step = 0.05)]
         public double MaximumFloatingLossPerTrade { get; set; }
 
@@ -66,6 +84,8 @@ namespace cAlgo.Robots
         };
 
         private string[] _symbols = new string[0];
+        private int _supportedCatalogueCount;
+        private DateTime _lastCatalogueRefresh = DateTime.MinValue;
         private int _entriesThisCycle;
         private DateTime _currentCycleOpen = DateTime.MinValue;
         private DateTime _lastHeartbeat = DateTime.MinValue;
@@ -82,12 +102,14 @@ namespace cAlgo.Robots
             Positions.Closed += OnPositionClosed;
             RefreshSymbolCatalogue();
             InitializeMarketSubscriptions();
-            Print("Analyzer.pro cTrader Cloud Demo Bot v2.3 started.");
+            _lastCatalogueRefresh = Server.Time;
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.0 started.");
             Print("ENTRY: every subscribed symbol checked on ticks AND on each one-second timer cycle.");
             Print("CYCLE: up to {0} distinct symbols per UTC M5 cycle; maximum {1} concurrent positions.", MaximumEntriesPerM5Cycle, MaximumConcurrentPositions);
             Print("REVERSAL: during first 30 seconds, close provisional trade and immediately enter the new candle direction.");
             Print("EXIT: after confirmation, close on 25% retracement from peak favourable movement; otherwise close at originating M5 boundary.");
-            Print("MARKETS: subscribed to {0} supported broker-listed symbols; live market hours and trading mode checked per tick.", _m5Bars.Count);
+            Print("MARKETS: supported catalogue={0} | selected scan list={1} | active subscriptions={2}; markets are checked for live hours before entries.",
+                _supportedCatalogueCount, _symbols.Length, _m5Bars.Count);
             Print("SAFETY: demo-only guard, cash-loss limit and broker-side emergency stop active.");
             Timer.Start(TimeSpan.FromSeconds(1));
         }
@@ -100,8 +122,13 @@ namespace cAlgo.Robots
                 ManagePositions(now);
                 EnsureCycle(now);
 
-                // Full pass over every preloaded symbol each second. This is deliberately
-                // not a 25-symbol rotating batch, so a busy symbol cannot starve the rest.
+                if (_lastCatalogueRefresh == DateTime.MinValue || (now - _lastCatalogueRefresh).TotalMinutes >= 10)
+                {
+                    RefreshSymbolCatalogue();
+                    InitializeMarketSubscriptions();
+                    _lastCatalogueRefresh = now;
+                }
+
                 foreach (Bars bars in _m5Bars.Values.ToArray())
                     ProcessLiveBar(bars, now);
 
@@ -124,19 +151,104 @@ namespace cAlgo.Robots
             for (int i = 0; i < Symbols.Count; i++)
             {
                 string name = Symbols[i];
-                if (!string.IsNullOrWhiteSpace(name) && IsTargetMarket(name))
+                if (!string.IsNullOrWhiteSpace(name) && IsTargetMarket(name) && MatchesSymbolFilter(name))
                     found.Add(name);
             }
-            _symbols = found.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            Print("MARKET CATALOGUE REFRESHED | broker symbols={0} | supported symbols={1}.", Symbols.Count, _symbols.Length);
+
+            string[] catalogue = found.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            _supportedCatalogueCount = catalogue.Length;
+
+            var heldNames = new HashSet<string>(
+                Positions.FindAll(BotLabel).Select(p => p.SymbolName),
+                StringComparer.OrdinalIgnoreCase);
+
+            var held = catalogue.Where(n => heldNames.Contains(n))
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+
+            var crypto = catalogue.Where(n => !heldNames.Contains(n) && IsCryptoName(n))
+                .OrderByDescending(IsMarketOpen)
+                .ThenBy(n => n, StringComparer.OrdinalIgnoreCase)
+                .Take(Math.Max(0, CryptoSlots)).ToList();
+
+            var rest = catalogue.Where(n => !heldNames.Contains(n) && !crypto.Contains(n, StringComparer.OrdinalIgnoreCase))
+                .OrderByDescending(IsMarketOpen)
+                .ThenByDescending(IsSyntheticName)
+                .ThenBy(n => n, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var ordered = held.Concat(crypto).Concat(rest)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(Math.Max(1, MaximumSymbolsToScan))
+                .ToArray();
+
+            // Keep any open-position symbols subscribed even if a filter or scan cap
+            // removes them from the new entry scan list.
+            _symbols = ordered;
+            Print("MARKET CATALOGUE REFRESHED | broker symbols={0} | supported catalogue={1} | selected for scan={2}.",
+                Symbols.Count, _supportedCatalogueCount, _symbols.Length);
+            Print("SCANNING: {0}", _symbols.Length == 0 ? "(no supported markets matched the filter)" : string.Join(", ", _symbols));
+        }
+
+        private bool MatchesSymbolFilter(string name)
+        {
+            if (string.IsNullOrWhiteSpace(SymbolNameFilter))
+                return true;
+
+            string[] requested = SymbolNameFilter.Split(new[] { ',', ';', '\\n', '\\r' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .Where(x => x.Length > 0)
+                .ToArray();
+            return requested.Length == 0 || requested.Any(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private bool IsMarketOpen(string name)
+        {
+            try
+            {
+                Symbol symbol = Symbols.GetSymbol(name);
+                return symbol != null && symbol.MarketHours.IsOpened() && symbol.IsTradingEnabled &&
+                    symbol.TradingMode == SymbolTradingMode.FullAccess;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool IsSyntheticName(string rawName)
+        {
+            string name = new string((rawName ?? string.Empty).Where(char.IsLetter).ToArray()).ToUpperInvariant();
+            return name.Contains("VOLATILITY") || name.Contains("BOOM") || name.Contains("CRASH") ||
+                name.Contains("STEP") || name.Contains("JUMP") || name.Contains("RANGEBREAK") ||
+                name.Contains("DRIFT") || name.Contains("VOLSWITCH") || name.Contains("MULTIPLIER") ||
+                name.Contains("DEX") || name.Contains("TREK") || name.Contains("HYBRID") ||
+                name.Contains("SYNTHETIC");
         }
 
         private void InitializeMarketSubscriptions()
         {
+            var desired = new HashSet<string>(_symbols, StringComparer.OrdinalIgnoreCase);
+            foreach (Position position in Positions.FindAll(BotLabel))
+                desired.Add(position.SymbolName);
+
+            foreach (string existingName in _m5Bars.Keys.ToArray())
+            {
+                if (desired.Contains(existingName))
+                    continue;
+
+                Bars oldBars = _m5Bars[existingName];
+                oldBars.Tick -= OnBarsTick;
+                _m5Bars.Remove(existingName);
+                Print("M5 UNSUBSCRIBED | {0} | no longer selected and no open bot position.", existingName);
+            }
+
             int loaded = 0;
             int failed = 0;
-            foreach (string name in _symbols)
+            foreach (string name in desired)
             {
+                if (_m5Bars.ContainsKey(name))
+                    continue;
+
                 try
                 {
                     Bars bars = MarketData.GetBars(TimeFrame.Minute5, name);
@@ -150,9 +262,7 @@ namespace cAlgo.Robots
                     _m5Bars[name] = bars;
                     bars.Tick += OnBarsTick;
                     if (bars.Count < 16)
-                    {
                         bars.LoadMoreHistoryAsync(args => Print("M5 HISTORY LOAD | {0} | added={1} | total={2}.", name, args.Count, args.Bars.Count));
-                    }
                     loaded++;
                 }
                 catch (Exception ex)
@@ -162,7 +272,8 @@ namespace cAlgo.Robots
                 }
             }
 
-            Print("M5 SUBSCRIPTIONS READY | catalogue={0} | subscribed={1} | failed={2}.", _symbols.Length, loaded, failed);
+            Print("M5 SUBSCRIPTIONS READY | selected scan symbols={0} | active subscriptions={1} | newly subscribed={2} | failed={3}.",
+                _symbols.Length, _m5Bars.Count, loaded, failed);
         }
 
         private void OnBarsTick(BarsTickEventArgs args)
@@ -222,6 +333,10 @@ namespace cAlgo.Robots
 
             double candleOpenPrice = bars.OpenPrices.Last(0);
             double livePrice = bars.ClosePrices.Last(0);
+            double atrForSignal = CalculateM5Atr(bars, 14);
+            double spread = symbol.Ask - symbol.Bid;
+            bool spreadAllowed = atrForSignal > 0 && spread <= MaxSpreadToAtr * atrForSignal;
+            bool moveAllowed = atrForSignal > 0 && Math.Abs(livePrice - candleOpenPrice) >= MinMoveAtr * atrForSignal;
             TradeType? liveDirection = livePrice > candleOpenPrice ? TradeType.Buy
                 : livePrice < candleOpenPrice ? TradeType.Sell
                 : (TradeType?)null;
@@ -262,6 +377,12 @@ namespace cAlgo.Robots
                 // newly observed candle direction. This is not treated as a new symbol slot.
                 if (now < confirmationTime && liveDirection.HasValue && liveDirection.Value != existing.TradeType)
                 {
+                    if (!spreadAllowed || !moveAllowed)
+                    {
+                        Print("REVERSAL SKIPPED | {0} | spread={1} ATR={2} move={3} | spread limit={4} ATR, move minimum={5} ATR.",
+                            name, spread, atrForSignal, Math.Abs(livePrice - candleOpenPrice), MaxSpreadToAtr, MinMoveAtr);
+                        return;
+                    }
                     _reversalCloseInProgress.Add(existing.Id);
                     TradeResult reversalClose = ClosePosition(existing);
                     if (!reversalClose.IsSuccessful)
@@ -298,6 +419,15 @@ namespace cAlgo.Robots
             if (!liveDirection.HasValue)
                 return;
 
+            if (!spreadAllowed || !moveAllowed)
+            {
+                if (!spreadAllowed)
+                    Print("ENTRY SKIPPED | {0} | spread={1} exceeds {2} x M5 ATR={3}.", name, spread, MaxSpreadToAtr, atrForSignal);
+                else
+                    Print("ENTRY SKIPPED | {0} | candle move={1} is below {2} x M5 ATR={3}.", name, Math.Abs(livePrice - candleOpenPrice), MinMoveAtr, atrForSignal);
+                return;
+            }
+
             if (!_enteredSymbolsThisCycle.Contains(name) && _enteredSymbolsThisCycle.Count >= MaximumEntriesPerM5Cycle)
             {
                 _lastDecisionCandle[name] = candleOpen;
@@ -318,13 +448,6 @@ namespace cAlgo.Robots
         {
             try
             {
-                double volume = symbol.NormalizeVolumeInUnits(symbol.VolumeInUnitsMin, RoundingMode.Down);
-                if (volume < symbol.VolumeInUnitsMin || volume > symbol.VolumeInUnitsMax || double.IsNaN(volume))
-                {
-                    Print("ENTRY SKIPPED | {0} | invalid broker minimum volume.", symbol.Name);
-                    return false;
-                }
-
                 double atr = CalculateM5Atr(bars, 14);
                 if (atr <= 0 || double.IsNaN(atr) || double.IsInfinity(atr))
                 {
@@ -334,6 +457,23 @@ namespace cAlgo.Robots
 
                 double stopDistance = Math.Max(atr * StopAtrMultiple, MinimumEmergencyStopPips * symbol.PipSize);
                 double stopPips = Math.Max(MinimumEmergencyStopPips, stopDistance / symbol.PipSize);
+                double riskCash = Math.Max(0.0, Account.Balance * RiskPercent / 100.0);
+                double pipValue = symbol.PipValue;
+                double calculatedVolume = pipValue > 0 && stopPips > 0 ? riskCash / (stopPips * pipValue) : 0.0;
+                double maxVolume = Math.Min(symbol.VolumeInUnitsMax, symbol.VolumeInUnitsMin * 50.0);
+                double volume = Math.Max(symbol.VolumeInUnitsMin, Math.Min(maxVolume, calculatedVolume));
+                volume = symbol.NormalizeVolumeInUnits(volume, RoundingMode.Down);
+                if (volume < symbol.VolumeInUnitsMin)
+                    volume = symbol.VolumeInUnitsMin;
+                if (volume > maxVolume)
+                    volume = symbol.NormalizeVolumeInUnits(maxVolume, RoundingMode.Down);
+                if (double.IsNaN(volume) || double.IsInfinity(volume) || volume < symbol.VolumeInUnitsMin)
+                {
+                    Print("ENTRY SKIPPED | {0} | risk-based volume invalid; minimum={1}, calculated={2}.",
+                        symbol.Name, symbol.VolumeInUnitsMin, calculatedVolume);
+                    return false;
+                }
+
                 TradeResult result = ExecuteMarketOrder(direction, symbol.Name, volume, BotLabel, stopPips, (double?)null,
                     "ANALYZERPRO_M5_EARLY | " + candleOpen.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture));
 
@@ -486,14 +626,10 @@ namespace cAlgo.Robots
                 return false;
             string name = new string(rawName.Where(char.IsLetter).ToArray()).ToUpperInvariant();
 
-            if (name.Contains("VOLATILITY") || name.Contains("BOOM") || name.Contains("CRASH") ||
-                name.Contains("STEP") || name.Contains("JUMP") || name.Contains("RANGEBREAK") ||
-                name.Contains("DRIFT") || name.Contains("VOLSWITCH") || name.Contains("MULTIPLIER") ||
-                name.Contains("DEX") || name.Contains("TREK") || name.Contains("HYBRID") ||
-                name.Contains("SYNTHETIC"))
+            if (IsSyntheticName(name))
                 return true;
 
-            if (name.StartsWith("XAU") || name.StartsWith("BTC"))
+            if (name.StartsWith("XAU") || IsCryptoName(name))
                 return true;
 
             if (name.Length < 6)
@@ -501,6 +637,13 @@ namespace cAlgo.Robots
             string baseCurrency = name.Substring(0, 3);
             string quoteCurrency = name.Substring(3, 3);
             return _currencies.Contains(baseCurrency) && _currencies.Contains(quoteCurrency) && baseCurrency != quoteCurrency;
+        }
+
+        private bool IsCryptoName(string rawName)
+        {
+            string name = new string((rawName ?? string.Empty).Where(char.IsLetter).ToArray()).ToUpperInvariant();
+            string[] prefixes = { "BTC", "ETH", "LTC", "XRP", "BCH", "ADA", "DOT", "SOL", "DOGE", "BNB", "TRX", "LINK", "XLM", "EOS", "XMR" };
+            return prefixes.Any(prefix => name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
         }
 
         private void OnPositionClosed(PositionClosedEventArgs args)
@@ -535,7 +678,7 @@ namespace cAlgo.Robots
             Positions.Closed -= OnPositionClosed;
             foreach (Bars bars in _m5Bars.Values)
                 bars.Tick -= OnBarsTick;
-            Print("Analyzer.pro event-driven M5 cBot stopped. Broker-side emergency stops remain attached to open positions.");
+            Print("Analyzer.pro cTrader Cloud Demo Bot v3.0 stopped. Broker-side emergency stops remain attached to open positions.");
         }
 
         protected override void OnException(Exception exception)
