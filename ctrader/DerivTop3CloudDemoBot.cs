@@ -194,7 +194,7 @@ namespace cAlgo.Robots
             if (string.IsNullOrWhiteSpace(SymbolNameFilter))
                 return true;
 
-            string[] requested = SymbolNameFilter.Split(new[] { ',', ';', '\\n', '\\r' }, StringSplitOptions.RemoveEmptyEntries)
+            string[] requested = SymbolNameFilter.Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(x => x.Trim())
                 .Where(x => x.Length > 0)
                 .ToArray();
