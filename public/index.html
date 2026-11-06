@@ -848,4 +848,4 @@ renderJournal();overview();
 try{const saved=JSON.parse(localStorage.getItem(LAST_ANALYSIS_KEY)||'null');if(saved&&typeof saved.raw==='string'&&saved.raw){$('aiResult').value=saved.raw;if(saved.pair&&ALLOWED_MARKETS.includes(saved.pair))$('pair').value=saved.pair;renderTradeResult(saved.raw);const stamp=saved.savedAt?new Date(saved.savedAt).toLocaleString('en-KE',{timeZone:'Africa/Nairobi'}):'previous session';message($('analysisMsg'),'Restored your saved analysis from '+stamp+'. These are the same saved levels, not a fresh scan. Verify current price before use.','good')}}catch(e){console.warn('Could not restore saved analysis',e)}
 
 
-</script></body></html>
+</script><script src="/event-strategies.js"></script></body></html>
