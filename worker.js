@@ -199,10 +199,52 @@ async function handleAnalyze(request, env) {
   return json({ error: "Gemini is temporarily unavailable after 3 attempts. No trade plan was produced; please try again shortly.", code: "GEMINI_TEMPORARILY_UNAVAILABLE", upstreamStatus: lastStatus || undefined, retryable: true }, 502, cors);
 }
 
+async function sendSessionReminder(env, cron) {
+  if (!env.ONESIGNAL_APP_ID || !env.ONESIGNAL_REST_API_KEY) {
+    console.error("Session reminder skipped: OneSignal app ID or REST API key is not configured.", JSON.stringify({ cron }));
+    return;
+  }
+  const alerts = {
+    "26 7 * * *": { title: "Analyzer Pro · Morning reminder", message: "5 minutes until your 10:31 AM screenshot session. Open Analyzer Pro and prepare your charts." },
+    "31 7 * * *": { title: "Analyzer Pro · Morning screenshot time", message: "It is 10:31 AM in Kenya. Open Analyzer Pro and capture your chart screenshots now." },
+    "26 12 * * *": { title: "Analyzer Pro · Afternoon reminder", message: "5 minutes until your 3:31 PM screenshot session. Open Analyzer Pro and prepare your charts." },
+    "31 12 * * *": { title: "Analyzer Pro · Afternoon screenshot time", message: "It is 3:31 PM in Kenya. Open Analyzer Pro and capture your chart screenshots now." }
+  };
+  const alert = alerts[cron];
+  if (!alert) return;
+  const appUrl = env.PUBLIC_APP_URL || "https://analyzer-pro.fx77.workers.dev";
+  const response = await fetch("https://api.onesignal.com/notifications", {
+    method: "POST",
+    headers: {
+      "Authorization": "Key " + env.ONESIGNAL_REST_API_KEY,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      app_id: env.ONESIGNAL_APP_ID,
+      included_segments: ["All"],
+      headings: { en: alert.title },
+      contents: { en: alert.message },
+      web_url: appUrl + "/#timers"
+    })
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    console.error("OneSignal reminder send failed", JSON.stringify({ cron, status: response.status, response: JSON.stringify(result).slice(0, 500) }));
+    throw new Error("OneSignal reminder failed with HTTP " + response.status);
+  }
+  console.log("OneSignal reminder sent", JSON.stringify({ cron, notificationId: result.id || null }));
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/analyze") return handleAnalyze(request, env);
+    if (url.pathname === "/api/push-config" && request.method === "GET") {
+      return json({ appId: env.ONESIGNAL_APP_ID || null });
+    }
     return env.ASSETS.fetch(request);
+  },
+  async scheduled(controller, env) {
+    await sendSessionReminder(env, controller.cron);
   }
 };
