@@ -64,9 +64,41 @@ async function handleAnalyze(request, env) {
     if (missing.length) return json({ error: item.pair + " is missing screenshots: " + missing.join(", ") }, 400, cors);
   }
 
+  // Enforce the EAT trading time lock on the server at screenshot submission time.
+  const now = new Date();
+  const eatParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Nairobi", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+  }).formatToParts(now);
+  const eatHour = Number(eatParts.find(part => part.type === "hour")?.value);
+  const eatMinute = Number(eatParts.find(part => part.type === "minute")?.value);
+  const eatMinutes = eatHour * 60 + eatMinute;
   const eatNow = new Intl.DateTimeFormat("en-KE", {
     timeZone: "Africa/Nairobi", dateStyle: "full", timeStyle: "long", hour12: false
-  }).format(new Date());
+  }).format(now);
+
+  // Only 10:00–13:00 and 15:00–18:00 EAT are approved.
+  if (eatMinutes >= 18 * 60 && eatMinutes < 21 * 60) {
+    return json({
+      text: "WARNING: NY PM TRAP ZONE. NO TRADE. CLOSE ALL POSITIONS.",
+      timeLocked: true,
+      serverTimeEAT: eatNow
+    }, 200, cors);
+  }
+  if (eatMinutes >= 21 * 60 || eatMinutes < 10 * 60) {
+    return json({
+      text: "WARNING: ASIAN SESSION. LOW VOLUME. NO TRADE.",
+      timeLocked: true,
+      serverTimeEAT: eatNow
+    }, 200, cors);
+  }
+  if (!((eatMinutes >= 10 * 60 && eatMinutes < 13 * 60) ||
+        (eatMinutes >= 15 * 60 && eatMinutes < 18 * 60))) {
+    return json({
+      text: "NO TRADE. OUTSIDE APPROVED EAT WINDOWS. APPROVED WINDOWS: 10:00 AM–1:00 PM AND 3:00 PM–6:00 PM EAT.",
+      timeLocked: true,
+      serverTimeEAT: eatNow
+    }, 200, cors);
+  }
   const multi = submitted.length > 1;
   const prompt = [
     "You are an elite multi-timeframe chart analyst specializing in strict Smart Money Concepts (SMC) and Inner Circle Trader (ICT) methodology.",
@@ -74,8 +106,9 @@ async function handleAnalyze(request, env) {
     "Submitted instruments, in upload order: " + submitted.map(x => x.pair).join(", ") + ".",
     "CURRENT LOCAL TIME: " + eatNow + " (Kenya / Africa-Nairobi, East Africa Time, UTC+3). Use this server-provided time for all timing recommendations.",
     "MULTI-PAIR RANKING: " + (multi ? "Analyze every submitted pair independently. Rank all valid candidates and highlight the strongest three (or fewer if fewer valid candidates exist), using confirmed HTF Bias, FVG, BOS/CHoCH and Liquidity Sweep confluence. Name Best Pair (Rank 1). Never promote an invalid setup above a valid one. If none qualifies, say NO VALID TRADE for that pair." : "Only one pair was submitted. Analyze it alone as Best Pair (Rank 1); do not invent comparisons or imply other pairs were scanned."),
-    "TIMING RULES — ALL TIMES EAT (UTC+3): Gold/Forex preferred windows: London Killzone 10:00 AM–1:00 PM and NY Killzone 3:00 PM–6:00 PM. Crypto preferred windows: London Open 10:00 AM–1:00 PM and NY Open 3:00 PM–6:00 PM. If a valid setup exists now inside its suitable window, say ACTIVE NOW (analysis recommendation only); otherwise WAIT UNTIL the next exact suitable EAT window. Never claim execution.",
-    "TIME FILTER: Asian Session 12:00 AM–8:00 AM EAT and low-volume period 6:00 PM–9:00 PM EAT. Warn about lower probability and demand stronger confirmation during these periods; do not automatically reject a valid setup solely due to time.",
+    "HARD TIME LOCK: The server has already blocked every screenshot submission outside 10:00 AM–1:00 PM EAT and 3:00 PM–6:00 PM EAT. Never recommend, validate, or label a trade outside those exact windows. These windows apply to every instrument.",
+    "TIME LOCK WARNINGS: 6:00 PM–9:00 PM EAT must output exactly: WARNING: NY PM TRAP ZONE. NO TRADE. CLOSE ALL POSITIONS. 9:00 PM–10:00 AM EAT must output exactly: WARNING: ASIAN SESSION. LOW VOLUME. NO TRADE. 1:00 PM–3:00 PM EAT is also NO TRADE because it is outside the approved windows.",
+    "The time lock is evaluated by the server using Africa/Nairobi time at the moment the screenshots are submitted. Never trust the device clock or a timestamp inside the screenshot.";
     "For each pair, report H4/H1 bias, M30 setup, M15 trigger, entry, SL, TP1/TP2/TP3, invalidation, evidence score and reasons not to take it. Use exact section headings and clearly label each pair.",
     "STRICT EVIDENCE: Never invent, estimate, interpolate, round or assume prices. Use only exact prices clearly readable on chart scale or directly labelled; preserve every visible decimal. Distinguish wick extremes from candle bodies. If prices or screenshots are blurry, cropped, inconsistent or lack a readable scale, do not produce a trade plan.",
     "Never use psychological round numbers as Entry, SL or TP unless the exact chart evidence itself makes that level defensible. Do not use FVG midpoint by default. Use an evidenced FVG boundary, order-block wick, breaker or reaction level.",
