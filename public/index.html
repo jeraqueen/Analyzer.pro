@@ -52,69 +52,7 @@ main{padding-bottom:100px}
 @media(max-width:520px){.timer-grid{grid-template-columns:1fr}.timer-count{font-size:25px}}
 
 </style>
-<link rel="manifest" href="/manifest.webmanifest"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer>
-/* Two daily screenshot sessions: all times are Africa/Nairobi (UTC+3). */
-const TIMER_STORE_KEY='analyzerProTimerSettingsV1';
-let deferredInstallPrompt=null;
-function eatParts(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date()).reduce((o,p)=>(o[p.type]=p.value,o),{});}
-function targetEpochEAT(hour,minute){const p=eatParts();let t=Date.UTC(Number(p.year),Number(p.month)-1,Number(p.day),hour-3,minute,0);if(t<=Date.now())t+=86400000;return t;}
-function fmtTimer(ms){const sec=Math.max(0,Math.floor(ms/1000)),h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return [h,m,s].map(v=>String(v).padStart(2,'0')).join(':');}
-function updateSessionTimers(){
- const now=Date.now(),m=targetEpochEAT(10,31),a=targetEpochEAT(15,31);
- const morning=document.getElementById('morningCountdown'),afternoon=document.getElementById('afternoonCountdown');
- if(morning)morning.textContent=fmtTimer(m-now);if(afternoon)afternoon.textContent=fmtTimer(a-now);
- const alerts=[
-  {h:10,m:26,title:'Morning reminder · 5 minutes to go',desc:'Prepare your charts for the 10:31 AM screenshot session.'},
-  {h:10,m:31,title:'Morning screenshot time',desc:'Open Analyzer Pro and capture your charts now.'},
-  {h:15,m:26,title:'Afternoon reminder · 5 minutes to go',desc:'Prepare your charts for the 3:31 PM screenshot session.'},
-  {h:15,m:31,title:'Afternoon screenshot time',desc:'Open Analyzer Pro and capture your charts now.'}
- ].map(x=>({...x,at:targetEpochEAT(x.h,x.m)})).sort((x,y)=>x.at-y.at);
- const next=alerts[0];const title=document.getElementById('nextAlertTitle'),count=document.getElementById('nextAlertCountdown'),desc=document.getElementById('nextAlertDescription');
- if(title)title.textContent=next.title;if(count)count.textContent=fmtTimer(next.at-now);if(desc)desc.textContent=next.desc+' · Kenya time (EAT)';
-}
-function setPushStatus(s){const el=document.getElementById('pushStatus');if(el)el.textContent=s;}
-function initTimerNavigation(){
- const panel=document.getElementById('timerPanel'),navButtons=[...document.querySelectorAll('.timer-nav button')],main=document.querySelector('main');
- function showView(view){
-  navButtons.forEach(b=>{const active=b.dataset.view===view;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
-  [...main.children].forEach(el=>{if(el===panel)return;if(el.tagName==='FOOTER'){el.style.display=view==='home'?'':'none';return}el.style.display=view==='home'?'':'none'});
-  panel.style.display=view==='timers'?'block':'none';
-  if(view==='timers')updateSessionTimers();
-  window.scrollTo({top:0,behavior:'smooth'});
- }
- navButtons.forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
- if(location.hash==='#timers')showView('timers');
- document.getElementById('enablePush')?.addEventListener('click',async()=>{
-  const one=window.AnalyzerOneSignal;
-  if(!one){setPushStatus('Push notifications are not connected yet. The OneSignal app ID must first be added to the Analyzer Pro Worker.');return}
-  try{
-   await one.Notifications.requestPermission();
-   if(one.Notifications.permission)await one.User.PushSubscription.optIn();
-   setPushStatus(one.User.PushSubscription.optedIn?'Notifications enabled. You will receive all four daily reminders.':'Permission was not granted. Allow notifications for Analyzer Pro in Chrome site settings.');
-  }catch(e){setPushStatus('Could not enable notifications: '+(e?.message||String(e)));}
- });
- document.getElementById('installApp')?.addEventListener('click',async()=>{
-  if(!deferredInstallPrompt)return;
-  deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;
-  document.getElementById('installApp').style.display='none';
- });
- window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;const b=document.getElementById('installApp');if(b)b.style.display='block'});
- if('serviceWorker' in navigator)navigator.serviceWorker.register('/OneSignalSDKWorker.js',{scope:'/'}).catch(e=>console.warn('Service worker registration:',e));
- updateSessionTimers();setInterval(updateSessionTimers,1000);
-}
-window.OneSignalDeferred=window.OneSignalDeferred||[];
-window.OneSignalDeferred.push(async function(OneSignal){
- try{
-  const cfg=await fetch('/api/push-config',{cache:'no-store'}).then(r=>r.json());
-  if(!cfg.appId){setPushStatus('Timer countdowns are ready. Background phone notifications need the OneSignal App ID and REST API key to be configured.');return}
-  await OneSignal.init({appId:cfg.appId,serviceWorkerPath:'/OneSignalSDKWorker.js',serviceWorkerParam:{scope:'/'}});
-  window.AnalyzerOneSignal=OneSignal;
-  setPushStatus(OneSignal.User.PushSubscription.optedIn?'Phone notifications are enabled.':'Tap “Enable phone notifications” to allow the four daily reminders.');
- }catch(e){setPushStatus('Notification setup could not start: '+(e?.message||String(e)));}
-});
-initTimerNavigation();
-
-</script>
+<link rel="manifest" href="/manifest.webmanifest"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
 <body>
 <header><div class="brand"><div class="logo">A</div><div><h1>Analyzer Pro</h1><div class="muted small">SMC / ICT intelligence scanner</div></div></div><div class="pill" id="clock">EAT · --:--</div></header>
@@ -235,6 +173,69 @@ function renderReport(source){
  return root;
 }
 $('analyze').onclick=async()=>{const btn=$('analyze');try{const token=$('token').value.trim();if(!token)throw new Error('Open AI connection settings and enter your private Analyzer access token.');const cards=[...$('pairList').children];if(!cards.length)throw new Error('Add at least one market.');const pairs=[];for(const card of cards){const pair=card.querySelector('select').value,charts={},missing=[];for(const tf of TF){const file=card.querySelector('#p'+card.dataset.pairId+tf).files?.[0];if(!file)missing.push(tf);else charts[tf]=await readImage(file)}if(missing.length)throw new Error(LABEL[pair]+' is missing: '+missing.join(', '));pairs.push({pair,charts})}btn.disabled=true;btn.textContent='Scanning markets…';$('result').textContent='';$('result').classList.remove('show');showStatus('Compressing '+pairs.length+' market chart sets and comparing SMC/ICT confluence…');const payload={version:'smc-ict-multi-pair-v2',pairs,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi'}};const body=JSON.stringify(payload);if(body.length>9*1024*1024)throw new Error('Combined screenshots are too large. Use fewer pairs or crop screenshots less tightly; the app compresses them automatically.');const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body});const out=await response.json().catch(()=>({}));if(!response.ok)throw new Error(out.error||('AI service returned HTTP '+response.status));if(typeof out.text!=='string'||!out.text.trim())throw new Error('The AI returned an empty analysis. Please try again.');$('result').replaceChildren(renderReport(out.text));$('result').classList.add('show');showStatus('Scan complete. Compare every level with your broker chart before acting.','good');$('result').scrollIntoView({behavior:'smooth',block:'start'})}catch(error){showStatus('Analysis failed: '+error.message,'bad')}finally{btn.disabled=false;btn.textContent='✦ Analyse selected markets'}};
+
+/* Two daily screenshot sessions: all times are Africa/Nairobi (UTC+3). */
+const TIMER_STORE_KEY='analyzerProTimerSettingsV1';
+let deferredInstallPrompt=null;
+function eatParts(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date()).reduce((o,p)=>(o[p.type]=p.value,o),{});}
+function targetEpochEAT(hour,minute){const p=eatParts();let t=Date.UTC(Number(p.year),Number(p.month)-1,Number(p.day),hour-3,minute,0);if(t<=Date.now())t+=86400000;return t;}
+function fmtTimer(ms){const sec=Math.max(0,Math.floor(ms/1000)),h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return [h,m,s].map(v=>String(v).padStart(2,'0')).join(':');}
+function updateSessionTimers(){
+ const now=Date.now(),m=targetEpochEAT(10,31),a=targetEpochEAT(15,31);
+ const morning=document.getElementById('morningCountdown'),afternoon=document.getElementById('afternoonCountdown');
+ if(morning)morning.textContent=fmtTimer(m-now);if(afternoon)afternoon.textContent=fmtTimer(a-now);
+ const alerts=[
+  {h:10,m:26,title:'Morning reminder · 5 minutes to go',desc:'Prepare your charts for the 10:31 AM screenshot session.'},
+  {h:10,m:31,title:'Morning screenshot time',desc:'Open Analyzer Pro and capture your charts now.'},
+  {h:15,m:26,title:'Afternoon reminder · 5 minutes to go',desc:'Prepare your charts for the 3:31 PM screenshot session.'},
+  {h:15,m:31,title:'Afternoon screenshot time',desc:'Open Analyzer Pro and capture your charts now.'}
+ ].map(x=>({...x,at:targetEpochEAT(x.h,x.m)})).sort((x,y)=>x.at-y.at);
+ const next=alerts[0];const title=document.getElementById('nextAlertTitle'),count=document.getElementById('nextAlertCountdown'),desc=document.getElementById('nextAlertDescription');
+ if(title)title.textContent=next.title;if(count)count.textContent=fmtTimer(next.at-now);if(desc)desc.textContent=next.desc+' · Kenya time (EAT)';
+}
+function setPushStatus(s){const el=document.getElementById('pushStatus');if(el)el.textContent=s;}
+function initTimerNavigation(){
+ const panel=document.getElementById('timerPanel'),navButtons=[...document.querySelectorAll('.timer-nav button')],main=document.querySelector('main');
+ function showView(view){
+  navButtons.forEach(b=>{const active=b.dataset.view===view;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
+  [...main.children].forEach(el=>{if(el===panel)return;if(el.tagName==='FOOTER'){el.style.display=view==='home'?'':'none';return}el.style.display=view==='home'?'':'none'});
+  panel.style.display=view==='timers'?'block':'none';
+  if(view==='timers')updateSessionTimers();
+  window.scrollTo({top:0,behavior:'smooth'});
+ }
+ navButtons.forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
+ if(location.hash==='#timers')showView('timers');
+ document.getElementById('enablePush')?.addEventListener('click',async()=>{
+  const one=window.AnalyzerOneSignal;
+  if(!one){setPushStatus('Push notifications are not connected yet. The OneSignal app ID must first be added to the Analyzer Pro Worker.');return}
+  try{
+   await one.Notifications.requestPermission();
+   if(one.Notifications.permission)await one.User.PushSubscription.optIn();
+   setPushStatus(one.User.PushSubscription.optedIn?'Notifications enabled. You will receive all four daily reminders.':'Permission was not granted. Allow notifications for Analyzer Pro in Chrome site settings.');
+  }catch(e){setPushStatus('Could not enable notifications: '+(e?.message||String(e)));}
+ });
+ document.getElementById('installApp')?.addEventListener('click',async()=>{
+  if(!deferredInstallPrompt)return;
+  deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;
+  document.getElementById('installApp').style.display='none';
+ });
+ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;const b=document.getElementById('installApp');if(b)b.style.display='block'});
+ if('serviceWorker' in navigator)navigator.serviceWorker.register('/OneSignalSDKWorker.js',{scope:'/'}).catch(e=>console.warn('Service worker registration:',e));
+ updateSessionTimers();setInterval(updateSessionTimers,1000);
+}
+window.OneSignalDeferred=window.OneSignalDeferred||[];
+window.OneSignalDeferred.push(async function(OneSignal){
+ try{
+  const cfg=await fetch('/api/push-config',{cache:'no-store'}).then(r=>r.json());
+  if(!cfg.appId){setPushStatus('Timer countdowns are ready. Background phone notifications need the OneSignal App ID and REST API key to be configured.');return}
+  await OneSignal.init({appId:cfg.appId,serviceWorkerPath:'/OneSignalSDKWorker.js',serviceWorkerParam:{scope:'/'}});
+  window.AnalyzerOneSignal=OneSignal;
+  setPushStatus(OneSignal.User.PushSubscription.optedIn?'Phone notifications are enabled.':'Tap “Enable phone notifications” to allow the four daily reminders.');
+ }catch(e){setPushStatus('Notification setup could not start: '+(e?.message||String(e)));}
+});
+initTimerNavigation();
+
+
 </script>
 
 <nav class="timer-nav" aria-label="Main navigation">
