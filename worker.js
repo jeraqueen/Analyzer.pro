@@ -56,9 +56,26 @@ async function handleAnalyze(request, env) {
   const missing = timeframes.filter(tf => typeof charts[tf] !== "string");
   if (missing.length) return json({ error: "All four screenshots are required: H4, H1, M30 and M15. Missing: " + missing.join(", ") }, 400, cors);
 
+  const eatNow = new Intl.DateTimeFormat("en-KE", {
+    timeZone: "Africa/Nairobi",
+    dateStyle: "full",
+    timeStyle: "long",
+    hour12: false
+  }).format(new Date());
   const prompt = [
     "You are an elite multi-timeframe chart analyst specializing in strict Smart Money Concepts (SMC) and Inner Circle Trader (ICT) methodology.",
     "Instrument: " + pair + ". Analyze exactly four screenshots of the SAME instrument, labelled H4, H1, M30 and M15. Use H4/H1 for higher-timeframe context and M30/M15 for setup and entry confirmation.",
+    "CURRENT LOCAL TIME: " + eatNow + " (Kenya / Africa-Nairobi, East Africa Time, UTC+3). Use this server-provided time for all timing recommendations. Never convert to another timezone or guess the current time.",
+    "MULTI-PAIR RULE: If the request contains more than one instrument/chart set, analyze every supplied pair independently, then rank the strongest three from Rank 1 to Rank 3 using confirmed HTF Bias, FVG, BOS/CHoCH and Liquidity Sweep confluence. Explicitly name the Best Pair (Rank 1). Never rank a pair with insufficient confirmation above a valid higher-confluence setup. If only one pair is supplied, analyze only that pair and state that pair as Best Pair (Rank 1); do not invent comparisons.",
+    "TIMING RULES — ALL TIMES MUST BE EAT (UTC+3): For Gold and Forex, preferred windows are London Killzone 10:00 AM–1:00 PM EAT and NY Killzone 3:00 PM–6:00 PM EAT. For Crypto, preferred windows are London Open 10:00 AM–1:00 PM EAT and NY Open 3:00 PM–6:00 PM EAT. Choose the best window for the actual pair/setup and state the exact window. If the setup is valid now AND the current time is inside the preferred window, state ACTIVE NOW / execute now (analysis recommendation only). Otherwise state WAIT UNTIL [exact next suitable window in EAT]. Do not claim a trade was executed.",
+    "TIME FILTER: Asian Session is 12:00 AM–8:00 AM EAT; low-volume period is 6:00 PM–9:00 PM EAT. If the analysis is requested during either period, clearly warn that conditions are typically lower probability and require stronger confirmation; do not automatically reject an otherwise valid setup solely because of time. If current time falls in both definitions, mention both.",
+    "OUTPUT SECTION 7: Add the exact section below to every valid analysis, after the final answer table and before the final current-price sentence. Use the current EAT time above, not a guessed time. If multiple pairs were supplied, fill Best Pair with the top-ranked pair; if only one, state Rank 1.",
+    "### 7. MARKET CONTEXT & TIMING (KENYA TIME — EAT)",
+    "| Metric | Value |",
+    "| :--- | :--- |",
+    "| **Best Pair (if multiple sent)** | [Pair — Rank 1; include Rank 2 and Rank 3 when available] |",
+    "| **Execution Window** | [Exact preferred window and session in EAT] |",
+    "| **Current Time Status** | [ACTIVE NOW / WAIT UNTIL exact EAT time / LOW-PROBABILITY TIME FILTER] |",
     "STRICT EVIDENCE RULES:",
     "1. Never invent, estimate, interpolate, round, or assume any price. Use only exact prices that are clearly readable on the chart scale or directly labelled. Preserve every visible decimal digit.",
     "2. Identify the exact high/low wick prices of relevant swing points, liquidity pools, order blocks and FVG boundaries wherever those prices are legible. Distinguish wick extremes from candle bodies. If exact price precision is not readable, do not manufacture a precise level.",
