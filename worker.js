@@ -1,5 +1,5 @@
 const MAX_BODY_BYTES = 9 * 1024 * 1024;
-const ALLOWED_PAIRS = new Set(["EURUSD", "GBPUSD", "USDJPY", "USDCAD", "AUDUSD", "USDCHF", "EURJPY", "XAUUSD", "BTCUSD"]);
+const ALLOWED_PAIRS = new Set(["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "BTCUSD"]);
 
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
