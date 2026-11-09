@@ -206,8 +206,12 @@ function initTimerNavigation(){
  navButtons.forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
  if(location.hash==='#timers')showView('timers');
  document.getElementById('enablePush')?.addEventListener('click',async()=>{
-  const one=window.AnalyzerOneSignal;
-  if(!one){setPushStatus('Push notifications are not connected yet. The OneSignal app ID must first be added to the Analyzer Pro Worker.');return}
+  let one=window.AnalyzerOneSignal;
+  if(!one){
+   setPushStatus('Connecting to OneSignal… please wait.');
+   one=await Promise.race([analyzerOneSignalReady,new Promise(resolve=>setTimeout(()=>resolve(null),12000))]);
+  }
+  if(!one){setPushStatus(window.AnalyzerOneSignalError||'OneSignal is still loading. Refresh this page, wait a few seconds, then tap Enable phone notifications again.');return}
   try{
    await one.Notifications.requestPermission();
    if(one.Notifications.permission)await one.User.PushSubscription.optIn();
@@ -223,18 +227,22 @@ function initTimerNavigation(){
  if('serviceWorker' in navigator)navigator.serviceWorker.register('/OneSignalSDKWorker.js',{scope:'/'}).catch(e=>console.warn('Service worker registration:',e));
  updateSessionTimers();setInterval(updateSessionTimers,1000);
 }
+let analyzerOneSignalReadyResolve;
+const analyzerOneSignalReady=new Promise(resolve=>{analyzerOneSignalReadyResolve=resolve;});
+window.AnalyzerOneSignalError='';
 window.OneSignalDeferred=window.OneSignalDeferred||[];
 window.OneSignalDeferred.push(async function(OneSignal){
  try{
   const cfg=await fetch('/api/push-config',{cache:'no-store'}).then(r=>r.json());
-  if(!cfg.appId){setPushStatus('Timer countdowns are ready. Add the OneSignal App ID to the Analyzer Pro Worker to connect phone notifications.');return}
-  if(!cfg.ready){setPushStatus('The OneSignal App ID is connected, but the REST API key is not installed as a Worker secret yet. Complete that step before enabling reminders.');return}
+  if(!cfg.appId){const msg='The Analyzer Pro Worker is not returning a OneSignal App ID. Check /api/push-config.';window.AnalyzerOneSignalError=msg;setPushStatus(msg);analyzerOneSignalReadyResolve(null);return}
+  if(!cfg.ready){const msg='The OneSignal App ID is present, but the Worker reports that its REST API key is missing.';window.AnalyzerOneSignalError=msg;setPushStatus(msg);analyzerOneSignalReadyResolve(null);return}
   await OneSignal.init({appId:cfg.appId,serviceWorkerPath:'/OneSignalSDKWorker.js',serviceWorkerParam:{scope:'/'}});
   window.AnalyzerOneSignal=OneSignal;
+  analyzerOneSignalReadyResolve(OneSignal);
   setPushStatus(OneSignal.User.PushSubscription.optedIn?'Phone notifications are enabled.':'Tap “Enable phone notifications” to allow the four daily reminders.');
- }catch(e){setPushStatus('Notification setup could not start: '+(e?.message||String(e)));}
+ }catch(e){window.AnalyzerOneSignalError='OneSignal initialization failed: '+(e?.message||String(e));setPushStatus(window.AnalyzerOneSignalError);analyzerOneSignalReadyResolve(null);}
 });
-initTimerNavigation();
+document.addEventListener('DOMContentLoaded',initTimerNavigation,{once:true});
 
 
 </script>
