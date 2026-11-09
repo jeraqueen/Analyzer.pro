@@ -49,7 +49,7 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:14px}
 <div class="notice" id="status"></div>
 <details><summary>⚙ AI connection settings</summary><p class="muted small">Your Gemini API key remains secured on Cloudflare. Enter the private Analyzer access token provided for this website. Your saved token is reused on this device.</p><div class="token-row"><div><label class="small muted" for="token">Private Analyzer access token</label><input id="token" type="password" autocomplete="off" placeholder="Paste private access token"></div><button id="saveToken">Save token on this device</button></div></details>
 </section>
-<section class="card"><div class="eyebrow">AI intelligence report</div><h2>Analysis results</h2><p class="muted small">Pair ranking, SMC confluence, exact chart levels and execution timing in Kenya time.</p><div id="result" aria-live="polite"></div></section>
+<section class="card"><div class="eyebrow">AI intelligence report · REPORT VIEW 3</div><h2>Analysis results</h2><p class="muted small">Clean structured report · ATR(14) risk · OTE entry · liquidity targets · EAT timing.</p><div id="result" aria-live="polite"></div></section>
 <footer>Analyzer Pro · Multi-pair SMC / ICT analysis · EAT market timing · No broker execution</footer>
 </main>
 <script>
@@ -81,7 +81,7 @@ function escapeHTML(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').repla
 function inlineMarkdown(s){return escapeHTML(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/__(.+?)__/g,'<strong>$1</strong>').replace(/\`([^\`]+)\`/g,'<code>$1</code>').replace(/(?<!\*)\*([^*]+)\*(?!\*)/g,'<em>$1</em>')}
 function renderReport(source){
  const root=document.createElement('div');root.className='report';
- const lines=String(source||'').replace(/[⭐🌟✨★☆]/g,'').replace(/\r/g,'').split('\n');
+ const lines=String(source||'').replace(/[⭐🌟✨★☆✦✧✩✪✫✬✭✮✯✰＊※❋❊❉❈❇❆❅❄○◯●◦◎◉◌▫▪■□◆◇⬤⬥⬦✓✔☑✕✖✗✘]/gu,'').replace(/[ \t]{2,}/g,' ').replace(/\r/g,'').split('\n');
  let i=0,html='';
  const isTableLine=s=>/^\s*\|.*\|\s*$/.test(s);
  const isDivider=s=>/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(s);
@@ -98,7 +98,7 @@ function renderReport(source){
    rows.slice(1).forEach(row=>{const cols=cells(row);html+='<tr>'+head.map((_,n)=>'<td>'+(inlineMarkdown(cols[n]||'—'))+'</td>').join('')+'</tr>'});
    html+='</tbody></table></div>';continue;
   }
-  const hm=s.match(/^(#{1,4})\s+(.+)$/);
+  const hm=s.match(/^(#{1,4})\s+(.+)$/) || s.match(/^\*\*(.{2,90})\*\*:?$/);
   if(hm){const level=hm[1].length>2?'h4':'h3';html+='<'+level+'>'+inlineMarkdown(hm[2])+'</'+level+'>';i++;continue}
   if(/^>/.test(s)){html+='<blockquote>'+inlineMarkdown(s.replace(/^>\s?/,''))+'</blockquote>';i++;continue}
   if(isBullet(s)||isNumber(s)){
