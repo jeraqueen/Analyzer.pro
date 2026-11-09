@@ -227,7 +227,8 @@ window.OneSignalDeferred=window.OneSignalDeferred||[];
 window.OneSignalDeferred.push(async function(OneSignal){
  try{
   const cfg=await fetch('/api/push-config',{cache:'no-store'}).then(r=>r.json());
-  if(!cfg.appId){setPushStatus('Timer countdowns are ready. Background phone notifications need the OneSignal App ID and REST API key to be configured.');return}
+  if(!cfg.appId){setPushStatus('Timer countdowns are ready. Add the OneSignal App ID to the Analyzer Pro Worker to connect phone notifications.');return}
+  if(!cfg.ready){setPushStatus('The OneSignal App ID is connected, but the REST API key is not installed as a Worker secret yet. Complete that step before enabling reminders.');return}
   await OneSignal.init({appId:cfg.appId,serviceWorkerPath:'/OneSignalSDKWorker.js',serviceWorkerParam:{scope:'/'}});
   window.AnalyzerOneSignal=OneSignal;
   setPushStatus(OneSignal.User.PushSubscription.optedIn?'Phone notifications are enabled.':'Tap “Enable phone notifications” to allow the four daily reminders.');
