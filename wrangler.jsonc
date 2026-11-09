@@ -14,7 +14,8 @@
   },
   "vars": {
     "GEMINI_MODEL": "gemini-3.1-flash-lite",
-    "PUBLIC_APP_URL": "https://analyzer-pro.fx77.workers.dev"
+    "PUBLIC_APP_URL": "https://analyzer-pro.fx77.workers.dev",
+    "ONESIGNAL_APP_ID": "7a8f2b5f-ec19-412b-ae81-6408703d758c"
   },
   "triggers": {
     "crons": [
