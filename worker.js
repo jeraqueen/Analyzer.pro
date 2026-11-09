@@ -100,7 +100,13 @@ async function handleAnalyze(request, env) {
     }, 200, cors);
   }
   const multi = submitted.length > 1;
+  const priorTradeContext = typeof payload.tradeContext === "string" ? payload.tradeContext.trim().slice(0, 30000) : "";
   const prompt = [
+    ...(priorTradeContext ? [
+      "PREVIOUS ANALYSIS MEMORY: The following text is the prior analysis from the user's previous screenshot scan. Treat it as historical context, not as verified current market evidence.",
+      priorTradeContext,
+      "Compare the NEW screenshots in this request with the previous analysis. Based on the new chart evidence, clearly tell the user whether to HOLD or CLOSE the active trade. If there is not enough evidence to make that assessment, state what is missing and do not invent an active position."
+    ] : []),
     "You are an elite multi-timeframe chart analyst specializing in strict Smart Money Concepts (SMC) and Inner Circle Trader (ICT) methodology.",
     "Analyze " + submitted.length + " submitted market(s). Each market has its own H4, H1, M30 and M15 screenshots. Never mix evidence or prices between instruments.",
     "Submitted instruments, in upload order: " + submitted.map(x => x.pair).join(", ") + ".",
