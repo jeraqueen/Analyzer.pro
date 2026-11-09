@@ -1,0 +1,13 @@
+{
+  "name": "Analyzer Pro",
+  "short_name": "Analyzer Pro",
+  "description": "SMC/ICT chart scanner with Kenya-time screenshot reminders.",
+  "start_url": "/#timers",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#080d18",
+  "theme_color": "#10111f",
+  "icons": [
+    { "src": "/analyzer-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
