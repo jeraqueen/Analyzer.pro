@@ -49,117 +49,55 @@ async function handleAnalyze(request, env) {
   } catch {
     return json({ error: "Request body must be valid JSON." }, 400, cors);
   }
-  const pair = String(payload.pair || "EURUSD").toUpperCase();
-  if (!ALLOWED_PAIRS.has(pair)) return json({ error: "Unsupported instrument." }, 400, cors);
-  const charts = payload.charts && typeof payload.charts === "object" ? payload.charts : {};
   const timeframes = ["H4", "H1", "M30", "M15"];
-  const missing = timeframes.filter(tf => typeof charts[tf] !== "string");
-  if (missing.length) return json({ error: "All four screenshots are required: H4, H1, M30 and M15. Missing: " + missing.join(", ") }, 400, cors);
+  // Accept the new multi-pair format and the previous single-pair format.
+  const submitted = Array.isArray(payload.pairs) ? payload.pairs : [{ pair: payload.pair || "EURUSD", charts: payload.charts || {} }];
+  if (!submitted.length || submitted.length > 3) return json({ error: "Submit between one and three markets per scan." }, 400, cors);
+  const seen = new Set();
+  for (const item of submitted) {
+    item.pair = String(item.pair || "").toUpperCase();
+    if (!ALLOWED_PAIRS.has(item.pair)) return json({ error: "Unsupported instrument: " + item.pair }, 400, cors);
+    if (seen.has(item.pair)) return json({ error: "Choose each instrument only once per scan." }, 400, cors);
+    seen.add(item.pair);
+    item.charts = item.charts && typeof item.charts === "object" ? item.charts : {};
+    const missing = timeframes.filter(tf => typeof item.charts[tf] !== "string");
+    if (missing.length) return json({ error: item.pair + " is missing screenshots: " + missing.join(", ") }, 400, cors);
+  }
 
   const eatNow = new Intl.DateTimeFormat("en-KE", {
-    timeZone: "Africa/Nairobi",
-    dateStyle: "full",
-    timeStyle: "long",
-    hour12: false
+    timeZone: "Africa/Nairobi", dateStyle: "full", timeStyle: "long", hour12: false
   }).format(new Date());
+  const multi = submitted.length > 1;
   const prompt = [
     "You are an elite multi-timeframe chart analyst specializing in strict Smart Money Concepts (SMC) and Inner Circle Trader (ICT) methodology.",
-    "Instrument: " + pair + ". Analyze exactly four screenshots of the SAME instrument, labelled H4, H1, M30 and M15. Use H4/H1 for higher-timeframe context and M30/M15 for setup and entry confirmation.",
-    "CURRENT LOCAL TIME: " + eatNow + " (Kenya / Africa-Nairobi, East Africa Time, UTC+3). Use this server-provided time for all timing recommendations. Never convert to another timezone or guess the current time.",
-    "MULTI-PAIR RULE: If the request contains more than one instrument/chart set, analyze every supplied pair independently, then rank the strongest three from Rank 1 to Rank 3 using confirmed HTF Bias, FVG, BOS/CHoCH and Liquidity Sweep confluence. Explicitly name the Best Pair (Rank 1). Never rank a pair with insufficient confirmation above a valid higher-confluence setup. If only one pair is supplied, analyze only that pair and state that pair as Best Pair (Rank 1); do not invent comparisons.",
-    "TIMING RULES — ALL TIMES MUST BE EAT (UTC+3): For Gold and Forex, preferred windows are London Killzone 10:00 AM–1:00 PM EAT and NY Killzone 3:00 PM–6:00 PM EAT. For Crypto, preferred windows are London Open 10:00 AM–1:00 PM EAT and NY Open 3:00 PM–6:00 PM EAT. Choose the best window for the actual pair/setup and state the exact window. If the setup is valid now AND the current time is inside the preferred window, state ACTIVE NOW / execute now (analysis recommendation only). Otherwise state WAIT UNTIL [exact next suitable window in EAT]. Do not claim a trade was executed.",
-    "TIME FILTER: Asian Session is 12:00 AM–8:00 AM EAT; low-volume period is 6:00 PM–9:00 PM EAT. If the analysis is requested during either period, clearly warn that conditions are typically lower probability and require stronger confirmation; do not automatically reject an otherwise valid setup solely because of time. If current time falls in both definitions, mention both.",
-    "OUTPUT SECTION 7: Add the exact section below to every valid analysis, after the final answer table and before the final current-price sentence. Use the current EAT time above, not a guessed time. If multiple pairs were supplied, fill Best Pair with the top-ranked pair; if only one, state Rank 1.",
-    "### 7. MARKET CONTEXT & TIMING (KENYA TIME — EAT)",
-    "| Metric | Value |",
-    "| :--- | :--- |",
-    "| **Best Pair (if multiple sent)** | [Pair — Rank 1; include Rank 2 and Rank 3 when available] |",
-    "| **Execution Window** | [Exact preferred window and session in EAT] |",
-    "| **Current Time Status** | [ACTIVE NOW / WAIT UNTIL exact EAT time / LOW-PROBABILITY TIME FILTER] |",
-    "STRICT EVIDENCE RULES:",
-    "1. Never invent, estimate, interpolate, round, or assume any price. Use only exact prices that are clearly readable on the chart scale or directly labelled. Preserve every visible decimal digit.",
-    "2. Identify the exact high/low wick prices of relevant swing points, liquidity pools, order blocks and FVG boundaries wherever those prices are legible. Distinguish wick extremes from candle bodies. If exact price precision is not readable, do not manufacture a precise level.",
-    "3. Never use psychological round numbers (for example 4100.00 or 4090.00) as Entry, SL or TP. Select actual structural wick prices instead. Do not shift a valid level merely to avoid a round number; if the only defensible level is a round number, explain the limitation and do not fabricate an alternative.",
-    "4. A valid trade requires a clear H4/H1 directional bias AND either confirmed BOS/CHoCH or a confirmed liquidity sweep supporting the direction. Without both requirements, output exactly: NO VALID TRADE — insufficient confirmation.",
-    "5. Do not use the FVG midpoint as the default entry. Use the relevant FVG boundary, order-block wick, breaker level, or a specifically evidenced reaction level. Explain the actual trigger required on M15.",
-    "6. Entry, SL, TP1, TP2, TP3 and invalidation must be grounded in visible chart structure. SL must sit beyond the relevant structural wick with a justified buffer; never invent a buffer or price. Targets must use exact opposing liquidity/swing wick prices or clearly visible HTF levels. Do not force a 1:3 target if chart structure does not support it.",
-    "7. If screenshots are blurry, cropped, inconsistent, missing price scale, or insufficient to verify exact levels, do not give a trade plan. Output exactly: NO VALID TRADE — insufficient confirmation.",
-    "8. Current price may be stated only if it is clearly visible in the screenshots. Do not claim live market data.",
-    "9. This application provides chart analysis only. Describe a proposed limit entry, hard stop and invalidation condition as a trade plan, but NEVER claim that an order was placed, a position was closed, pending orders were cancelled, or an H1 watchdog is running. No broker execution or continuous monitoring is connected.",
-    "",
-    "ANALYZE THESE SMC/ICT CONCEPTS:",
-    "- HTF Bias (H4/H1 trend and dealing range)",
-    "- Order Blocks (OB) and Breaker Blocks",
-    "- Fair Value Gaps (FVG) and Inverse FVGs (IFVG), including exact visible boundaries",
-    "- Buy-side and sell-side liquidity (BSL/SSL) and liquidity sweeps",
-    "- Break of Structure (BOS) and Change of Character (CHoCH)",
-    "- Premium / Discount zones",
-    "- Power of 3: Accumulation, Manipulation, Distribution",
-    "- Optimal Trade Entry (OTE), only where the swing anchors are clear",
-    "",
-    "REQUIRED OUTPUT. If a valid setup exists, use exactly these sections and fields. No greeting, preamble, disclaimer, or extra sections:",
-    "",
-    "### 📊 Chart Breakdown",
-    "* **H4 Bias:** [Macro trend, relevant exact wick levels, liquidity draw and PO3 phase if evidenced]",
-    "* **H1 Structure:** [BOS/CHoCH, premium/discount, liquidity pools and exact relevant wick prices]",
-    "* **M30 Setup:** [Specific FVG/IFVG boundary, OB or Breaker Block with exact visible prices]",
-    "* **M15 Entry:** [Liquidity sweep/structure trigger and exact price evidence required before entry]",
-    "",
-    "### 1. HTF BIAS",
-    "* **Direction:** [Bullish / Bearish / Ranging]",
-    "* **Reason:** [Evidence from H4/H1 structure, BOS/CHoCH or liquidity sweep]",
-    "",
-    "### 2. BEST SETUP",
-    "* **Setup:** [Specific setup and exact visible price zone]",
-    "* **Concepts Aligning:** [Only concepts actually confirmed by the screenshots]",
-    "",
-    "### 3. TRADE PLAN",
-    "* **Direction:** [LONG / SHORT / NO TRADE]",
-    "* **Entry Zone:** [Exact wick price or exact range; identify the relevant boundary; no default FVG midpoint]",
-    "* **Trigger:** [Specific M15 confirmation required]",
-    "* **Stop Loss (SL):** [Exact structural wick price plus a justified, explicitly stated buffer]",
-    "* **TP1:** [Exact nearest opposing liquidity/swing wick]",
-    "* **TP2:** [Exact next liquidity pool or OB wick]",
-    "* **TP3:** [Exact runner target / visible HTF level wick]",
-    "* **Invalidation:** [Exact price and candle-close condition]",
-    "",
-    "### 4. CONFLUENCE SCORE",
-    "* **Score:** [X / 10]",
-    "* **Increases Score:** [Confirmed evidence]",
-    "* **Lowers Score:** [Conflicts, missing evidence or execution risks]",
-    "",
-    "### 5. WHAT WOULD MAKE ME NOT TAKE THIS TRADE",
-    "* [Condition 1]",
-    "* [Condition 2]",
-    "",
-    "### 6. FINAL ANSWER FORMAT",
-    "| Item | Value |",
-    "| :--- | :--- |",
-    "| **Bias** | [Bullish/Bearish/Ranging] |",
-    "| **Setup** | [Specific setup] |",
-    "| **Concepts Used** | [Confirmed concepts] |",
-    "| **Direction** | [LONG/SHORT/NO TRADE] |",
-    "| **Entry** | [Exact price/range] |",
-    "| **SL** | [Exact price] |",
-    "| **TP1** | [Exact price] |",
-    "| **TP2** | [Exact price] |",
-    "| **TP3** | [Exact price] |",
-    "| **Invalidation** | [Exact price and H1 close condition] |",
-    "| **Confidence** | [X/10 evidence score, not win probability] |",
-    "",
-    "H1 INVALIDATION WATCHDOG LOGIC (describe as a proposed rule only; do not claim it is active): for a LONG, an H1 candle CLOSE below the specified invalidation price invalidates the setup; for a SHORT, an H1 candle CLOSE above the specified invalidation price invalidates the setup. A wick crossing alone is not an H1 close. If implemented by a separate broker-connected system, that close should trigger immediate market exit and cancellation of all pending orders belonging to that strategy. The hard SL remains a separate protective order.",
-    "At the very end, add one sentence comparing the visible current price with the entry zone. If current price is not clearly visible, state that it is not identifiable and specify what price zone must be reached.",
-    "A confluence score is an evidence rating, not a probability of profit. Do not predict certainty. If any mandatory confirmation or exact price evidence is missing, output only this exact line and nothing else: NO VALID TRADE — insufficient confirmation."
+    "Analyze " + submitted.length + " submitted market(s). Each market has its own H4, H1, M30 and M15 screenshots. Never mix evidence or prices between instruments.",
+    "Submitted instruments, in upload order: " + submitted.map(x => x.pair).join(", ") + ".",
+    "CURRENT LOCAL TIME: " + eatNow + " (Kenya / Africa-Nairobi, East Africa Time, UTC+3). Use this server-provided time for all timing recommendations.",
+    "MULTI-PAIR RANKING: " + (multi ? "Analyze every submitted pair independently. Rank all valid candidates and highlight the strongest three (or fewer if fewer valid candidates exist), using confirmed HTF Bias, FVG, BOS/CHoCH and Liquidity Sweep confluence. Name Best Pair (Rank 1). Never promote an invalid setup above a valid one. If none qualifies, say NO VALID TRADE for that pair." : "Only one pair was submitted. Analyze it alone as Best Pair (Rank 1); do not invent comparisons or imply other pairs were scanned."),
+    "TIMING RULES — ALL TIMES EAT (UTC+3): Gold/Forex preferred windows: London Killzone 10:00 AM–1:00 PM and NY Killzone 3:00 PM–6:00 PM. Crypto preferred windows: London Open 10:00 AM–1:00 PM and NY Open 3:00 PM–6:00 PM. If a valid setup exists now inside its suitable window, say ACTIVE NOW (analysis recommendation only); otherwise WAIT UNTIL the next exact suitable EAT window. Never claim execution.",
+    "TIME FILTER: Asian Session 12:00 AM–8:00 AM EAT and low-volume period 6:00 PM–9:00 PM EAT. Warn about lower probability and demand stronger confirmation during these periods; do not automatically reject a valid setup solely due to time.",
+    "For each pair, report H4/H1 bias, M30 setup, M15 trigger, entry, SL, TP1/TP2/TP3, invalidation, evidence score and reasons not to take it. Use exact section headings and clearly label each pair.",
+    "STRICT EVIDENCE: Never invent, estimate, interpolate, round or assume prices. Use only exact prices clearly readable on chart scale or directly labelled; preserve every visible decimal. Distinguish wick extremes from candle bodies. If prices or screenshots are blurry, cropped, inconsistent or lack a readable scale, do not produce a trade plan.",
+    "Never use psychological round numbers as Entry, SL or TP unless the exact chart evidence itself makes that level defensible. Do not use FVG midpoint by default. Use an evidenced FVG boundary, order-block wick, breaker or reaction level.",
+    "A valid trade requires clear H4/H1 directional bias AND either confirmed BOS/CHoCH or a confirmed supporting liquidity sweep. If mandatory evidence is missing, state exactly: NO VALID TRADE — insufficient confirmation.",
+    "Entry, SL, targets and invalidation must be grounded in visible structure. SL beyond relevant structural wick with justified buffer; targets at exact opposing liquidity/swing wick or visible HTF level. Do not force 1:3.",
+    "Current price only if visible in screenshots. No live market data claims. No broker execution, continuous monitoring, watchdog, order placement, position closure or pending-order cancellation claims.",
+    "Add a final section titled '### MARKET RANKING & CONTEXT (KENYA TIME — EAT)' with a compact table: Best Pair; Pair Ranking; Execution Window; Current Time Status. Then provide per-pair analysis sections.",
+    "For every valid pair include: Chart Breakdown (H4/H1/M30/M15), HTF Bias, Best Setup, Trade Plan (Direction, Entry Zone, Trigger, SL, TP1, TP2, TP3, Invalidation), Confluence Score /10, What Would Make Me Not Take This Trade, and Final Answer table.",
+    "H1 invalidation is a proposed rule only: LONG invalidates on H1 close below invalidation price; SHORT invalidates on H1 close above. Wick alone is not a close. Do not claim a watchdog is active.",
+    "At the very end, compare visible current price with entry zone for the Best Pair. If not visible, say so and identify the required zone. A confluence score is evidence rating, not win probability. Do not promise profit."
   ].join("\n");
 
   const parts = [{ text: prompt }];
-  for (const tf of timeframes) {
-    const match = charts[tf].match(/^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
-    if (!match) return json({ error: "The " + tf + " screenshot is not a supported base64 image." }, 400, cors);
-    if (charts[tf].length > 5 * 1024 * 1024) return json({ error: "The " + tf + " screenshot is too large. Please upload a smaller image." }, 413, cors);
-    const mimeType = match[1] === "jpg" ? "image/jpeg" : "image/" + match[1];
-    parts.push({ text: "The next image is the " + tf + " chart screenshot. Treat it only as chart evidence for timeframe " + tf + "." });
-    parts.push({ inlineData: { mimeType, data: match[2] } });
+  for (const item of submitted) {
+    for (const tf of timeframes) {
+      const match = item.charts[tf].match(/^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+      if (!match) return json({ error: item.pair + " " + tf + " screenshot is not a supported base64 image." }, 400, cors);
+      if (item.charts[tf].length > 5 * 1024 * 1024) return json({ error: item.pair + " " + tf + " screenshot is too large." }, 413, cors);
+      const mimeType = match[1] === "jpg" ? "image/jpeg" : "image/" + match[1];
+      parts.push({ text: "Instrument " + item.pair + " — next image is its " + tf + " chart screenshot. Treat only as evidence for this instrument and timeframe." });
+      parts.push({ inlineData: { mimeType, data: match[2] } });
+    }
   }
 
   const model = env.GEMINI_MODEL || "gemini-3.1-flash-lite";
