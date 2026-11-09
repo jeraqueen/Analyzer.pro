@@ -240,7 +240,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/api/analyze") return handleAnalyze(request, env);
     if (url.pathname === "/api/push-config" && request.method === "GET") {
-      return json({ appId: env.ONESIGNAL_APP_ID || null });
+      return json({ appId: env.ONESIGNAL_APP_ID || null, ready: Boolean(env.ONESIGNAL_APP_ID && env.ONESIGNAL_REST_API_KEY) });
     }
     return env.ASSETS.fetch(request);
   },
