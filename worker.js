@@ -49,6 +49,10 @@ async function handleAnalyze(request, env) {
   } catch {
     return json({ error: "Request body must be valid JSON." }, 400, cors);
   }
+  const balance = Number(payload.balance ?? 100);
+  const risk = Number(payload.risk ?? 1);
+  if (!Number.isFinite(balance) || balance <= 0) return json({ error: "Account balance must be a number greater than zero." }, 400, cors);
+  if (!Number.isFinite(risk) || risk <= 0 || risk > 100) return json({ error: "Risk per trade must be greater than 0 and no more than 100 percent." }, 400, cors);
   const timeframes = ["H4", "H1", "M30", "M15"];
   // Accept the new multi-pair format and the previous single-pair format.
   const submitted = Array.isArray(payload.pairs) ? payload.pairs : [{ pair: payload.pair || "EURUSD", charts: payload.charts || {} }];
@@ -166,7 +170,24 @@ async function handleAnalyze(request, env) {
     "REQUIRED REPORT COMPLETENESS — OVERRIDES ANY SHORT SUMMARY: You MUST analyze and name EVERY instrument in the submitted list, even when there is no trade. Never output only the ranking table and open-position assessment. Output in this exact order: (1) MARKET RANKING & CONTEXT table with one row per submitted pair and its exact instrument name; (2) PAIR-BY-PAIR DIAGNOSTICS table with one row per submitted pair and columns Pair, H4 Bias, H1 Bias, M30 Structure, M15 Trigger, Confirmed Evidence, Missing Confirmation, Required Timeframe, Setup Stage, Next Observable Trigger; (3) a separate short analysis section for EACH submitted pair explaining the chart evidence and why it is or is not tradable; (4) OPEN POSITION ASSESSMENT. If a chart feature or price cannot be read, write NOT READABLE and say which screenshot/timeframe is unclear; do not replace the whole analysis with NONE. If there are zero valid trades, Best Pair must be NONE, but every submitted pair still needs its own diagnostic row and explanation. Never omit a pair. Never say only generic NO VALID TRADE without naming the missing evidence. Do not fabricate pair names or chart observations.",
     "For every valid pair include: Chart Breakdown (H4/H1/M30/M15), HTF Bias, Best Setup, Trade Plan (Direction, Entry Zone, Trigger, SL, TP1, TP2, TP3, Invalidation), Confluence Score /10, What Would Make Me Not Take This Trade, and Final Answer table.",
     "H1 invalidation is a proposed rule only: LONG invalidates on H1 close below invalidation price; SHORT invalidates on H1 close above. Wick alone is not a close. Do not claim a watchdog is active.",
-    "At the very end, compare visible current price with entry zone for the Best Pair. If not visible, say so and identify the required zone. A confluence score is evidence rating, not win probability. Do not promise profit."
+    "At the very end, compare visible current price with entry zone for the Best Pair. If not visible, say so and identify the required zone. A confluence score is evidence rating, not win probability. Do not promise profit.",
+    `RISK MANAGEMENT ENGINE: 
+  The user has an account balance of ${balance} and a risk tolerance of ${risk}%.
+  Calculate the exact Stop Loss distance in pips.
+  Calculate the Risk Amount = Balance * (Risk / 100).
+  Calculate Recommended Lot Size = Risk Amount / (Stop Loss Distance * Pip Value).
+
+  OUTPUT RULES:
+  - You MUST provide the full trade plan (Entry, SL, TP1, TP2, TP3) regardless of account size. NEVER output 'NO TRADE' just because the account is small.
+  - Add a new row to the Final Table: 'Recommended Lot Size' (e.g., 0.01, 0.10, 1.0).
+  - Add a new row to the Final Table: 'Max Allowed Loss ($)'.
+  - In the trade plan notes, if the recommended lot size is less than 0.01 (the broker minimum), state exactly: 'NOTE: Your balance is too small for a Standard Lot on this setup. You can trade this safely on a Cent Account using 0.01 lots. If you are on a Standard Account, skip this trade and wait for a tighter setup.'
+  - This risk engine must NEVER turn an unconfirmed or invalid chart into a trade. If chart evidence does not confirm a valid setup or exact Entry/SL cannot be read, retain NO VALID TRADE / WAIT — NO ENTRY and explain why; account size is not a reason to reject a valid setup.
+  - Risk Amount is the maximum planned loss before fees, slippage and gaps; display it as Max Allowed Loss ($).
+  - Determine pip size and pip value for the exact submitted instrument and the broker's contract convention. For non-FX instruments such as XAUUSD and BTCUSD, do not assume a forex pip or a universal contract size. If the broker's contract size, tick value or pip value is not supplied or cannot be reliably derived from chart metadata, state PIP VALUE / LOT SIZE NOT VERIFIABLE and do not invent a lot size.
+  - For USD-quoted FX pairs, use the appropriate standard-lot pip value only when the account currency and contract convention support it. For cross-currency pairs, convert pip value to USD using a supported conversion rate; if unavailable, state that exact sizing cannot be verified.
+  - Respect the broker's lot step and minimum volume when known. Do not round a calculated size upward; round down to the valid lot step so the planned loss does not exceed the selected risk amount. Never claim a 0.01 lot Cent Account is safe unless the broker's cent-contract specification supports that sizing.
+  - Show the calculation: balance, risk %, risk amount, stop distance in pips, pip value per standard lot, raw lot size and rounded executable lot size. If any input is unavailable, label it unavailable instead of fabricating a precise result.`
   ].join("\n");
 
   const parts = [{ text: prompt }];
