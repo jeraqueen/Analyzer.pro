@@ -219,40 +219,59 @@ async function handleAnalyze(request, env) {
   return json({ error: "Gemini is temporarily unavailable after 3 attempts. No trade plan was produced; please try again shortly.", code: "GEMINI_TEMPORARILY_UNAVAILABLE", upstreamStatus: lastStatus || undefined, retryable: true }, 502, cors);
 }
 
-async function sendSessionReminder(env, cron) {
+function getZonedClock(timeZone, date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+  }).formatToParts(date).reduce((out, part) => (out[part.type] = part.value, out), {});
+  return { year: Number(parts.year), month: Number(parts.month), day: Number(parts.day), hour: Number(parts.hour), minute: Number(parts.minute) };
+}
+
+async function sendSessionReminder(env, scheduledTime) {
   if (!env.ONESIGNAL_APP_ID || !env.ONESIGNAL_REST_API_KEY) {
-    console.error("Session reminder skipped: OneSignal app ID or REST API key is not configured.", JSON.stringify({ cron }));
+    console.error("Session reminder skipped: OneSignal app ID or REST API key is not configured.");
     return;
   }
-  const alerts = {
-    "26 7 * * *": { title: "Analyzer Pro · Morning reminder", message: "5 minutes until your 10:31 AM screenshot session. Open Analyzer Pro and prepare your charts." },
-    "31 7 * * *": { title: "Analyzer Pro · Morning screenshot time", message: "It is 10:31 AM in Kenya. Open Analyzer Pro and capture your chart screenshots now." },
-    "26 12 * * *": { title: "Analyzer Pro · Afternoon reminder", message: "5 minutes until your 3:31 PM screenshot session. Open Analyzer Pro and prepare your charts." },
-    "31 12 * * *": { title: "Analyzer Pro · Afternoon screenshot time", message: "It is 3:31 PM in Kenya. Open Analyzer Pro and capture your chart screenshots now." }
-  };
-  const alert = alerts[cron];
-  if (!alert) return;
-  const appUrl = env.PUBLIC_APP_URL || "https://analyzer-pro.fx77.workers.dev";
-  const response = await fetch("https://api.onesignal.com/notifications", {
-    method: "POST",
-    headers: {
-      "Authorization": "Key " + env.ONESIGNAL_REST_API_KEY,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      app_id: env.ONESIGNAL_APP_ID,
-      included_segments: ["All"],
-      headings: { en: alert.title },
-      contents: { en: alert.message },
-      web_url: appUrl + "/#timers"
-    })
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    console.error("OneSignal reminder send failed", JSON.stringify({ cron, status: response.status, response: JSON.stringify(result).slice(0, 500) }));
-    throw new Error("OneSignal reminder failed with HTTP " + response.status);
+  const now = new Date(scheduledTime || Date.now());
+  const london = getZonedClock("Europe/London", now);
+  const newYork = getZonedClock("America/New_York", now);
+  const candidates = [
+    { local: london, market: "London" },
+    { local: newYork, market: "New York" }
+  ];
+  const due = [];
+  for (const item of candidates) {
+    if (item.local.hour === 8 && item.local.minute === 25) {
+      due.push({ title: "Analyzer Pro · " + item.market + " reminder", message: "Five minutes until the 8:30 AM " + item.market + " screenshot session. Prepare your charts now." });
+    }
+    if (item.local.hour === 8 && item.local.minute === 30) {
+      due.push({ title: "Analyzer Pro · " + item.market + " screenshot time", message: "It is 8:30 AM " + item.market + " local time. Capture your charts now. Kenya time is adjusted automatically for daylight saving." });
+    }
   }
-  console.log("OneSignal reminder sent", JSON.stringify({ cron, notificationId: result.id || null }));
+  if (!due.length) return;
+  const appUrl = env.PUBLIC_APP_URL || "https://analyzer-pro.fx77.workers.dev";
+  for (const alert of due) {
+    const response = await fetch("https://api.onesignal.com/notifications", {
+      method: "POST",
+      headers: {
+        "Authorization": "Key " + env.ONESIGNAL_REST_API_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        app_id: env.ONESIGNAL_APP_ID,
+        included_segments: ["All"],
+        headings: { en: alert.title },
+        contents: { en: alert.message },
+        web_url: appUrl + "/#timers"
+      })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error("OneSignal reminder send failed", JSON.stringify({ market: alert.title, status: response.status, response: JSON.stringify(result).slice(0, 500) }));
+      throw new Error("OneSignal reminder failed with HTTP " + response.status);
+    }
+    console.log("OneSignal reminder sent", JSON.stringify({ market: alert.title, notificationId: result.id || null }));
+  }
 }
 
 export default {
@@ -265,6 +284,6 @@ export default {
     return env.ASSETS.fetch(request);
   },
   async scheduled(controller, env) {
-    await sendSessionReminder(env, controller.cron);
+    await sendSessionReminder(env, controller.scheduledTime);
   }
 };
