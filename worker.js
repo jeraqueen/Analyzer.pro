@@ -198,63 +198,90 @@ async function handleAnalyze(request, env) {
     }
   }
 
-  const model = env.GEMINI_MODEL || "gemini-3.1-flash-lite";
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`;
+  const primaryModel = env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+  // Keep the configured model first, then use official stable multimodal fallbacks
+  // when Google reports temporary overload or rate limiting.
+  const models = [...new Set([primaryModel, "gemini-3.5-flash-lite", "gemini-3.8-flash"])];
   const aiRequestBody = JSON.stringify({
     contents: [{ role: "user", parts }],
     generationConfig: { temperature: 0, maxOutputTokens: 5000 }
   });
-  const maxAttempts = 3;
   let lastStatus = 0;
   let lastError = "The AI service could not complete the request.";
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    let response;
-    let result = {};
-    try {
-      response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: aiRequestBody
-      });
-      result = await response.json().catch(() => ({}));
-    } catch {
-      lastStatus = 0;
-      lastError = "Could not reach Google's Gemini service (network error).";
-      if (attempt < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 500 * (2 ** (attempt - 1))));
-        continue;
+  let lastCode = "GEMINI_TEMPORARILY_UNAVAILABLE";
+  for (const model of models) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`;
+    let moveToFallback = false;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      let response;
+      let result = {};
+      try {
+        response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: aiRequestBody
+        });
+        result = await response.json().catch(() => ({}));
+      } catch {
+        lastStatus = 0;
+        lastError = "Could not reach Google's Gemini service (network error).";
+        lastCode = "UPSTREAM_NETWORK_ERROR";
+        console.error("Gemini request failed", JSON.stringify({ model, attempt, status: 0, reason: "network_error" }));
+        if (attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        moveToFallback = true;
+        break;
       }
-      console.error("Gemini request failed", JSON.stringify({ model, attempt, status: 0, reason: "network_error" }));
-      return json({ error: "Gemini could not be reached after 3 attempts. Please try again shortly.", code: "UPSTREAM_NETWORK_ERROR", retryable: true }, 502, cors);
-    }
-    if (!response.ok) {
-      lastStatus = response.status;
-      lastError = result?.error?.message || `Gemini API returned HTTP ${response.status}`;
-      const retryable = [408, 429, 500, 502, 503, 504].includes(response.status);
-      console.error("Gemini API returned an error", JSON.stringify({ model, attempt, status: response.status, retryable, message: String(lastError).slice(0, 300) }));
-      if (retryable && attempt < maxAttempts) {
-        const retryAfter = Number(response.headers.get("Retry-After") || 0);
-        const delayMs = retryAfter > 0 ? Math.min(retryAfter * 1000, 8000) : 500 * (2 ** (attempt - 1));
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-        continue;
+      if (!response.ok) {
+        lastStatus = response.status;
+        lastError = result?.error?.message || `Gemini API returned HTTP ${response.status}`;
+        const retryable = [408, 429, 500, 502, 503, 504].includes(response.status);
+        console.error("Gemini API returned an error", JSON.stringify({ model, attempt, status: response.status, retryable, message: String(lastError).slice(0, 300) }));
+        if (!retryable) {
+          const status = response.status === 401 || response.status === 403 ? response.status : 502;
+          const code = response.status === 401 || response.status === 403 ? "GEMINI_AUTH_ERROR" : `GEMINI_HTTP_${response.status}`;
+          return json({ error: lastError, code, upstreamStatus: response.status, retryable: false }, status, cors);
+        }
+        lastCode = response.status === 429 ? "GEMINI_RATE_LIMIT" : response.status === 503 ? "GEMINI_OVERLOADED" : `GEMINI_HTTP_${response.status}`;
+        if (attempt < 2) {
+          const retryAfter = Number(response.headers.get("Retry-After") || 0);
+          const delayMs = retryAfter > 0 ? Math.min(retryAfter * 1000, 8000) : 1000;
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          continue;
+        }
+        moveToFallback = true;
+        break;
       }
-      const status = response.status === 429 ? 429 : response.status === 401 || response.status === 403 ? response.status : 502;
-      const code = response.status === 429 ? "GEMINI_RATE_LIMIT" : response.status === 503 ? "GEMINI_OVERLOADED" : response.status === 401 || response.status === 403 ? "GEMINI_AUTH_ERROR" : `GEMINI_HTTP_${response.status}`;
-      return json({ error: lastError, code, upstreamStatus: response.status, retryable }, status, cors);
+      const analysis = (result.candidates?.[0]?.content?.parts || [])
+        .map(part => typeof part.text === "string" ? part.text : "")
+        .filter(Boolean)
+        .join("\\n").trim();
+      if (!analysis) {
+        const finishReason = result?.candidates?.[0]?.finishReason || "UNKNOWN";
+        lastStatus = response.status;
+        lastError = "Gemini returned no readable analysis.";
+        lastCode = "EMPTY_AI_RESPONSE";
+        console.error("Gemini returned no readable analysis", JSON.stringify({ model, attempt, status: response.status, finishReason }));
+        moveToFallback = true;
+        break;
+      }
+      return json({ text: analysis, model, provider: "Google Gemini" }, 200, cors);
     }
-    const analysis = (result.candidates?.[0]?.content?.parts || [])
-      .map(part => typeof part.text === "string" ? part.text : "")
-      .filter(Boolean)
-      .join("\n").trim();
-    if (!analysis) {
-      const finishReason = result?.candidates?.[0]?.finishReason || "UNKNOWN";
-      console.error("Gemini returned no readable analysis", JSON.stringify({ model, attempt, status: response.status, finishReason }));
-      return json({ error: "Gemini returned no readable analysis. Please retry; no trade plan was produced.", code: "EMPTY_AI_RESPONSE", retryable: true }, 502, cors);
+    if (moveToFallback) {
+      console.warn("Switching Gemini model after temporary failure", JSON.stringify({ failedModel: model, nextModel: models[models.indexOf(model) + 1] || null, upstreamStatus: lastStatus, code: lastCode }));
+      continue;
     }
-    return json({ text: analysis, model, provider: "Google Gemini" }, 200, cors);
   }
-  console.error("Gemini request exhausted retries", JSON.stringify({ model, attempts: maxAttempts, upstreamStatus: lastStatus, reason: String(lastError).slice(0, 300) }));
-  return json({ error: "Gemini is temporarily unavailable after 3 attempts. No trade plan was produced; please try again shortly.", code: "GEMINI_TEMPORARILY_UNAVAILABLE", upstreamStatus: lastStatus || undefined, retryable: true }, 502, cors);
+  console.error("All Gemini models exhausted", JSON.stringify({ models, upstreamStatus: lastStatus, code: lastCode, reason: String(lastError).slice(0, 300) }));
+  return json({
+    error: "All available Gemini models are temporarily unavailable. No trade plan was produced. Please retry shortly.",
+    code: "GEMINI_ALL_MODELS_UNAVAILABLE",
+    upstreamStatus: lastStatus || undefined,
+    lastError: String(lastError).slice(0, 300),
+    retryable: true
+  }, 502, cors);
 }
 
 function getZonedClock(timeZone, date = new Date()) {
