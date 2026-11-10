@@ -76,25 +76,33 @@ async function handleAnalyze(request, env) {
     timeZone: "Africa/Nairobi", dateStyle: "full", timeStyle: "long", hour12: false
   }).format(now);
 
-  // Only 10:00–13:00 and 15:00–18:00 EAT are approved.
-  if (eatMinutes >= 18 * 60 && eatMinutes < 21 * 60) {
+  // Winter session map (Kenya EAT, UTC+3; no DST):
+  // London: 11:00–14:00; New York: 16:00–19:00.
+  // NY PM Trap Zone: 20:00–22:00; Asian: 22:00–11:00.
+  // Only London and New York main-session windows are trade-enabled.
+  if (eatMinutes >= 20 * 60 && eatMinutes < 22 * 60) {
     return json({
-      text: "WARNING: NY PM TRAP ZONE. NO TRADE. CLOSE ALL POSITIONS.",
+      text: "WARNING: NY PM TRAP ZONE (8:00 PM–10:00 PM EAT). NO TRADE. CLOSE ALL POSITIONS.",
       timeLocked: true,
       serverTimeEAT: eatNow
     }, 200, cors);
   }
-  if (eatMinutes >= 21 * 60 || eatMinutes < 10 * 60) {
+  if (eatMinutes >= 22 * 60 || eatMinutes < 11 * 60) {
     return json({
-      text: "WARNING: ASIAN SESSION. LOW VOLUME. NO TRADE.",
+      text: "WARNING: ASIAN SESSION (10:00 PM–11:00 AM EAT). LOW VOLUME. NO TRADE.",
       timeLocked: true,
       serverTimeEAT: eatNow
     }, 200, cors);
   }
-  if (!((eatMinutes >= 10 * 60 && eatMinutes < 13 * 60) ||
-        (eatMinutes >= 15 * 60 && eatMinutes < 18 * 60))) {
+  if (!((eatMinutes >= 11 * 60 && eatMinutes < 14 * 60) ||
+        (eatMinutes >= 16 * 60 && eatMinutes < 19 * 60))) {
+    const sessionWarning = eatMinutes >= 14 * 60 && eatMinutes < 16 * 60
+      ? "NO TRADE. LONDON SESSION HAS CLOSED; WAIT FOR THE NEW YORK SESSION AT 4:00 PM EAT."
+      : eatMinutes >= 19 * 60 && eatMinutes < 20 * 60
+        ? "NO TRADE. NEW YORK SESSION HAS CLOSED. THE NY PM TRAP ZONE STARTS AT 8:00 PM EAT."
+        : "NO TRADE. OUTSIDE APPROVED EAT WINDOWS. APPROVED WINDOWS: 11:00 AM–2:00 PM AND 4:00 PM–7:00 PM EAT.";
     return json({
-      text: "NO TRADE. OUTSIDE APPROVED EAT WINDOWS. APPROVED WINDOWS: 10:00 AM–1:00 PM AND 3:00 PM–6:00 PM EAT.",
+      text: sessionWarning,
       timeLocked: true,
       serverTimeEAT: eatNow
     }, 200, cors);
@@ -112,8 +120,8 @@ async function handleAnalyze(request, env) {
     "Submitted instruments, in upload order: " + submitted.map(x => x.pair).join(", ") + ".",
     "CURRENT LOCAL TIME: " + eatNow + " (Kenya / Africa-Nairobi, East Africa Time, UTC+3). Use this server-provided time for all timing recommendations.",
     "MULTI-PAIR RANKING: " + (multi ? "Analyze every submitted pair independently. Rank all valid candidates and highlight the strongest three (or fewer if fewer valid candidates exist), using confirmed HTF Bias, FVG, BOS/CHoCH and Liquidity Sweep confluence. Name Best Pair (Rank 1). Never promote an invalid setup above a valid one. If none qualifies, say NO VALID TRADE for that pair." : "Only one pair was submitted. Analyze it alone as Best Pair (Rank 1); do not invent comparisons or imply other pairs were scanned."),
-    "HARD TIME LOCK: The server has already blocked every screenshot submission outside 10:00 AM–1:00 PM EAT and 3:00 PM–6:00 PM EAT. Never recommend, validate, or label a trade outside those exact windows. These windows apply to every instrument.",
-    "TIME LOCK WARNINGS: 6:00 PM–9:00 PM EAT must output exactly: WARNING: NY PM TRAP ZONE. NO TRADE. CLOSE ALL POSITIONS. 9:00 PM–10:00 AM EAT must output exactly: WARNING: ASIAN SESSION. LOW VOLUME. NO TRADE. 1:00 PM–3:00 PM EAT is also NO TRADE because it is outside the approved windows.",
+    "HARD TIME LOCK: The server has already blocked every screenshot submission outside 11:00 AM–2:00 PM EAT and 4:00 PM–7:00 PM EAT (Kenya EAT, UTC+3, winter session schedule). Never recommend, validate, or label a trade outside those exact windows. These windows apply to every instrument.",
+    "TIME LOCK WARNINGS: 8:00 PM–10:00 PM EAT is the NY PM Trap Zone and must output: WARNING: NY PM TRAP ZONE (8:00 PM–10:00 PM EAT). NO TRADE. CLOSE ALL POSITIONS. 10:00 PM–11:00 AM EAT is the Asian Session and must output: WARNING: ASIAN SESSION (10:00 PM–11:00 AM EAT). LOW VOLUME. NO TRADE. 2:00 PM–4:00 PM EAT is between the London and New York sessions and is NO TRADE. 7:00 PM–8:00 PM EAT is also NO TRADE after the New York session closes.",
     "The time lock is evaluated by the server using Africa/Nairobi time at the moment the screenshots are submitted. Never trust the device clock or a timestamp inside the screenshot.",
     "For each pair, report H4/H1 bias, M30 setup, M15 trigger, entry, SL, TP1/TP2/TP3, invalidation, evidence score and reasons not to take it. Use exact section headings and clearly label each pair.",
     "STRICT EVIDENCE: Never invent, estimate, interpolate, round or assume prices. Use only exact prices clearly readable on chart scale or directly labelled; preserve every visible decimal. Distinguish wick extremes from candle bodies. If prices or screenshots are blurry, cropped, inconsistent or lack a readable scale, do not produce a trade plan.",
