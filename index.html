@@ -208,9 +208,9 @@ function renderReport(source){
  root.innerHTML=html||'<p>No readable report was returned.</p>';
  return root;
 }
-let executionTrade=null;
+let executionTrade=null,executionAttempted=false;
 function invalidateExecutionTicket(){
- executionTrade=null;window.analyzerNewsTrade=false;
+ executionTrade=null;executionAttempted=false;window.analyzerNewsTrade=false;
  const ticket=$('tradeTicket');if(ticket)ticket.style.display='none';
  const button=$('sendToMT5');if(button)button.disabled=true;
 }
@@ -231,7 +231,7 @@ function parseExecutionData(source, submittedPairs){
  return {symbol,direction,entry,sl,tp1,tp2,tp3};
 }
 function renderTradeTicket(source, submittedPairs, newsTrade){
- executionTrade=parseExecutionData(source,submittedPairs);
+ executionTrade=parseExecutionData(source,submittedPairs);executionAttempted=false;
  $('tradeTicket').style.display='block';
  $('executeStatus').className='notice';
  $('executeStatus').textContent='';
@@ -246,6 +246,7 @@ $('sendToMT5').onclick=async()=>{
  const button=$('sendToMT5');
  try{
   if(!executionTrade)throw new Error('There is no confirmed execution-ready setup.');
+  if(executionAttempted)throw new Error('This analysis has already been sent or attempted. Run a fresh analysis before sending another request.');
   const token=$('token').value.trim();if(!token)throw new Error('Enter your private Analyzer access token first.');
   const balance=Number($('accountBalance').value),risk=Number($('riskPercent').value);
   const positionCount=Number($('positionCount').value);
@@ -257,7 +258,7 @@ $('sendToMT5').onclick=async()=>{
   const payload={...executionTrade,lotSize,positionCount,balance,risk,newsTrade:Boolean(window.analyzerNewsTrade)};
   const effectiveLot=lotSize==='auto'?'Auto (MT5 calculates)':String(lotSize);
   if(!window.confirm('Send '+executionTrade.direction+' '+executionTrade.symbol+' to MT5?\nEntry: '+executionTrade.entry+'\nSL: '+executionTrade.sl+'\nTP3: '+executionTrade.tp3+'\nLot: '+effectiveLot+'\nPositions: '+positionCount+'\nRisk: '+risk+'% of '+balance+'\n\nThis may place real broker orders. Continue?'))return;
-  button.disabled=true;button.textContent='Sending to MT5…';
+  executionAttempted=true;button.disabled=true;button.textContent='Sending to MT5…';
   $('executeStatus').className='notice show';$('executeStatus').textContent='Forwarding the confirmed trade to your secure MT5 webhook…';
   const response=await fetch('/api/execute-trade',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body:JSON.stringify(payload)});
   const out=await response.json().catch(()=>({}));
@@ -266,7 +267,7 @@ $('sendToMT5').onclick=async()=>{
   $('executeStatus').textContent='Webhook accepted the request. '+(out.orders_placed?'Orders placed: '+out.orders_placed:out.message||'Check your MT5 bridge response for execution status.');
  }catch(error){
   $('executeStatus').className='notice show bad';$('executeStatus').textContent=error.message;
- }finally{button.disabled=!executionTrade;button.textContent='Send to MT5'}
+ }finally{button.disabled=!executionTrade||executionAttempted;button.textContent=executionAttempted?'Attempt used — reanalyse':'Send to MT5'}
 };
 $('analyze').onclick=async()=>{const btn=$('analyze');invalidateExecutionTicket();try{const token=$('token').value.trim();if(!token)throw new Error('Open AI connection settings and enter your private Analyzer access token.');const cards=[...$('pairList').children];if(!cards.length)throw new Error('Add at least one market.');const pairs=[];for(const card of cards){const pair=card.querySelector('select').value,charts={},missing=[];for(const tf of TF){const file=card.querySelector('#p'+card.dataset.pairId+tf).files?.[0];if(!file)missing.push(tf);else charts[tf]=await readImage(file)}if(missing.length)throw new Error(LABEL[pair]+' is missing: '+missing.join(', '));pairs.push({pair,charts})}btn.disabled=true;btn.textContent='Scanning markets…';$('result').textContent='';$('result').classList.remove('show');showStatus('Compressing '+pairs.length+' market chart sets and comparing SMC/ICT confluence…');const lastAnalysis=localStorage.getItem('lastAnalysis');
 const tradeContext=(useLastAnalysisMemory&&lastAnalysis)
