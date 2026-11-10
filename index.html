@@ -209,6 +209,14 @@ function renderReport(source){
  return root;
 }
 let executionTrade=null;
+function invalidateExecutionTicket(){
+ executionTrade=null;window.analyzerNewsTrade=false;
+ const ticket=$('tradeTicket');if(ticket)ticket.style.display='none';
+ const button=$('sendToMT5');if(button)button.disabled=true;
+}
+$('pairList').addEventListener('change',event=>{
+ if(event.target.matches('.file-input,.pair-select'))invalidateExecutionTicket();
+});
 function parseExecutionData(source, submittedPairs){
  const match=String(source||'').match(/EXECUTION_DATA\s*:\s*(\{[^\r\n]*\})/i);
  if(!match)return null;
@@ -260,7 +268,7 @@ $('sendToMT5').onclick=async()=>{
   $('executeStatus').className='notice show bad';$('executeStatus').textContent=error.message;
  }finally{button.disabled=!executionTrade;button.textContent='Send to MT5'}
 };
-$('analyze').onclick=async()=>{const btn=$('analyze');try{const token=$('token').value.trim();if(!token)throw new Error('Open AI connection settings and enter your private Analyzer access token.');const cards=[...$('pairList').children];if(!cards.length)throw new Error('Add at least one market.');const pairs=[];for(const card of cards){const pair=card.querySelector('select').value,charts={},missing=[];for(const tf of TF){const file=card.querySelector('#p'+card.dataset.pairId+tf).files?.[0];if(!file)missing.push(tf);else charts[tf]=await readImage(file)}if(missing.length)throw new Error(LABEL[pair]+' is missing: '+missing.join(', '));pairs.push({pair,charts})}btn.disabled=true;btn.textContent='Scanning markets…';$('result').textContent='';$('result').classList.remove('show');showStatus('Compressing '+pairs.length+' market chart sets and comparing SMC/ICT confluence…');const lastAnalysis=localStorage.getItem('lastAnalysis');
+$('analyze').onclick=async()=>{const btn=$('analyze');invalidateExecutionTicket();try{const token=$('token').value.trim();if(!token)throw new Error('Open AI connection settings and enter your private Analyzer access token.');const cards=[...$('pairList').children];if(!cards.length)throw new Error('Add at least one market.');const pairs=[];for(const card of cards){const pair=card.querySelector('select').value,charts={},missing=[];for(const tf of TF){const file=card.querySelector('#p'+card.dataset.pairId+tf).files?.[0];if(!file)missing.push(tf);else charts[tf]=await readImage(file)}if(missing.length)throw new Error(LABEL[pair]+' is missing: '+missing.join(', '));pairs.push({pair,charts})}btn.disabled=true;btn.textContent='Scanning markets…';$('result').textContent='';$('result').classList.remove('show');showStatus('Compressing '+pairs.length+' market chart sets and comparing SMC/ICT confluence…');const lastAnalysis=localStorage.getItem('lastAnalysis');
 const tradeContext=(useLastAnalysisMemory&&lastAnalysis)
  ? "The user is uploading NEW screenshots to update their active trade. Here is the analysis from 30 minutes ago: "+lastAnalysis+". Compare the new screenshots to this previous analysis. Tell the user if they should HOLD or CLOSE the active trade."
  : "";
