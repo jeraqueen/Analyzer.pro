@@ -64,45 +64,51 @@ async function handleAnalyze(request, env) {
     if (missing.length) return json({ error: item.pair + " is missing screenshots: " + missing.join(", ") }, 400, cors);
   }
 
-  // Enforce the EAT trading time lock on the server at screenshot submission time.
+  // Evaluate each market session in its own IANA timezone.
+  // Intl automatically applies the correct UK/US daylight-saving rules.
+  const getHourInTZ = (timeZone) => {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: timeZone,
+      hour: "2-digit",
+      hourCycle: "h23"
+    }).formatToParts(new Date());
+    return Number(parts.find(part => part.type === "hour")?.value);
+  };
+
   const now = new Date();
-  const eatParts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Africa/Nairobi", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
-  }).formatToParts(now);
-  const eatHour = Number(eatParts.find(part => part.type === "hour")?.value);
-  const eatMinute = Number(eatParts.find(part => part.type === "minute")?.value);
-  const eatMinutes = eatHour * 60 + eatMinute;
+  const londonHour = getHourInTZ("Europe/London");
+  const nyHour = getHourInTZ("America/New_York");
+  const eatHour = getHourInTZ("Africa/Nairobi");
   const eatNow = new Intl.DateTimeFormat("en-KE", {
     timeZone: "Africa/Nairobi", dateStyle: "full", timeStyle: "long", hour12: false
   }).format(now);
 
-  // Winter session map (Kenya EAT, UTC+3; no DST):
-  // London: 11:00–14:00; New York: 16:00–19:00.
-  // NY PM Trap Zone: 20:00–22:00; Asian: 22:00–11:00.
-  // Only London and New York main-session windows are trade-enabled.
-  if (eatMinutes >= 20 * 60 && eatMinutes < 22 * 60) {
+  // Killzones: 8:00 AM–11:00 AM in each market's local timezone.
+  const isLondonKillzone = londonHour >= 8 && londonHour < 11;
+  const isNYKillzone = nyHour >= 8 && nyHour < 11;
+
+  // No-trade zones, also evaluated using the relevant local timezone.
+  const isNYPmTrap = nyHour >= 11 && nyHour < 14;
+  const isAsianSession = londonHour >= 23 || londonHour < 7;
+
+  // Only the London and New York morning killzones permit submissions.
+  if (isNYPmTrap) {
     return json({
-      text: "WARNING: NY PM TRAP ZONE (8:00 PM–10:00 PM EAT). NO TRADE. CLOSE ALL POSITIONS.",
+      text: "WARNING: NY PM TRAP ZONE (11:00 AM–2:00 PM New York time). NO TRADE. CLOSE ALL POSITIONS.",
       timeLocked: true,
       serverTimeEAT: eatNow
     }, 200, cors);
   }
-  if (eatMinutes >= 22 * 60 || eatMinutes < 11 * 60) {
+  if (isAsianSession) {
     return json({
-      text: "WARNING: ASIAN SESSION (10:00 PM–11:00 AM EAT). LOW VOLUME. NO TRADE.",
+      text: "WARNING: ASIAN SESSION (11:00 PM–7:00 AM London time). LOW VOLUME. NO TRADE.",
       timeLocked: true,
       serverTimeEAT: eatNow
     }, 200, cors);
   }
-  if (!((eatMinutes >= 11 * 60 && eatMinutes < 14 * 60) ||
-        (eatMinutes >= 16 * 60 && eatMinutes < 19 * 60))) {
-    const sessionWarning = eatMinutes >= 14 * 60 && eatMinutes < 16 * 60
-      ? "NO TRADE. LONDON SESSION HAS CLOSED; WAIT FOR THE NEW YORK SESSION AT 4:00 PM EAT."
-      : eatMinutes >= 19 * 60 && eatMinutes < 20 * 60
-        ? "NO TRADE. NEW YORK SESSION HAS CLOSED. THE NY PM TRAP ZONE STARTS AT 8:00 PM EAT."
-        : "NO TRADE. OUTSIDE APPROVED EAT WINDOWS. APPROVED WINDOWS: 11:00 AM–2:00 PM AND 4:00 PM–7:00 PM EAT.";
+  if (!isLondonKillzone && !isNYKillzone) {
     return json({
-      text: sessionWarning,
+      text: "NO TRADE. OUTSIDE APPROVED KILLZONES. APPROVED WINDOWS: 8:00 AM–11:00 AM LONDON TIME OR 8:00 AM–11:00 AM NEW YORK TIME. Session times adjust automatically for daylight saving time. Server time: " + eatNow + " (EAT).",
       timeLocked: true,
       serverTimeEAT: eatNow
     }, 200, cors);
@@ -120,8 +126,8 @@ async function handleAnalyze(request, env) {
     "Submitted instruments, in upload order: " + submitted.map(x => x.pair).join(", ") + ".",
     "CURRENT LOCAL TIME: " + eatNow + " (Kenya / Africa-Nairobi, East Africa Time, UTC+3). Use this server-provided time for all timing recommendations.",
     "MULTI-PAIR RANKING: " + (multi ? "Analyze every submitted pair independently. Rank all valid candidates and highlight the strongest three (or fewer if fewer valid candidates exist), using confirmed HTF Bias, FVG, BOS/CHoCH and Liquidity Sweep confluence. Name Best Pair (Rank 1). Never promote an invalid setup above a valid one. If none qualifies, say NO VALID TRADE for that pair." : "Only one pair was submitted. Analyze it alone as Best Pair (Rank 1); do not invent comparisons or imply other pairs were scanned."),
-    "HARD TIME LOCK: The server has already blocked every screenshot submission outside 11:00 AM–2:00 PM EAT and 4:00 PM–7:00 PM EAT (Kenya EAT, UTC+3, winter session schedule). Never recommend, validate, or label a trade outside those exact windows. These windows apply to every instrument.",
-    "TIME LOCK WARNINGS: 8:00 PM–10:00 PM EAT is the NY PM Trap Zone and must output: WARNING: NY PM TRAP ZONE (8:00 PM–10:00 PM EAT). NO TRADE. CLOSE ALL POSITIONS. 10:00 PM–11:00 AM EAT is the Asian Session and must output: WARNING: ASIAN SESSION (10:00 PM–11:00 AM EAT). LOW VOLUME. NO TRADE. 2:00 PM–4:00 PM EAT is between the London and New York sessions and is NO TRADE. 7:00 PM–8:00 PM EAT is also NO TRADE after the New York session closes.",
+    "HARD TIME LOCK: The server has already blocked every screenshot submission outside the 8:00 AM–11:00 AM London local-time killzone or the 8:00 AM–11:00 AM New York local-time killzone. These are evaluated independently with Europe/London and America/New_York IANA timezones, so UK and US daylight-saving changes are applied automatically even on different dates. Never recommend, validate, or label a trade outside these killzones. Kenya time is displayed for the user but is not used to calculate the trading windows.",
+    "TIME LOCK WARNINGS: When New York local time is 11:00 AM–2:00 PM, the server returns the NY PM Trap warning and blocks the submission. When London local time is 11:00 PM–7:00 AM, the server returns the Asian Session warning and blocks the submission. All other times outside either approved 8:00 AM–11:00 AM local killzone are NO TRADE. These windows automatically follow each timezone's daylight-saving calendar.",
     "The time lock is evaluated by the server using Africa/Nairobi time at the moment the screenshots are submitted. Never trust the device clock or a timestamp inside the screenshot.",
     "For each pair, report H4/H1 bias, M30 setup, M15 trigger, entry, SL, TP1/TP2/TP3, invalidation, evidence score and reasons not to take it. Use exact section headings and clearly label each pair.",
     "STRICT EVIDENCE: Never invent, estimate, interpolate, round or assume prices. Use only exact prices clearly readable on chart scale or directly labelled; preserve every visible decimal. Distinguish wick extremes from candle bodies. If prices or screenshots are blurry, cropped, inconsistent or lack a readable scale, do not produce a trade plan.",
