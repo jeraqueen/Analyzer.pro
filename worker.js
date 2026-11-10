@@ -21,7 +21,7 @@ function corsHeaders(request) {
 }
 
 
-const HIGH_IMPACT_NEWS_PATTERN = /\\b(CPI|CONSUMER PRICE|INFLATION|NON.?FARM|PAYROLL|NFP|FOMC|FEDERAL RESERVE.*(RATE|INTEREST)|INTEREST RATE DECISION)\\b/i;
+const HIGH_IMPACT_NEWS_PATTERN = /\b(CPI|CONSUMER PRICE|INFLATION|NON.?FARM|PAYROLL|NFP|FOMC|FEDERAL RESERVE.*(RATE|INTEREST)|INTEREST RATE DECISION)\b/i;
 
 async function checkEconomicNews(env) {
   if (!env.FCS_API_KEY) return { error: "FCS_API_KEY is not configured." };
@@ -254,7 +254,7 @@ async function handleAnalyze(request, env) {
   const prompt = [
     "ECONOMIC NEWS RULE: " + recentNewsContext,
     "For a recent news trade, do not call direction from the news headline. Require the post-release liquidity sweep and market structure shift; never fabricate M1/M5 observations when those chart screenshots are not uploaded. Apply a wider structural stop loss. If a recent event is present, clearly label the plan NEWS TRADE and state: NEWS TRADE: Use 50% of normal lot size due to volatility.",
-    "EXECUTION DATA CONTRACT: Only when a setup is fully CONFIRMED and exact numeric values are readable for Entry, SL, TP1, TP2 and TP3, append one single-line JSON record at the very end in this exact format: EXECUTION_DATA: {\\"confirmed\\":true,\\"symbol\\":\\"EURUSD\\",\\"direction\\":\\"LONG\\",\\"entry\\":1.1,\\"sl\\":1.09,\\"tp1\\":1.11,\\"tp2\\":1.12,\\"tp3\\":1.13}. Use the exact submitted symbol code without a slash. Use numeric prices, not strings. Direction must be LONG or SHORT. If the setup is not confirmed, any price is unreadable, or any of the three targets is unavailable, do not output EXECUTION_DATA.",
+    `EXECUTION DATA CONTRACT: Only when a setup is fully CONFIRMED and exact numeric values are readable for Entry, SL, TP1, TP2 and TP3, append one single-line JSON record at the very end in this exact format: EXECUTION_DATA: {"confirmed":true,"symbol":"EURUSD","direction":"LONG","entry":1.1,"sl":1.09,"tp1":1.11,"tp2":1.12,"tp3":1.13}. Use the exact submitted symbol code without a slash. Use numeric prices, not strings. Direction must be LONG or SHORT. If the setup is not confirmed, any price is unreadable, or any of the three targets is unavailable, do not output EXECUTION_DATA.`,
   
     "TRADE MANAGEMENT DISABLED: Do not attempt to tell the user to HOLD or CLOSE an active trade. You do not have live tick data. Simply analyze the new screenshots as a fresh setup and provide new Entry, SL, and TP levels.",
     "You are an elite multi-timeframe chart analyst specializing in strict Smart Money Concepts (SMC) and Inner Circle Trader (ICT) methodology.",
