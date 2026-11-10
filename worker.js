@@ -68,70 +68,67 @@ async function handleAnalyze(request, env) {
     if (missing.length) return json({ error: item.pair + " is missing screenshots: " + missing.join(", ") }, 400, cors);
   }
 
-  // Evaluate each market session in its own IANA timezone.
-  // Intl automatically applies the correct UK/US daylight-saving rules.
-  const getHourInTZ = (timeZone) => {
+  // Evaluate each killzone directly in its own market timezone.
+  // Never compare London hours directly with Kenya hours.
+  // Intl/IANA timezone data applies UK and US daylight-saving changes automatically.
+  const getZonedParts = (timeZone, date = new Date()) => {
     const parts = new Intl.DateTimeFormat("en-GB", {
-      timeZone: timeZone,
-      hour: "2-digit",
-      hourCycle: "h23"
-    }).formatToParts(new Date());
-    return Number(parts.find(part => part.type === "hour")?.value);
+      timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+    }).formatToParts(date);
+    return {
+      hour: Number(parts.find(part => part.type === "hour")?.value),
+      minute: Number(parts.find(part => part.type === "minute")?.value)
+    };
   };
-
+  const toMinutes = clock => clock.hour * 60 + clock.minute;
   const now = new Date();
-  const londonParts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
-  const nyParts = new Intl.DateTimeFormat("en-GB", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
-  const eatParts = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Nairobi", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
-  const readMinutes = parts => Number(parts.find(p => p.type === "hour")?.value) * 60 + Number(parts.find(p => p.type === "minute")?.value);
-  const londonMinutes = readMinutes(londonParts);
-  const nyMinutes = readMinutes(nyParts);
-  const eatMinutes = readMinutes(eatParts);
-  const londonHour = Math.floor(londonMinutes / 60);
-  const nyHour = Math.floor(nyMinutes / 60);
-  const eatHour = Math.floor(eatMinutes / 60);
+  const londonClock = getZonedParts("Europe/London", now);
+  const nyClock = getZonedParts("America/New_York", now);
+  const eatClock = getZonedParts("Africa/Nairobi", now);
+  const londonMinutes = toMinutes(londonClock);
+  const nyMinutes = toMinutes(nyClock);
+  const eatMinutes = toMinutes(eatClock);
+  const londonHour = londonClock.hour;
+  const nyHour = nyClock.hour;
+  const eatHour = eatClock.hour;
   const eatNow = new Intl.DateTimeFormat("en-KE", {
     timeZone: "Africa/Nairobi", dateStyle: "full", timeStyle: "long", hour12: false
   }).format(now);
+  const clockText = clock => String(clock.hour).padStart(2, "0") + ":" + String(clock.minute).padStart(2, "0");
+  const inWindow = (minute, start, end) => minute >= start && minute < end;
 
-  // Convert each market's local session into its equivalent Kenya wall-clock window.
-  // This uses the live timezone offset, so UK/US daylight-saving changes are automatic.
+  // Check each source-market 08:00–11:00 window independently.
+  // Either active killzone permits analysis (logical OR).
+  const isLondonKillzone = inWindow(londonMinutes, 8 * 60, 11 * 60);
+  const isNYKillzone = inWindow(nyMinutes, 8 * 60, 11 * 60);
+
+  // Calculate the equivalent EAT windows for diagnostics and display only.
   const londonToEatOffset = (eatMinutes - londonMinutes + 1440) % 1440;
   const nyToEatOffset = (eatMinutes - nyMinutes + 1440) % 1440;
+  const formatMinute = minute => String(Math.floor(minute / 60) % 24).padStart(2, "0") + ":" + String(minute % 60).padStart(2, "0");
   const londonStartEAT = (8 * 60 + londonToEatOffset) % 1440;
   const londonEndEAT = (11 * 60 + londonToEatOffset) % 1440;
   const nyStartEAT = (8 * 60 + nyToEatOffset) % 1440;
   const nyEndEAT = (11 * 60 + nyToEatOffset) % 1440;
-  const inWindow = (minute, start, end) => start < end ? minute >= start && minute < end : minute >= start || minute < end;
+  const londonWindowEAT = formatMinute(londonStartEAT) + "–" + formatMinute(londonEndEAT) + " EAT";
+  const nyWindowEAT = formatMinute(nyStartEAT) + "–" + formatMinute(nyEndEAT) + " EAT";
 
-  // All trade-entry time decisions are made against Kenya local time (EAT).
-  const isLondonKillzone = inWindow(eatMinutes, londonStartEAT, londonEndEAT);
-  const isNYKillzone = inWindow(eatMinutes, nyStartEAT, nyEndEAT);
-  const nyTrapStartEAT = (11 * 60 + nyToEatOffset) % 1440;
-  const nyTrapEndEAT = (14 * 60 + nyToEatOffset) % 1440;
-  const isNYPmTrap = inWindow(eatMinutes, nyTrapStartEAT, nyTrapEndEAT);
-  const isAsianSession = londonHour >= 23 || londonHour < 7;
+  // Retained as false compatibility flags for the existing analysis prompt.
+  // No extra NY-evening or Asian session is enabled by these flags.
+  const isNYPmTrap = false;
+  const isAsianSession = false;
 
-  // Only the London and New York morning killzones permit submissions.
-  if (isNYPmTrap) {
-    return json({
-      text: "WARNING: NY PM TRAP ZONE (11:00 AM–2:00 PM New York time). NO TRADE.",
-      timeLocked: true,
-      serverTimeEAT: eatNow
-    }, 200, cors);
-  }
-  if (isAsianSession) {
-    return json({
-      text: "WARNING: ASIAN SESSION (11:00 PM–7:00 AM London time). LOW VOLUME. NO TRADE.",
-      timeLocked: true,
-      serverTimeEAT: eatNow
-    }, 200, cors);
-  }
+  // Only block when BOTH approved market-local killzones are closed.
   if (!isLondonKillzone && !isNYKillzone) {
     return json({
-      text: "NO TRADE. OUTSIDE APPROVED KILLZONES. APPROVED WINDOWS: 8:00 AM–11:00 AM LONDON TIME OR 8:00 AM–11:00 AM NEW YORK TIME. Session times adjust automatically for daylight saving time. Server time: " + eatNow + " (EAT).",
+      text: "NO TRADE. OUTSIDE APPROVED KILLZONES. APPROVED WINDOWS: 8:00 AM–11:00 AM LONDON LOCAL TIME (" + londonWindowEAT + ") OR 8:00 AM–11:00 AM NEW YORK LOCAL TIME (" + nyWindowEAT + "). London now: " + clockText(londonClock) + "; New York now: " + clockText(nyClock) + "; Kenya now: " + clockText(eatClock) + " EAT. Session times adjust automatically for daylight saving time. Server time: " + eatNow + " (EAT).",
       timeLocked: true,
-      serverTimeEAT: eatNow
+      serverTimeEAT: eatNow,
+      sessionStatus: {
+        london: "CLOSED", newYork: "CLOSED",
+        londonTime: clockText(londonClock), newYorkTime: clockText(nyClock),
+        kenyaTime: clockText(eatClock), londonWindowEAT, newYorkWindowEAT: nyWindowEAT
+      }
     }, 200, cors);
   }
   const multi = submitted.length > 1;
