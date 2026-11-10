@@ -257,7 +257,7 @@ async function handleAnalyze(request, env) {
       const analysis = (result.candidates?.[0]?.content?.parts || [])
         .map(part => typeof part.text === "string" ? part.text : "")
         .filter(Boolean)
-        .join("\\n").trim();
+        .join("\n").trim();
       if (!analysis) {
         const finishReason = result?.candidates?.[0]?.finishReason || "UNKNOWN";
         lastStatus = response.status;
