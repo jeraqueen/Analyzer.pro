@@ -20,6 +20,110 @@ function corsHeaders(request) {
   };
 }
 
+
+const HIGH_IMPACT_NEWS_PATTERN = /\\b(CPI|CONSUMER PRICE|INFLATION|NON.?FARM|PAYROLL|NFP|FOMC|FEDERAL RESERVE.*(RATE|INTEREST)|INTEREST RATE DECISION)\\b/i;
+
+async function checkEconomicNews(env) {
+  if (!env.FCS_API_KEY) return { error: "FCS_API_KEY is not configured." };
+  const now = Math.floor(Date.now() / 1000);
+  const params = new URLSearchParams({
+    symbol: "USD",
+    importance: "2",
+    from: String(now - 15 * 60),
+    to: String(now + 30 * 60),
+    access_key: env.FCS_API_KEY
+  });
+  let response;
+  try {
+    response = await fetch("https://api-v4.fcsapi.com/forex/economy_cal?" + params.toString(), {
+      method: "GET",
+      headers: { "Accept": "application/json" },
+      signal: AbortSignal.timeout(8000)
+    });
+  } catch {
+    return { error: "Could not reach the FCS economic calendar." };
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok && Number(data.code) !== 112) return { error: "FCS calendar returned HTTP " + response.status + "." };
+  if (Number(data.code) === 112) return { upcoming: [], recent: [] };
+  if (data.status === false && Number(data.code) !== 112) return { error: data.msg || "FCS calendar request failed." };
+  if (!Array.isArray(data.response)) return { error: "FCS calendar response did not contain an event list." };
+  const events = data.response.map(event => {
+    const title = String(event.title || event.indicator || event.event || "High-impact event");
+    const timestamp = Date.parse(String(event.date || "").replace(" ", "T") + "Z");
+    return { title, timestamp, importance: String(event.importance ?? ""), currency: String(event.currency || "USD") };
+  }).filter(event => event.importance === "2" && Number.isFinite(event.timestamp) && HIGH_IMPACT_NEWS_PATTERN.test(event.title));
+  const upcoming = events.filter(event => event.timestamp >= Date.now() && event.timestamp <= Date.now() + 30 * 60 * 1000);
+  const recent = events.filter(event => event.timestamp < Date.now() && event.timestamp >= Date.now() - 15 * 60 * 1000);
+  return { upcoming, recent };
+}
+
+async function handleExecuteTrade(request, env) {
+  const cors = corsHeaders(request);
+  if (!cors) return json({ error: "Cross-origin requests are not allowed." }, 403);
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (request.method !== "POST") return json({ error: "Use POST to forward a trade." }, 405, cors);
+  if (!env.ANALYZER_ACCESS_TOKEN) return json({ error: "The execution endpoint is not protected. Configure ANALYZER_ACCESS_TOKEN." }, 503, cors);
+  const suppliedToken = request.headers.get("X-Analyzer-Token") || "";
+  if (suppliedToken.length !== env.ANALYZER_ACCESS_TOKEN.length || suppliedToken !== env.ANALYZER_ACCESS_TOKEN) {
+    return json({ error: "Unauthorized. Check the private Analyzer access token." }, 401, cors);
+  }
+  if (!env.MT5_WEBHOOK_URL || !env.MT5_WEBHOOK_API_KEY) {
+    return json({ error: "MT5 bridge is not configured. Set MT5_WEBHOOK_URL and MT5_WEBHOOK_API_KEY as encrypted Worker secrets." }, 503, cors);
+  }
+  let webhookUrl;
+  try {
+    webhookUrl = new URL(env.MT5_WEBHOOK_URL);
+    if (webhookUrl.protocol !== "https:") throw new Error("HTTPS required");
+  } catch {
+    return json({ error: "MT5_WEBHOOK_URL must be a valid HTTPS URL." }, 503, cors);
+  }
+  let data;
+  try { data = await request.json(); }
+  catch { return json({ error: "Request body must be valid JSON." }, 400, cors); }
+  const symbol = String(data.symbol || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const direction = String(data.direction || "").toUpperCase();
+  if (!ALLOWED_PAIRS.has(symbol)) return json({ error: "Unsupported instrument." }, 400, cors);
+  if (!["LONG", "SHORT"].includes(direction)) return json({ error: "Direction must be LONG or SHORT." }, 400, cors);
+  const prices = {};
+  for (const key of ["entry", "sl", "tp1", "tp2", "tp3"]) {
+    prices[key] = Number(data[key]);
+    if (!Number.isFinite(prices[key]) || prices[key] <= 0) return json({ error: "Invalid " + key + " price." }, 400, cors);
+  }
+  const { entry, sl, tp1, tp2, tp3 } = prices;
+  if (direction === "LONG" && !(sl < entry && entry < tp1 && tp1 <= tp2 && tp2 <= tp3)) return json({ error: "LONG prices must satisfy SL < Entry < TP1 <= TP2 <= TP3." }, 400, cors);
+  if (direction === "SHORT" && !(sl > entry && entry > tp1 && tp1 >= tp2 && tp2 >= tp3)) return json({ error: "SHORT prices must satisfy SL > Entry > TP1 >= TP2 >= TP3." }, 400, cors);
+  const balance = Number(data.balance), risk = Number(data.risk);
+  const positionCount = Number(data.positionCount);
+  const lotSize = data.lotSize === "auto" ? "auto" : Number(data.lotSize);
+  if (!Number.isFinite(balance) || balance <= 0) return json({ error: "Balance must be greater than zero." }, 400, cors);
+  if (!Number.isFinite(risk) || risk <= 0 || risk > 5) return json({ error: "Risk per trade must be between 0 and 5%." }, 400, cors);
+  if (!Number.isInteger(positionCount) || positionCount < 1 || positionCount > 10) return json({ error: "Number of positions must be between 1 and 10." }, 400, cors);
+  if (lotSize !== "auto" && (!Number.isFinite(lotSize) || lotSize <= 0 || lotSize > 100)) return json({ error: "Lot size must be Auto or a valid number no greater than 100." }, 400, cors);
+  const payload = { symbol, direction, ...prices, lotSize, positionCount, balance, risk, newsTrade: data.newsTrade === true };
+  const requestId = crypto.randomUUID();
+  let upstream;
+  try {
+    upstream = await fetch(webhookUrl.toString(), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": env.MT5_WEBHOOK_API_KEY,
+        "Idempotency-Key": requestId
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(12000)
+    });
+  } catch {
+    return json({ error: "Could not reach the configured MT5 Python webhook. No execution confirmation was received." }, 502, cors);
+  }
+  const result = await upstream.json().catch(() => ({}));
+  if (!upstream.ok || result.error) {
+    return json({ error: result.error || "MT5 webhook returned HTTP " + upstream.status + ".", webhookStatus: upstream.status }, 502, cors);
+  }
+  return json({ status: "forwarded", requestId, webhook: result, orders_placed: result.orders_placed || undefined, message: result.status || "Webhook accepted the request." }, 200, cors);
+}
+
 async function handleAnalyze(request, env) {
   const cors = corsHeaders(request);
   if (!cors) return json({ error: "Cross-origin requests are not allowed." }, 403);
@@ -131,8 +235,27 @@ async function handleAnalyze(request, env) {
       }
     }, 200, cors);
   }
+  const news = await checkEconomicNews(env);
+  if (news.error) {
+    return json({ error: "Economic news filter unavailable. Trading is paused until the calendar is reachable and configured. " + news.error, code: "NEWS_CALENDAR_UNAVAILABLE", retryable: true }, 503, cors);
+  }
+  if (news.upcoming.length) {
+    return json({
+      error: "HIGH-IMPACT NEWS APPROACHING. TRADING PAUSED. Wait for the initial spike to subside.",
+      code: "HIGH_IMPACT_NEWS_APPROACHING",
+      tradingPaused: true,
+      events: news.upcoming.map(event => ({ title: event.title, timeUTC: new Date(event.timestamp).toISOString() }))
+    }, 423, cors);
+  }
+  const recentNewsContext = news.recent.length
+    ? "A matching high-impact CPI/NFP/FOMC event occurred within the last 15 minutes: " + news.recent.map(event => event.title + " at " + new Date(event.timestamp).toISOString()).join("; ") + ". Do not predict direction from the release. Identify an M1/M5 liquidity sweep and subsequent MSS only if those timeframes are actually supplied and readable. The current upload contains H4/H1/M30/M15 only, so explicitly state M1/M5 evidence is unavailable and do not invent it. Use a wider structural stop loss and include this exact note: NEWS TRADE: Use 50% of normal lot size due to volatility."
+    : "No matching CPI/NFP/FOMC high-impact event occurred in the last 15 minutes according to the configured calendar.";
   const multi = submitted.length > 1;
   const prompt = [
+    "ECONOMIC NEWS RULE: " + recentNewsContext,
+    "For a recent news trade, do not call direction from the news headline. Require the post-release liquidity sweep and market structure shift; never fabricate M1/M5 observations when those chart screenshots are not uploaded. Apply a wider structural stop loss. If a recent event is present, clearly label the plan NEWS TRADE and state: NEWS TRADE: Use 50% of normal lot size due to volatility.",
+    "EXECUTION DATA CONTRACT: Only when a setup is fully CONFIRMED and exact numeric values are readable for Entry, SL, TP1, TP2 and TP3, append one single-line JSON record at the very end in this exact format: EXECUTION_DATA: {\\"confirmed\\":true,\\"symbol\\":\\"EURUSD\\",\\"direction\\":\\"LONG\\",\\"entry\\":1.1,\\"sl\\":1.09,\\"tp1\\":1.11,\\"tp2\\":1.12,\\"tp3\\":1.13}. Use the exact submitted symbol code without a slash. Use numeric prices, not strings. Direction must be LONG or SHORT. If the setup is not confirmed, any price is unreadable, or any of the three targets is unavailable, do not output EXECUTION_DATA.",
+  
     "TRADE MANAGEMENT DISABLED: Do not attempt to tell the user to HOLD or CLOSE an active trade. You do not have live tick data. Simply analyze the new screenshots as a fresh setup and provide new Entry, SL, and TP levels.",
     "You are an elite multi-timeframe chart analyst specializing in strict Smart Money Concepts (SMC) and Inner Circle Trader (ICT) methodology.",
     "Analyze " + submitted.length + " submitted market(s). Each market has its own H4, H1, M30 and M15 screenshots. Never mix evidence or prices between instruments.",
@@ -267,7 +390,7 @@ async function handleAnalyze(request, env) {
         moveToFallback = true;
         break;
       }
-      return json({ text: analysis, model, provider: "Google Gemini" }, 200, cors);
+      return json({ text: analysis, model, provider: "Google Gemini", newsTrade: news.recent.length > 0, recentNews: news.recent.map(event => ({ title: event.title, timeUTC: new Date(event.timestamp).toISOString() })) }, 200, cors);
     }
     if (moveToFallback) {
       console.warn("Switching Gemini model after temporary failure", JSON.stringify({ failedModel: model, nextModel: models[models.indexOf(model) + 1] || null, upstreamStatus: lastStatus, code: lastCode }));
@@ -343,6 +466,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/analyze") return handleAnalyze(request, env);
+    if (url.pathname === "/api/execute-trade") return handleExecuteTrade(request, env);
     if (url.pathname === "/api/push-config" && request.method === "GET") {
       return json({ appId: env.ONESIGNAL_APP_ID || null, ready: Boolean(env.ONESIGNAL_APP_ID && env.ONESIGNAL_REST_API_KEY) });
     }
