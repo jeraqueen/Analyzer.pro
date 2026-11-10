@@ -76,19 +76,36 @@ async function handleAnalyze(request, env) {
   };
 
   const now = new Date();
-  const londonHour = getHourInTZ("Europe/London");
-  const nyHour = getHourInTZ("America/New_York");
-  const eatHour = getHourInTZ("Africa/Nairobi");
+  const londonParts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
+  const nyParts = new Intl.DateTimeFormat("en-GB", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
+  const eatParts = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Nairobi", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
+  const readMinutes = parts => Number(parts.find(p => p.type === "hour")?.value) * 60 + Number(parts.find(p => p.type === "minute")?.value);
+  const londonMinutes = readMinutes(londonParts);
+  const nyMinutes = readMinutes(nyParts);
+  const eatMinutes = readMinutes(eatParts);
+  const londonHour = Math.floor(londonMinutes / 60);
+  const nyHour = Math.floor(nyMinutes / 60);
+  const eatHour = Math.floor(eatMinutes / 60);
   const eatNow = new Intl.DateTimeFormat("en-KE", {
     timeZone: "Africa/Nairobi", dateStyle: "full", timeStyle: "long", hour12: false
   }).format(now);
 
-  // Killzones: 8:00 AM–11:00 AM in each market's local timezone.
-  const isLondonKillzone = londonHour >= 8 && londonHour < 11;
-  const isNYKillzone = nyHour >= 8 && nyHour < 11;
+  // Convert each market's local session into its equivalent Kenya wall-clock window.
+  // This uses the live timezone offset, so UK/US daylight-saving changes are automatic.
+  const londonToEatOffset = (eatMinutes - londonMinutes + 1440) % 1440;
+  const nyToEatOffset = (eatMinutes - nyMinutes + 1440) % 1440;
+  const londonStartEAT = (8 * 60 + londonToEatOffset) % 1440;
+  const londonEndEAT = (11 * 60 + londonToEatOffset) % 1440;
+  const nyStartEAT = (8 * 60 + nyToEatOffset) % 1440;
+  const nyEndEAT = (11 * 60 + nyToEatOffset) % 1440;
+  const inWindow = (minute, start, end) => start < end ? minute >= start && minute < end : minute >= start || minute < end;
 
-  // No-trade zones, also evaluated using the relevant local timezone.
-  const isNYPmTrap = nyHour >= 11 && nyHour < 14;
+  // All trade-entry time decisions are made against Kenya local time (EAT).
+  const isLondonKillzone = inWindow(eatMinutes, londonStartEAT, londonEndEAT);
+  const isNYKillzone = inWindow(eatMinutes, nyStartEAT, nyEndEAT);
+  const nyTrapStartEAT = (11 * 60 + nyToEatOffset) % 1440;
+  const nyTrapEndEAT = (14 * 60 + nyToEatOffset) % 1440;
+  const isNYPmTrap = inWindow(eatMinutes, nyTrapStartEAT, nyTrapEndEAT);
   const isAsianSession = londonHour >= 23 || londonHour < 7;
 
   // Only the London and New York morning killzones permit submissions.
@@ -125,12 +142,12 @@ async function handleAnalyze(request, env) {
     "Analyze " + submitted.length + " submitted market(s). Each market has its own H4, H1, M30 and M15 screenshots. Never mix evidence or prices between instruments.",
     "Submitted instruments, in upload order: " + submitted.map(x => x.pair).join(", ") + ".",
     "CURRENT LOCAL TIME: " + eatNow + " (Kenya / Africa-Nairobi, East Africa Time, UTC+3). Use this server-provided time for all timing recommendations.",
-    "AUTHORITATIVE SESSION DECISION (SERVER-CALCULATED): London local hour is " + londonHour + ", New York local hour is " + nyHour + ", and Kenya local hour is " + eatHour + ". isLondonKillzone=" + isLondonKillzone + "; isNYKillzone=" + isNYKillzone + "; isNYPmTrap=" + isNYPmTrap + "; isAsianSession=" + isAsianSession + ". These booleans are the final authority. If isLondonKillzone or isNYKillzone is true, explicitly report the corresponding killzone ACTIVE and NEVER say it is outside the killzone. Do not apply London clock hours directly to EAT. Do not tell the user to close an existing position solely because a session window is ending; assess the actual chart structure and risk evidence. The server has already blocked submissions when the time lock is genuinely closed.",
+    "AUTHORITATIVE SESSION DECISION (SERVER-CALCULATED): London local hour is " + londonHour + ", New York local hour is " + nyHour + ", and Kenya local hour is " + eatHour + ". isLondonKillzone=" + isLondonKillzone + "; isNYKillzone=" + isNYKillzone + "; isNYPmTrap=" + isNYPmTrap + "; isAsianSession=" + isAsianSession + ". These booleans are calculated by converting London and New York local windows into their equivalent Kenya EAT windows; all entry time-lock decisions are evaluated using the current Kenya EAT minutes. If isLondonKillzone or isNYKillzone is true, explicitly report the corresponding killzone ACTIVE and NEVER say it is outside the killzone. Always display both the source-market local window and its converted Kenya EAT window. Do not tell the user to close an existing position solely because a session window is ending; assess the actual chart structure and risk evidence. The server has already blocked submissions when the time lock is genuinely closed.",
     "MANDATORY TABLE CONSISTENCY: Populate the MARKET RANKING & CONTEXT table from the server values above, not from chart interpretation. If isLondonKillzone=true, every pair row must show Execution Window=8:00 AM–11:00 AM London local time and Current Time Status=ACTIVE (London); if isNYKillzone=true, show 8:00 AM–11:00 AM New York local time and ACTIVE (New York). If both are true, report both. Only show OUTSIDE WINDOW when BOTH booleans are false. Pair validity (VALID TRADE / NO VALID TRADE) is a separate chart-setup decision and must never change the session status. At the report time 12:05 PM EAT with London local time 9:05 AM, London is ACTIVE. Do not label pairs OUTSIDE WINDOW in that situation.",
     "MULTI-PAIR RANKING: " + (multi ? "Analyze every submitted pair independently. Rank all valid candidates and highlight the strongest three (or fewer if fewer valid candidates exist), using confirmed HTF Bias, FVG, BOS/CHoCH and Liquidity Sweep confluence. Name Best Pair (Rank 1). Never promote an invalid setup above a valid one. If none qualifies, say NO VALID TRADE for that pair." : "Only one pair was submitted. Analyze it alone as Best Pair (Rank 1); do not invent comparisons or imply other pairs were scanned."),
     "HARD TIME LOCK: The server has already blocked every screenshot submission outside the 8:00 AM–11:00 AM London local-time killzone or the 8:00 AM–11:00 AM New York local-time killzone. These are evaluated independently with Europe/London and America/New_York IANA timezones, so UK and US daylight-saving changes are applied automatically even on different dates. Never recommend, validate, or label a trade outside these killzones. Kenya time is displayed for the user but is not used to calculate the trading windows.",
     "TIME LOCK WARNINGS: When New York local time is 11:00 AM–2:00 PM, the server returns the NY PM Trap warning and blocks the submission. When London local time is 11:00 PM–7:00 AM, the server returns the Asian Session warning and blocks the submission. All other times outside either approved 8:00 AM–11:00 AM local killzone are NO TRADE. These windows automatically follow each timezone's daylight-saving calendar.",
-    "The time lock is evaluated by the server using Africa/Nairobi time at the moment the screenshots are submitted. Never trust the device clock or a timestamp inside the screenshot.",
+    "The time lock is evaluated by the server using Africa/Nairobi local time at the moment screenshots are submitted, after converting the source-market session windows using live IANA timezone offsets. Never trust the device clock or a timestamp inside the screenshot.",
     "For each pair, report H4/H1 bias, M30 setup, M15 trigger, entry, SL, TP1/TP2/TP3, invalidation, evidence score and reasons not to take it. Use exact section headings and clearly label each pair.",
     "STRICT EVIDENCE: Never invent, estimate, interpolate, round or assume prices. Use only exact prices clearly readable on chart scale or directly labelled; preserve every visible decimal. Distinguish wick extremes from candle bodies. If prices or screenshots are blurry, cropped, inconsistent or lack a readable scale, do not produce a trade plan.",
     "Never use psychological round numbers as Entry, SL or TP unless the exact chart evidence itself makes that level defensible. Do not use FVG midpoint by default. Use an evidenced FVG boundary, order-block wick, breaker or reaction level.",
