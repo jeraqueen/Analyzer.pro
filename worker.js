@@ -187,7 +187,18 @@ async function handleAnalyze(request, env) {
   - Determine pip size and pip value for the exact submitted instrument and the broker's contract convention. For non-FX instruments such as XAUUSD and BTCUSD, do not assume a forex pip or a universal contract size. If the broker's contract size, tick value or pip value is not supplied or cannot be reliably derived from chart metadata, state PIP VALUE / LOT SIZE NOT VERIFIABLE and do not invent a lot size.
   - For USD-quoted FX pairs, use the appropriate standard-lot pip value only when the account currency and contract convention support it. For cross-currency pairs, convert pip value to USD using a supported conversion rate; if unavailable, state that exact sizing cannot be verified.
   - Respect the broker's lot step and minimum volume when known. Do not round a calculated size upward; round down to the valid lot step so the planned loss does not exceed the selected risk amount. Never claim a 0.01 lot Cent Account is safe unless the broker's cent-contract specification supports that sizing.
-  - Show the calculation: balance, risk %, risk amount, stop distance in pips, pip value per standard lot, raw lot size and rounded executable lot size. If any input is unavailable, label it unavailable instead of fabricating a precise result.`
+  - Show the calculation: balance, risk %, risk amount, stop distance in pips, pip value per standard lot, raw lot size and rounded executable lot size. If any input is unavailable, label it unavailable instead of fabricating a precise result.
+  
+  CRITICAL MAXIMUM STOP LOSS RULE:
+  - After determining a technically valid Entry and structural Stop Loss for each instrument, calculate the absolute Entry-to-SL distance exactly using the instrument's quote precision and standard pip/point convention.
+  - For EURUSD, GBPUSD and USDJPY, the maximum permitted Stop Loss distance is 30 pips. Use 0.0001 as one pip for non-JPY FX pairs and 0.01 as one pip for JPY-quoted pairs.
+  - For XAUUSD (Gold), the maximum permitted Stop Loss distance is 150 points, using the instrument's displayed quote precision and the broker's point convention. State the point convention used; do not silently treat points as pips.
+  - If a valid structural Stop Loss exceeds the applicable maximum, REJECT that instrument's setup. Do not widen, tighten, move or distort the structural Stop Loss merely to pass the limit. Do not provide an actionable Entry/SL/TP trade plan or recommended lot size for that rejected setup.
+  - For an over-limit FX setup, output exactly this sentence with [X] replaced by the calculated numeric distance: "NO TRADE — STOP LOSS TOO WIDE. The distance from entry to SL is [X] pips, which exceeds the maximum allowed risk of 30 pips for a small account. Wait for a tighter setup."
+  - For an over-limit XAUUSD setup, use the same sentence structure but report the measured distance in points and say "150 points" as the maximum allowed limit.
+  - CRITICAL RISK RULE: You must strictly enforce a maximum Stop Loss of 30 pips. If the structural swing low/high requires an SL wider than 30 pips, output NO TRADE.
+  - This maximum-stop rule applies to the listed FX pairs and XAUUSD threshold above; do not apply the 30-pip FX threshold to BTCUSD. No BTCUSD maximum is defined by this rule.
+  - A setup that is invalid or lacks confirmation remains NO VALID TRADE / WAIT — NO ENTRY. A setup that is valid but exceeds its maximum stop distance must be labelled NO TRADE — STOP LOSS TOO WIDE. Never fabricate a distance or force a trade to satisfy the rule.`
   ].join("\n");
 
   const parts = [{ text: prompt }];
