@@ -88,12 +88,12 @@ main{padding-bottom:100px}
       <div class="timer-reminder" id="morningScheduleText">8:25 AM · Prepare charts · 8:30 AM · London screenshots</div>
     </article>
     <article class="timer-card">
-      <h3>New York screenshot session</h3>
+      <h3>New York evening screenshot session · 4:00–7:00 PM EAT in US winter</h3>
       <div class="timer-time" id="afternoonSessionTime">Calculating…</div>
       <div class="timer-meta" id="afternoonReminderTime">Preparation alert: calculating…</div>
       <div class="timer-count" id="afternoonCountdown">--:--:--</div>
       <div class="timer-meta">Countdown to 8:30 AM New York time</div>
-      <div class="timer-reminder" id="afternoonScheduleText">8:25 AM · Prepare charts · 8:30 AM · New York screenshots</div>
+      <div class="timer-reminder" id="afternoonScheduleText">4:25 PM EAT · Prepare charts · 4:30 PM EAT · New York screenshots (US winter)</div>
     </article>
   </div>
   <div class="card" style="margin:14px 0 0;padding:14px;background:#0d1a2b">
@@ -197,7 +197,7 @@ const tradeContext=(useLastAnalysisMemory&&lastAnalysis)
  : "";
 const payload={version:'smc-ict-multi-pair-v2',pairs,tradeContext,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi'}};const body=JSON.stringify(payload);if(body.length>9*1024*1024)throw new Error('Combined screenshots are too large. Use fewer pairs or crop screenshots less tightly; the app compresses them automatically.');const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body});const out=await response.json().catch(()=>({}));if(!response.ok)throw new Error(out.error||('AI service returned HTTP '+response.status));if(typeof out.text!=='string'||!out.text.trim())throw new Error('The AI returned an empty analysis. Please try again.');localStorage.setItem('lastAnalysis',out.text);refreshLastAnalysisButton();$('result').replaceChildren(renderReport(out.text));$('result').classList.add('show');showStatus('Scan complete. Compare every level with your broker chart before acting.','good');$('result').scrollIntoView({behavior:'smooth',block:'start'})}catch(error){showStatus('Analysis failed: '+error.message,'bad')}finally{btn.disabled=false;btn.textContent='✦ Analyse selected markets'}};
 
-/* London and New York screenshot sessions follow each market's local clock and DST. */
+/* London morning and New York evening screenshot sessions are converted to Kenya EAT; DST is automatic. */
 const TIMER_STORE_KEY='analyzerProTimerSettingsV1';
 let deferredInstallPrompt=null;
 function zonedParts(timeZone,date=new Date()){return new Intl.DateTimeFormat('en-GB',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(date).reduce((o,p)=>(o[p.type]=p.value,o),{});}
