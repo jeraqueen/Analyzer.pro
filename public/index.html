@@ -16,8 +16,7 @@ main{max-width:960px;margin:auto;padding:18px 13px 48px}.card{background:linear-
 .hero{padding:20px;background:linear-gradient(120deg,#182e4d,#121d31 70%);border:1px solid #345071}.hero h2{font-size:23px}.hero-line{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #3a5678;border-radius:99px;padding:6px 10px;color:#b8d8ff;font-size:11px;font-weight:750;background:#14263e}
 .watch-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:13px}.watch{background:#0d1a2c;border:1px solid #2d4564;border-radius:13px;padding:11px}.watch b{display:block;font-size:14px}.watch span{font-size:11px;color:var(--muted)}
-.pair-card{background:#0d1728;border:1px solid #2b3e58;border-radius:16px;padding:13px;margin-top:12px}
-.risk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0 12px}.risk-field label{display:block;font-size:12px;color:#b9cbe2;font-weight:750;margin:0 0 6px}.risk-field input{font-variant-numeric:tabular-nums}@media(max-width:420px){.risk-grid{grid-template-columns:1fr}}.pair-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}.pair-name{font-weight:850;font-size:15px}.pair-tag{font-size:10px;color:#a8caff;background:#172c49;border-radius:20px;padding:4px 8px}
+.pair-card{background:#0d1728;border:1px solid #2b3e58;border-radius:16px;padding:13px;margin-top:12px}.pair-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}.pair-name{font-weight:850;font-size:15px}.pair-tag{font-size:10px;color:#a8caff;background:#172c49;border-radius:20px;padding:4px 8px}
 select,input{width:100%;background:#0a1321;border:1px solid #30445e;border-radius:11px;color:var(--text);padding:12px;font:inherit;min-width:0}.pair-select{max-width:230px}
 .uploads{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:11px}.upload{border:1px dashed #405878;border-radius:14px;padding:10px;background:linear-gradient(145deg,#12213a,#0e192a);min-width:0}.upload-top{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:8px}.upload strong{font-size:12px;color:#d9e8ff}.tf-note{font-size:10px;color:#8197b5}
 .file-input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}.camera-pick{display:flex;align-items:center;justify-content:center;gap:7px;min-height:43px;border:1px solid #47658c;border-radius:11px;background:#172b47;color:#dcecff;font-size:12px;font-weight:750;cursor:pointer;padding:9px;text-align:center}.camera-pick:active{transform:scale(.98)}.camera-pick svg{width:18px;height:18px;flex:none}
@@ -67,17 +66,28 @@ main{padding-bottom:100px}
 <section class="card">
 <div class="eyebrow">Multi-market scanner</div><h2>Build your chart scan</h2>
 <p class="muted small">For each pair, take four screenshots from the same chart: H4, H1, M30 and M15. The AI will rank the strongest valid setup. Use the camera buttons to choose screenshots from your phone.</p>
-<div class="risk-grid" aria-label="Account risk settings">
-  <div class="risk-field"><label for="accBalance">Account Balance ($)</label><input type="number" id="accBalance" min="0.01" step="0.01" value="100" inputmode="decimal"></div>
-  <div class="risk-field"><label for="accRisk">Risk Per Trade (%)</label><input type="number" id="accRisk" min="0.1" max="100" step="0.1" value="1" inputmode="decimal"></div>
-</div>
 <div id="pairList"></div>
+<div class="pair-card" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+  <div><label class="small muted" for="accountBalance">Account Balance</label><input id="accountBalance" type="number" inputmode="decimal" min="0.01" step="0.01" value="100"></div>
+  <div><label class="small muted" for="riskPercent">Risk per Trade (%)</label><input id="riskPercent" type="number" inputmode="decimal" min="0.01" max="5" step="0.01" value="1"></div>
+</div>
 <div class="actions"><button class="secondary" id="addPair">＋ Add another pair</button><div class="analysis-actions"><button class="primary" id="analyze">✦ Analyse selected markets</button><button class="secondary" id="useLastAnalysis" type="button" aria-pressed="false">Use Last Analysis as Memory</button></div></div>
 <button class="secondary" id="clear" style="margin-top:9px">Clear screenshots and results</button>
 <div class="notice" id="status"></div>
 <details><summary>⚙ AI connection settings</summary><p class="muted small">Your Gemini API key remains secured on Cloudflare. Enter the private Analyzer access token provided for this website. Your saved token is reused on this device.</p><div class="token-row"><div><label class="small muted" for="token">Private Analyzer access token</label><input id="token" type="password" autocomplete="off" placeholder="Paste private access token"></div><button id="saveToken">Save token on this device</button></div></details>
 </section>
-<section class="card"><div class="eyebrow">AI intelligence report · REPORT VIEW 3</div><h2>Analysis results</h2><p class="muted small">Clean structured report · ATR(14) risk · OTE/structure entry · liquidity targets · EAT timing.</p><div id="result" aria-live="polite"></div></section>
+<section class="card"><div class="eyebrow">AI intelligence report · REPORT VIEW 3</div><h2>Analysis results</h2><p class="muted small">Clean structured report · ATR(14) risk · OTE entry · liquidity targets · EAT timing.</p><div id="result" aria-live="polite"></div></section>
+<section class="card" id="tradeTicket" style="display:none">
+  <div class="eyebrow">Manual broker handoff</div><h2>Execute trade</h2>
+  <p class="muted small">Review every level and confirm before sending. Orders are forwarded to your configured MT5 bridge; this page does not connect directly to MetaTrader.</p>
+  <div id="tradeSummary" class="push-status">Waiting for a confirmed trade setup…</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+    <div><label class="small muted" for="lotMode">Lot Size</label><select id="lotMode"><option value="auto" selected>Auto</option><option value="manual">Manual</option></select><input id="lotSize" type="number" inputmode="decimal" min="0.001" step="0.001" value="0.01" disabled style="margin-top:7px"></div>
+    <div><label class="small muted" for="positionCount">Number of Positions</label><input id="positionCount" type="number" inputmode="numeric" min="1" max="10" step="1" value="1"></div>
+  </div>
+  <div class="notice" id="executeStatus"></div>
+  <button class="primary" id="sendToMT5" type="button" disabled style="margin-top:12px">Send to MT5</button>
+</section>
 
 <section class="card timer-panel" id="timerPanel">
   <div class="eyebrow">Daily screenshot schedule · daylight-saving aware</div>
@@ -93,12 +103,12 @@ main{padding-bottom:100px}
       <div class="timer-reminder" id="morningScheduleText">8:25 AM · Prepare charts · 8:30 AM · London screenshots</div>
     </article>
     <article class="timer-card">
-      <h3>New York screenshot session</h3>
+      <h3>New York evening screenshot session · 4:00–7:00 PM EAT in US winter</h3>
       <div class="timer-time" id="afternoonSessionTime">Calculating…</div>
       <div class="timer-meta" id="afternoonReminderTime">Preparation alert: calculating…</div>
       <div class="timer-count" id="afternoonCountdown">--:--:--</div>
       <div class="timer-meta">Countdown to 8:30 AM New York time</div>
-      <div class="timer-reminder" id="afternoonScheduleText">8:25 AM · Prepare charts · 8:30 AM · New York screenshots</div>
+      <div class="timer-reminder" id="afternoonScheduleText">4:25 PM EAT · Prepare charts · 4:30 PM EAT · New York screenshots (US winter)</div>
     </article>
   </div>
   <div class="card" style="margin:14px 0 0;padding:14px;background:#0d1a2b">
@@ -115,7 +125,7 @@ main{padding-bottom:100px}
   <p class="timer-note">For background alerts, install Analyzer Pro on your Android home screen, allow notifications, and keep Chrome notifications enabled. The reminder service sends alerts at 10:26, 10:31, 3:26 and 3:31 EAT. Tapping an alert opens this Timers screen.</p>
 </section>
 
-<footer>Analyzer Pro · Multi-pair SMC / ICT analysis · EAT market timing · No broker execution</footer>
+<footer>Analyzer Pro · Multi-pair SMC / ICT analysis · EAT market timing · Manual MT5 bridge</footer>
 </main>
 <script>
 'use strict';
@@ -143,8 +153,11 @@ $('useLastAnalysis').onclick=()=>{
 };
 refreshLastAnalysisButton();
 function getEAT(){return new Date(new Date().toLocaleString('en-US',{timeZone:'Africa/Nairobi'}))}
-function marketPlan(){const now=new Date(),lh=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hour:'2-digit',hourCycle:'h23'}).format(now)),nh=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'America/New_York',hour:'2-digit',hourCycle:'h23'}).format(now));if(lh>=8&&lh<11)return {session:'London killzone · ACTIVE',note:'London local time 8:00–11:00 AM. Screenshot session: 8:30 AM London time (Kenya time changes automatically with UK daylight saving). Prioritize EUR/USD, GBP/USD and Gold.',pairs:['EURUSD','GBPUSD','XAUUSD']};if(nh>=8&&nh<11)return {session:'New York killzone · ACTIVE',note:'New York local time 8:00–11:00 AM. Screenshot session: 8:30 AM New York time (Kenya time changes automatically with US daylight saving). Prioritize Gold, major USD pairs and Bitcoin.',pairs:['XAUUSD','EURUSD','BTCUSD']};if(nh>=11&&nh<14)return {session:'New York PM trap · NO ENTRY',note:'New York local time 11:00 AM–2:00 PM. Avoid new entries during this trap window.',pairs:['BTCUSD','EURUSD','XAUUSD']};if(lh>=23||lh<7)return {session:'Asian session · NO ENTRY',note:'London local time 11:00 PM–7:00 AM. Lower liquidity; wait for London or New York killzone.',pairs:['USDJPY','GBPUSD','EURUSD']};return {session:'Outside approved killzones · WAIT',note:'Wait for 8:00–11:00 AM London time or 8:00–11:00 AM New York time. These windows automatically follow each market’s daylight-saving calendar.',pairs:['BTCUSD','USDJPY','GBPUSD']}}
-function updateClock(){const d=getEAT(),plan=marketPlan();$('clock').textContent='EAT · '+new Intl.DateTimeFormat('en-KE',{timeZone:'Africa/Nairobi',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());$('watchlist').innerHTML=plan.pairs.map((p,i)=>'<div class="watch"><b>'+(i+1)+'. '+LABEL[p]+'</b><span>Session watchlist</span></div>').join('');$('sessionHint').textContent=plan.session+' — '+plan.note}
+function marketClockMinutes(zone,now){const p=new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);return Number(p.find(x=>x.type==='hour').value)*60+Number(p.find(x=>x.type==='minute').value)}
+function minuteText(value){const n=((value%1440)+1440)%1440,h=Math.floor(n/60),m=n%60;return (h%12||12)+':'+String(m).padStart(2,'0')+(h<12?' AM':' PM')}
+function inMinuteWindow(value,start,end){return start<end?value>=start&&value<end:value>=start||value<end}
+function marketPlan(){const now=new Date(),lm=marketClockMinutes('Europe/London',now),nm=marketClockMinutes('America/New_York',now),em=marketClockMinutes('Africa/Nairobi',now),lh=Math.floor(lm/60),lo=(em-lm+1440)%1440,no=(em-nm+1440)%1440,ls=(480+lo)%1440,le=(660+lo)%1440,ns=(480+no)%1440,ne=(660+no)%1440,londonActive=inMinuteWindow(em,ls,le),nyActive=inMinuteWindow(em,ns,ne),nyTrap=inMinuteWindow(em,(660+no)%1440,(840+no)%1440),londonEAT=minuteText(ls)+'–'+minuteText(le)+' EAT',nyEAT=minuteText(ns)+'–'+minuteText(ne)+' EAT';if(londonActive)return {session:'London killzone · ACTIVE — Kenya time',note:'London local: 8:00–11:00 AM. Kenya execution window: '+londonEAT+'. Screenshot session: 8:30 AM London = '+minuteText((510+lo)%1440)+' EAT. Entry time-lock is checked using Kenya time. Prioritize EUR/USD, GBP/USD and Gold.',pairs:['EURUSD','GBPUSD','XAUUSD']};if(nyActive)return {session:'New York killzone · ACTIVE — Kenya time',note:'New York local: 8:00–11:00 AM. Kenya execution window: '+nyEAT+'. Screenshot session: 8:30 AM New York = '+minuteText((510+no)%1440)+' EAT. Entry time-lock is checked using Kenya time. Prioritize Gold, major USD pairs and Bitcoin.',pairs:['XAUUSD','EURUSD','BTCUSD']};if(nyTrap)return {session:'New York PM trap · NO ENTRY',note:'New York local: 11:00 AM–2:00 PM. Kenya equivalent: '+minuteText((660+no)%1440)+'–'+minuteText((840+no)%1440)+' EAT. Avoid new entries during this window.',pairs:['BTCUSD','EURUSD','XAUUSD']};if(lh>=23||lh<7)return {session:'Asian session · NO ENTRY',note:'London local: 11:00 PM–7:00 AM. Wait for the converted London or New York window in Kenya time.',pairs:['USDJPY','GBPUSD','EURUSD']};return {session:'Outside approved killzones · WAIT',note:'London window: 8:00–11:00 AM London = '+londonEAT+'. New York window: 8:00–11:00 AM New York = '+nyEAT+'. The server checks entries using Kenya time and adjusts automatically for daylight saving.',pairs:['BTCUSD','USDJPY','GBPUSD']}}
+function updateClock(){const plan=marketPlan();$('clock').textContent='KENYA EAT · '+new Intl.DateTimeFormat('en-KE',{timeZone:'Africa/Nairobi',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());$('watchlist').innerHTML=plan.pairs.map((p,i)=>'<div class="watch"><b>'+(i+1)+'. '+LABEL[p]+'</b><span>Session priority</span></div>').join('');$('sessionHint').textContent=plan.session+' — '+plan.note}
 updateClock();setInterval(updateClock,30000);
 const camera='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4H10L8.5 6H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3.5L14 4Z"/><circle cx="12" cy="13" r="3.5"/></svg>';
 function pairOptions(selected){return PAIRS.map(p=>'<option value="'+p+'" '+(p===selected?'selected':'')+'>'+LABEL[p]+'</option>').join('')}
@@ -157,7 +170,7 @@ addPair();addPair();addPair();
 $('addPair').onclick=()=>addPair();
 function readImage(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('Could not read '+file.name));reader.onload=()=>{const img=new Image();img.onload=()=>{const max=1500,scale=Math.min(1,max/Math.max(img.width,img.height)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);resolve(canvas.toDataURL('image/jpeg',.7))};img.onerror=()=>reject(new Error('Could not decode '+file.name));img.src=reader.result};reader.readAsDataURL(file)})}
 $('saveToken').onclick=()=>{const token=$('token').value.trim();if(!token){showStatus('Paste the private Analyzer access token first.','bad');return}localStorage.setItem('analyzerAccessToken',token);try{const old=JSON.parse(localStorage.getItem(STORE)||'{}');old.settings={...(old.settings||{}),accessToken:token,backendUrl:'/api/analyze'};localStorage.setItem(STORE,JSON.stringify(old))}catch{}showStatus('Private access token saved on this device.','good')};
-$('clear').onclick=()=>{document.querySelectorAll('.file-input').forEach(input=>{input.value=''});document.querySelectorAll('.preview').forEach(img=>{img.removeAttribute('src');img.classList.remove('show')});document.querySelectorAll('.file-name').forEach(el=>el.textContent='No screenshot selected');$('result').textContent='';$('result').classList.remove('show');showStatus('All screenshots and results cleared.','good')};
+$('clear').onclick=()=>{document.querySelectorAll('.file-input').forEach(input=>{input.value=''});document.querySelectorAll('.preview').forEach(img=>{img.removeAttribute('src');img.classList.remove('show')});document.querySelectorAll('.file-name').forEach(el=>el.textContent='No screenshot selected');$('result').textContent='';$('result').classList.remove('show');$('tradeTicket').style.display='none';executionTrade=null;showStatus('All screenshots and results cleared.','good')};
 function escapeHTML(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}
 function inlineMarkdown(s){return escapeHTML(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/__(.+?)__/g,'<strong>$1</strong>').replace(/\`([^\`]+)\`/g,'<code>$1</code>').replace(/(?<!\*)\*([^*]+)\*(?!\*)/g,'<em>$1</em>')}
 function renderReport(source){
@@ -179,9 +192,10 @@ function renderReport(source){
    rows.slice(1).forEach(row=>{const cols=cells(row);html+='<tr>'+head.map((_,n)=>'<td>'+(inlineMarkdown(cols[n]||'—'))+'</td>').join('')+'</tr>'});
    html+='</tbody></table></div>';continue;
   }
-   const hm=s.match(/^(#{1,4})\s+(.+)$/);
-   const boldHeading=!hm?s.match(/^\*\*(.{2,90})\*\*:?$/):null;
-   if(hm||boldHeading){const headingText=hm?hm[2]:boldHeading[1];const level=hm&&hm[1].length>2?'h4':'h3';html+='<'+level+'>'+inlineMarkdown(headingText)+'</'+level+'>';i++;continue}
+  const hm=s.match(/^(#{1,4})\s+(.+)$/);
+  const boldHeading=!hm?s.match(/^\\*\\*(.{2,90})\\*\\*:?$/):null;
+  if(hm||boldHeading){const headingText=hm?hm[2]:boldHeading[1];const level=hm&&hm[1].length>2?'h4':'h3';html+='<'+level+'>'+inlineMarkdown(headingText)+'</'+level+'>';i++;continue}
+
   if(/^>/.test(s)){html+='<blockquote>'+inlineMarkdown(s.replace(/^>\s?/,''))+'</blockquote>';i++;continue}
   if(isBullet(s)||isNumber(s)){
    const ordered=isNumber(s),tag=ordered?'ol':'ul';let items='';
@@ -194,16 +208,74 @@ function renderReport(source){
  root.innerHTML=html||'<p>No readable report was returned.</p>';
  return root;
 }
-$('analyze').onclick=async()=>{const btn=$('analyze');try{const token=$('token').value.trim();if(!token)throw new Error('Open AI connection settings and enter your private Analyzer access token.');const cards=[...$('pairList').children];if(!cards.length)throw new Error('Add at least one market.');const pairs=[];for(const card of cards){const pair=card.querySelector('select').value,charts={},missing=[];for(const tf of TF){const file=card.querySelector('#p'+card.dataset.pairId+tf).files?.[0];if(!file)missing.push(tf);else charts[tf]=await readImage(file)}if(missing.length)throw new Error(LABEL[pair]+' is missing: '+missing.join(', '));pairs.push({pair,charts})}btn.disabled=true;btn.textContent='Scanning markets…';$('result').textContent='';$('result').classList.remove('show');showStatus('Compressing '+pairs.length+' market chart sets and comparing SMC/ICT confluence…');const lastAnalysis=localStorage.getItem('lastAnalysis');
+let executionTrade=null,executionAttempted=false;
+function invalidateExecutionTicket(){
+ executionTrade=null;executionAttempted=false;window.analyzerNewsTrade=false;
+ const ticket=$('tradeTicket');if(ticket)ticket.style.display='none';
+ const button=$('sendToMT5');if(button)button.disabled=true;
+}
+$('pairList').addEventListener('change',event=>{
+ if(event.target.matches('.file-input,.pair-select'))invalidateExecutionTicket();
+});
+function parseExecutionData(source, submittedPairs){
+ const match=String(source||'').match(/EXECUTION_DATA\s*:\s*(\{[^\r\n]*\})/i);
+ if(!match)return null;
+ let data;try{data=JSON.parse(match[1])}catch{return null}
+ const symbol=String(data.symbol||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+ const direction=String(data.direction||'').toUpperCase();
+ const numeric=['entry','sl','tp1','tp2','tp3'].map(k=>Number(data[k]));
+ if(data.confirmed!==true||!submittedPairs.includes(symbol)||!['LONG','SHORT'].includes(direction)||numeric.some(v=>!Number.isFinite(v)||v<=0))return null;
+ const [entry,sl,tp1,tp2,tp3]=numeric;
+ if(direction==='LONG'&&!(sl<entry&&entry<tp1&&tp1<=tp2&&tp2<=tp3))return null;
+ if(direction==='SHORT'&&!(sl>entry&&entry>tp1&&tp1>=tp2&&tp2>=tp3))return null;
+ return {symbol,direction,entry,sl,tp1,tp2,tp3};
+}
+function renderTradeTicket(source, submittedPairs, newsTrade){
+ executionTrade=parseExecutionData(source,submittedPairs);executionAttempted=false;
+ $('tradeTicket').style.display='block';
+ $('executeStatus').className='notice';
+ $('executeStatus').textContent='';
+ $('sendToMT5').disabled=!executionTrade;
+ $('tradeSummary').textContent=executionTrade
+  ? 'CONFIRMED SETUP · '+executionTrade.symbol+' · '+executionTrade.direction+' · Entry '+executionTrade.entry+' · SL '+executionTrade.sl+' · TP1 '+executionTrade.tp1+' · TP2 '+executionTrade.tp2+' · TP3 '+executionTrade.tp3+(newsTrade?' · NEWS TRADE: use 50% of normal lot size.':'')
+  : 'No machine-verified confirmed setup with complete numeric Entry, SL, TP1, TP2 and TP3 was returned. Execution is disabled. WAIT — NO ENTRY.';
+ $('lotMode').value='auto';$('lotSize').disabled=true;
+}
+$('lotMode').addEventListener('change',()=>{$('lotSize').disabled=$('lotMode').value!=='manual'});
+$('sendToMT5').onclick=async()=>{
+ const button=$('sendToMT5');
+ try{
+  if(!executionTrade)throw new Error('There is no confirmed execution-ready setup.');
+  if(executionAttempted)throw new Error('This analysis has already been sent or attempted. Run a fresh analysis before sending another request.');
+  const token=$('token').value.trim();if(!token)throw new Error('Enter your private Analyzer access token first.');
+  const balance=Number($('accountBalance').value),risk=Number($('riskPercent').value);
+  const positionCount=Number($('positionCount').value);
+  const lotSize=$('lotMode').value==='auto'?'auto':Number($('lotSize').value);
+  if(!Number.isFinite(balance)||balance<=0)throw new Error('Enter a valid account balance.');
+  if(!Number.isFinite(risk)||risk<=0||risk>5)throw new Error('Risk per trade must be between 0 and 5%.');
+  if(!Number.isInteger(positionCount)||positionCount<1||positionCount>10)throw new Error('Number of positions must be an integer from 1 to 10.');
+  if(lotSize!=='auto'&&(!Number.isFinite(lotSize)||lotSize<=0))throw new Error('Enter a valid manual lot size.');
+  const payload={...executionTrade,lotSize,positionCount,balance,risk,newsTrade:Boolean(window.analyzerNewsTrade)};
+  const effectiveLot=lotSize==='auto'?'Auto (MT5 calculates)':String(lotSize);
+  if(!window.confirm('Send '+executionTrade.direction+' '+executionTrade.symbol+' to MT5?\nEntry: '+executionTrade.entry+'\nSL: '+executionTrade.sl+'\nTP3: '+executionTrade.tp3+'\nLot: '+effectiveLot+'\nPositions: '+positionCount+'\nRisk: '+risk+'% of '+balance+'\n\nThis may place real broker orders. Continue?'))return;
+  executionAttempted=true;button.disabled=true;button.textContent='Sending to MT5…';
+  $('executeStatus').className='notice show';$('executeStatus').textContent='Forwarding the confirmed trade to your secure MT5 webhook…';
+  const response=await fetch('/api/execute-trade',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body:JSON.stringify(payload)});
+  const out=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(out.error||('MT5 bridge returned HTTP '+response.status));
+  $('executeStatus').className='notice show good';
+  $('executeStatus').textContent='Webhook accepted the request. '+(out.orders_placed?'Orders placed: '+out.orders_placed:out.message||'Check your MT5 bridge response for execution status.');
+ }catch(error){
+  $('executeStatus').className='notice show bad';$('executeStatus').textContent=error.message;
+ }finally{button.disabled=!executionTrade||executionAttempted;button.textContent=executionAttempted?'Attempt used — reanalyse':'Send to MT5'}
+};
+$('analyze').onclick=async()=>{const btn=$('analyze');invalidateExecutionTicket();try{const token=$('token').value.trim();if(!token)throw new Error('Open AI connection settings and enter your private Analyzer access token.');const cards=[...$('pairList').children];if(!cards.length)throw new Error('Add at least one market.');const pairs=[];for(const card of cards){const pair=card.querySelector('select').value,charts={},missing=[];for(const tf of TF){const file=card.querySelector('#p'+card.dataset.pairId+tf).files?.[0];if(!file)missing.push(tf);else charts[tf]=await readImage(file)}if(missing.length)throw new Error(LABEL[pair]+' is missing: '+missing.join(', '));pairs.push({pair,charts})}btn.disabled=true;btn.textContent='Scanning markets…';$('result').textContent='';$('result').classList.remove('show');showStatus('Compressing '+pairs.length+' market chart sets and comparing SMC/ICT confluence…');const lastAnalysis=localStorage.getItem('lastAnalysis');
 const tradeContext=(useLastAnalysisMemory&&lastAnalysis)
  ? "The user is uploading NEW screenshots to update their active trade. Here is the analysis from 30 minutes ago: "+lastAnalysis+". Compare the new screenshots to this previous analysis. Tell the user if they should HOLD or CLOSE the active trade."
  : "";
-const balance=$('accBalance').value,risk=$('accRisk').value;
-if(!Number.isFinite(Number(balance))||Number(balance)<=0)throw new Error('Enter a valid account balance greater than zero.');
-if(!Number.isFinite(Number(risk))||Number(risk)<=0||Number(risk)>100)throw new Error('Risk per trade must be greater than 0% and no more than 100%.');
-const payload={version:'smc-ict-multi-pair-v2',pairs,tradeContext,balance,risk,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi'}};const body=JSON.stringify(payload);if(body.length>9*1024*1024)throw new Error('Combined screenshots are too large. Use fewer pairs or crop screenshots less tightly; the app compresses them automatically.');const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body});const out=await response.json().catch(()=>({}));if(!response.ok)throw new Error(out.error||('AI service returned HTTP '+response.status));if(typeof out.text!=='string'||!out.text.trim())throw new Error('The AI returned an empty analysis. Please try again.');localStorage.setItem('lastAnalysis',out.text);refreshLastAnalysisButton();$('result').replaceChildren(renderReport(out.text));$('result').classList.add('show');showStatus('Scan complete. Compare every level with your broker chart before acting.','good');$('result').scrollIntoView({behavior:'smooth',block:'start'})}catch(error){showStatus('Analysis failed: '+error.message,'bad')}finally{btn.disabled=false;btn.textContent='✦ Analyse selected markets'}};
+const balance=Number($('accountBalance').value),risk=Number($('riskPercent').value);if(!Number.isFinite(balance)||balance<=0)throw new Error('Enter a valid account balance.');if(!Number.isFinite(risk)||risk<=0||risk>5)throw new Error('Risk per trade must be between 0 and 5%.');const payload={version:'smc-ict-multi-pair-v2',pairs,tradeContext,balance,risk,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi'}};const body=JSON.stringify(payload);if(body.length>9*1024*1024)throw new Error('Combined screenshots are too large. Use fewer pairs or crop screenshots less tightly; the app compresses them automatically.');const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body});const out=await response.json().catch(()=>({}));if(!response.ok)throw new Error(out.error||('AI service returned HTTP '+response.status));if(typeof out.text!=='string'||!out.text.trim())throw new Error('The AI returned an empty analysis. Please try again.');localStorage.setItem('lastAnalysis',out.text);refreshLastAnalysisButton();$('result').replaceChildren(renderReport(out.text));$('result').classList.add('show');window.analyzerNewsTrade=Boolean(out.newsTrade);renderTradeTicket(out.text,pairs.map(x=>x.pair),window.analyzerNewsTrade);showStatus('Scan complete. Review the report and execution ticket carefully before sending any order.','good');$('result').scrollIntoView({behavior:'smooth',block:'start'})}catch(error){showStatus('Analysis failed: '+error.message,'bad')}finally{btn.disabled=false;btn.textContent='✦ Analyse selected markets'}};
 
-/* London and New York screenshot sessions follow each market's local clock and DST. */
+/* London morning and New York evening screenshot sessions are converted to Kenya EAT; DST is automatic. */
 const TIMER_STORE_KEY='analyzerProTimerSettingsV1';
 let deferredInstallPrompt=null;
 function zonedParts(timeZone,date=new Date()){return new Intl.DateTimeFormat('en-GB',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(date).reduce((o,p)=>(o[p.type]=p.value,o),{});}
