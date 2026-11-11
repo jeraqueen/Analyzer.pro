@@ -21,43 +21,6 @@ function corsHeaders(request) {
 }
 
 
-const HIGH_IMPACT_NEWS_PATTERN = /\b(CPI|CONSUMER PRICE|INFLATION|NON.?FARM|PAYROLL|NFP|FOMC|FEDERAL RESERVE.*(RATE|INTEREST)|INTEREST RATE DECISION)\b/i;
-
-async function checkEconomicNews(env) {
-  if (!env.FCS_API_KEY) return { error: "FCS_API_KEY is not configured." };
-  const now = Math.floor(Date.now() / 1000);
-  const params = new URLSearchParams({
-    symbol: "USD",
-    importance: "2",
-    from: String(now - 15 * 60),
-    to: String(now + 30 * 60),
-    access_key: env.FCS_API_KEY
-  });
-  let response;
-  try {
-    response = await fetch("https://api-v4.fcsapi.com/forex/economy_cal?" + params.toString(), {
-      method: "GET",
-      headers: { "Accept": "application/json" },
-      signal: AbortSignal.timeout(8000)
-    });
-  } catch {
-    return { error: "Could not reach the FCS economic calendar." };
-  }
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok && Number(data.code) !== 112) return { error: "FCS calendar returned HTTP " + response.status + "." };
-  if (Number(data.code) === 112) return { upcoming: [], recent: [] };
-  if (data.status === false && Number(data.code) !== 112) return { error: data.msg || "FCS calendar request failed." };
-  if (!Array.isArray(data.response)) return { error: "FCS calendar response did not contain an event list." };
-  const events = data.response.map(event => {
-    const title = String(event.title || event.indicator || event.event || "High-impact event");
-    const timestamp = Date.parse(String(event.date || "").replace(" ", "T") + "Z");
-    return { title, timestamp, importance: String(event.importance ?? ""), currency: String(event.currency || "USD") };
-  }).filter(event => event.importance === "2" && Number.isFinite(event.timestamp) && HIGH_IMPACT_NEWS_PATTERN.test(event.title));
-  const upcoming = events.filter(event => event.timestamp >= Date.now() && event.timestamp <= Date.now() + 30 * 60 * 1000);
-  const recent = events.filter(event => event.timestamp < Date.now() && event.timestamp >= Date.now() - 15 * 60 * 1000);
-  return { upcoming, recent };
-}
-
 async function handleExecuteTrade(request, env) {
   const cors = corsHeaders(request);
   if (!cors) return json({ error: "Cross-origin requests are not allowed." }, 403);
@@ -100,7 +63,7 @@ async function handleExecuteTrade(request, env) {
   if (!Number.isFinite(risk) || risk <= 0 || risk > 5) return json({ error: "Risk per trade must be between 0 and 5%." }, 400, cors);
   if (!Number.isInteger(positionCount) || positionCount < 1 || positionCount > 10) return json({ error: "Number of positions must be between 1 and 10." }, 400, cors);
   if (lotSize !== "auto" && (!Number.isFinite(lotSize) || lotSize <= 0 || lotSize > 100)) return json({ error: "Lot size must be Auto or a valid number no greater than 100." }, 400, cors);
-  const payload = { symbol, direction, ...prices, lotSize, positionCount, balance, risk, newsTrade: data.newsTrade === true };
+  const payload = { symbol, direction, ...prices, lotSize, positionCount, balance, risk };
   const requestId = crypto.randomUUID();
   let upstream;
   try {
@@ -235,25 +198,8 @@ async function handleAnalyze(request, env) {
       }
     }, 200, cors);
   }
-  const news = await checkEconomicNews(env);
-  if (news.error) {
-    return json({ error: "Economic news filter unavailable. Trading is paused until the calendar is reachable and configured. " + news.error, code: "NEWS_CALENDAR_UNAVAILABLE", retryable: true }, 503, cors);
-  }
-  if (news.upcoming.length) {
-    return json({
-      error: "HIGH-IMPACT NEWS APPROACHING. TRADING PAUSED. Wait for the initial spike to subside.",
-      code: "HIGH_IMPACT_NEWS_APPROACHING",
-      tradingPaused: true,
-      events: news.upcoming.map(event => ({ title: event.title, timeUTC: new Date(event.timestamp).toISOString() }))
-    }, 423, cors);
-  }
-  const recentNewsContext = news.recent.length
-    ? "A matching high-impact CPI/NFP/FOMC event occurred within the last 15 minutes: " + news.recent.map(event => event.title + " at " + new Date(event.timestamp).toISOString()).join("; ") + ". Do not predict direction from the release. Identify an M1/M5 liquidity sweep and subsequent MSS only if those timeframes are actually supplied and readable. The current upload contains H4/H1/M30/M15 only, so explicitly state M1/M5 evidence is unavailable and do not invent it. Use a wider structural stop loss and include this exact note: NEWS TRADE: Use 50% of normal lot size due to volatility."
-    : "No matching CPI/NFP/FOMC high-impact event occurred in the last 15 minutes according to the configured calendar.";
   const multi = submitted.length > 1;
   const prompt = [
-    "ECONOMIC NEWS RULE: " + recentNewsContext,
-    "For a recent news trade, do not call direction from the news headline. Require the post-release liquidity sweep and market structure shift; never fabricate M1/M5 observations when those chart screenshots are not uploaded. Apply a wider structural stop loss. If a recent event is present, clearly label the plan NEWS TRADE and state: NEWS TRADE: Use 50% of normal lot size due to volatility.",
     `EXECUTION DATA CONTRACT: Only when a setup is fully CONFIRMED and exact numeric values are readable for Entry, SL, TP1, TP2 and TP3, append one single-line JSON record at the very end in this exact format: EXECUTION_DATA: {"confirmed":true,"symbol":"EURUSD","direction":"LONG","entry":1.1,"sl":1.09,"tp1":1.11,"tp2":1.12,"tp3":1.13}. Use the exact submitted symbol code without a slash. Use numeric prices, not strings. Direction must be LONG or SHORT. If the setup is not confirmed, any price is unreadable, or any of the three targets is unavailable, do not output EXECUTION_DATA.`,
   
     "TRADE MANAGEMENT DISABLED: Do not attempt to tell the user to HOLD or CLOSE an active trade. You do not have live tick data. Simply analyze the new screenshots as a fresh setup and provide new Entry, SL, and TP levels.",
@@ -390,7 +336,7 @@ async function handleAnalyze(request, env) {
         moveToFallback = true;
         break;
       }
-      return json({ text: analysis, model, provider: "Google Gemini", newsTrade: news.recent.length > 0, recentNews: news.recent.map(event => ({ title: event.title, timeUTC: new Date(event.timestamp).toISOString() })) }, 200, cors);
+      return json({ text: analysis, model, provider: "Google Gemini" }, 200, cors);
     }
     if (moveToFallback) {
       console.warn("Switching Gemini model after temporary failure", JSON.stringify({ failedModel: model, nextModel: models[models.indexOf(model) + 1] || null, upstreamStatus: lastStatus, code: lastCode }));
