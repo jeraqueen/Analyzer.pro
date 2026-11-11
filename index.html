@@ -28,6 +28,7 @@ button{width:100%;border:1px solid #405674;border-radius:12px;background:#1a2a42
 @media(max-width:420px){#result{padding:10px}.report .level-grid{grid-template-columns:1fr 1fr}.report .level b{font-size:14px}.report th,.report td{padding:8px 7px}}
 details{margin-top:14px;border-top:1px solid var(--line);padding-top:13px}summary{cursor:pointer;color:#a9bdd8;font-size:13px;font-weight:700}.token-row{display:grid;gap:8px;margin-top:10px}
 footer{text-align:center;color:var(--muted);font-size:11px;padding:14px}
+.remove-pair{display:none}
 @media(max-width:560px){.watch-grid{grid-template-columns:1fr 1fr 1fr;gap:6px}.watch{padding:9px 7px}.watch b{font-size:12px}.watch span{font-size:10px}.card{padding:13px}.hero{padding:16px}.hero h2{font-size:20px}.actions{grid-template-columns:1fr}.uploads{gap:7px}.upload{padding:8px}.pair-card{padding:10px}}
 
 /* Timer navigation and session reminders */
@@ -66,6 +67,7 @@ main{padding-bottom:100px}
 <section class="card">
 <div class="eyebrow">Multi-market scanner</div><h2>Build your chart scan</h2>
 <p class="muted small">For each pair, take four screenshots from the same chart: H4, H1, M30 and M15. The AI will rank the strongest valid setup. Use the camera buttons to choose screenshots from your phone.</p>
+<button class="secondary" id="marketModeToggle" type="button" style="margin:10px 0">＋ Multi Markets</button>
 <div id="pairList"></div>
 <div class="pair-card" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
   <div><label class="small muted" for="accountBalance">Account Balance</label><input id="accountBalance" type="number" inputmode="decimal" min="0.01" step="0.01" value="100"></div>
@@ -132,7 +134,7 @@ main{padding-bottom:100px}
 const $=id=>document.getElementById(id), TF=['H4','H1','M30','M15'];
 const STORE='fxResearchDesk_v2', PAIRS=['EURUSD','GBPUSD','USDJPY','XAUUSD','BTCUSD'];
 const LABEL={EURUSD:'EUR/USD',GBPUSD:'GBP/USD',USDJPY:'USD/JPY',USDCAD:'USD/CAD',AUDUSD:'AUD/USD',USDCHF:'USD/CHF',EURJPY:'EUR/JPY',XAUUSD:'Gold · XAU/USD',BTCUSD:'Bitcoin · BTC/USD'};
-let pairCount=0,pairSerial=0;
+let pairCount=0,pairSerial=0,multiMarketMode=false;
 function getSavedToken(){try{const old=JSON.parse(localStorage.getItem(STORE)||'null');return old?.settings?.accessToken||localStorage.getItem('analyzerAccessToken')||''}catch{return localStorage.getItem('analyzerAccessToken')||''}}
 $('token').value=getSavedToken();
 function showStatus(message,type){const el=$('status');el.textContent=message;el.className='notice show '+(type||'')}
@@ -166,7 +168,14 @@ $('pairList').appendChild(wrap);
 for(const tf of TF){const input=$('p'+id+tf);input.addEventListener('change',()=>{const file=input.files&&input.files[0],preview=$('prev'+id+tf),name=$('name'+id+tf);if(!file){preview.removeAttribute('src');preview.classList.remove('show');name.textContent='No screenshot selected';return}if(!file.type.startsWith('image/')){showStatus('Please select an image screenshot.','bad');input.value='';return}preview.src=URL.createObjectURL(file);preview.classList.add('show');name.textContent=file.name})}
 wrap.querySelector('.remove-pair').onclick=()=>{wrap.remove();pairCount=$('pairList').children.length;[...$('pairList').children].forEach((el,i)=>el.querySelector('.pair-name').textContent='Market '+(i+1));if(!$('pairList').children.length)addPair()};
 }
-addPair();addPair();addPair();
+addPair();
+$('addPair').style.display='none';
+$('marketModeToggle').onclick=()=>{
+ multiMarketMode=!multiMarketMode;
+ if(multiMarketMode){while($('pairList').children.length<3)addPair();$('marketModeToggle').textContent='− Single Market';showStatus('Multi Markets is ON. Choose three different markets and upload H4, H1, M30 and M15 screenshots for each.','good');}
+ else{while($('pairList').children.length>1)$('pairList').lastElementChild.remove();pairCount=1;$('marketModeToggle').textContent='＋ Multi Markets';showStatus('Single Market is ON. Only your selected market will be analyzed.','good');}
+ invalidateExecutionTicket();
+};
 $('addPair').onclick=()=>addPair();
 function readImage(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('Could not read '+file.name));reader.onload=()=>{const img=new Image();img.onload=()=>{const max=1500,scale=Math.min(1,max/Math.max(img.width,img.height)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);resolve(canvas.toDataURL('image/jpeg',.7))};img.onerror=()=>reject(new Error('Could not decode '+file.name));img.src=reader.result};reader.readAsDataURL(file)})}
 $('saveToken').onclick=()=>{const token=$('token').value.trim();if(!token){showStatus('Paste the private Analyzer access token first.','bad');return}localStorage.setItem('analyzerAccessToken',token);try{const old=JSON.parse(localStorage.getItem(STORE)||'{}');old.settings={...(old.settings||{}),accessToken:token,backendUrl:'/api/analyze'};localStorage.setItem(STORE,JSON.stringify(old))}catch{}showStatus('Private access token saved on this device.','good')};
@@ -210,7 +219,7 @@ function renderReport(source){
 }
 let executionTrade=null,executionAttempted=false;
 function invalidateExecutionTicket(){
- executionTrade=null;executionAttempted=false;window.analyzerNewsTrade=false;
+ executionTrade=null;executionAttempted=false;
  const ticket=$('tradeTicket');if(ticket)ticket.style.display='none';
  const button=$('sendToMT5');if(button)button.disabled=true;
 }
@@ -230,14 +239,14 @@ function parseExecutionData(source, submittedPairs){
  if(direction==='SHORT'&&!(sl>entry&&entry>tp1&&tp1>=tp2&&tp2>=tp3))return null;
  return {symbol,direction,entry,sl,tp1,tp2,tp3};
 }
-function renderTradeTicket(source, submittedPairs, newsTrade){
+function renderTradeTicket(source, submittedPairs){
  executionTrade=parseExecutionData(source,submittedPairs);executionAttempted=false;
  $('tradeTicket').style.display='block';
  $('executeStatus').className='notice';
  $('executeStatus').textContent='';
  $('sendToMT5').disabled=!executionTrade;
  $('tradeSummary').textContent=executionTrade
-  ? 'CONFIRMED SETUP · '+executionTrade.symbol+' · '+executionTrade.direction+' · Entry '+executionTrade.entry+' · SL '+executionTrade.sl+' · TP1 '+executionTrade.tp1+' · TP2 '+executionTrade.tp2+' · TP3 '+executionTrade.tp3+(newsTrade?' · NEWS TRADE: use 50% of normal lot size.':'')
+  ? 'CONFIRMED SETUP · '+executionTrade.symbol+' · '+executionTrade.direction+' · Entry '+executionTrade.entry+' · SL '+executionTrade.sl+' · TP1 '+executionTrade.tp1+' · TP2 '+executionTrade.tp2+' · TP3 '+executionTrade.tp3
   : 'No machine-verified confirmed setup with complete numeric Entry, SL, TP1, TP2 and TP3 was returned. Execution is disabled. WAIT — NO ENTRY.';
  $('lotMode').value='auto';$('lotSize').disabled=true;
 }
@@ -255,7 +264,7 @@ $('sendToMT5').onclick=async()=>{
   if(!Number.isFinite(risk)||risk<=0||risk>5)throw new Error('Risk per trade must be between 0 and 5%.');
   if(!Number.isInteger(positionCount)||positionCount<1||positionCount>10)throw new Error('Number of positions must be an integer from 1 to 10.');
   if(lotSize!=='auto'&&(!Number.isFinite(lotSize)||lotSize<=0))throw new Error('Enter a valid manual lot size.');
-  const payload={...executionTrade,lotSize,positionCount,balance,risk,newsTrade:Boolean(window.analyzerNewsTrade)};
+  const payload={...executionTrade,lotSize,positionCount,balance,risk};
   const effectiveLot=lotSize==='auto'?'Auto (MT5 calculates)':String(lotSize);
   if(!window.confirm('Send '+executionTrade.direction+' '+executionTrade.symbol+' to MT5?\nEntry: '+executionTrade.entry+'\nSL: '+executionTrade.sl+'\nTP3: '+executionTrade.tp3+'\nLot: '+effectiveLot+'\nPositions: '+positionCount+'\nRisk: '+risk+'% of '+balance+'\n\nThis may place real broker orders. Continue?'))return;
   executionAttempted=true;button.disabled=true;button.textContent='Sending to MT5…';
@@ -273,7 +282,7 @@ $('analyze').onclick=async()=>{const btn=$('analyze');invalidateExecutionTicket(
 const tradeContext=(useLastAnalysisMemory&&lastAnalysis)
  ? "The user is uploading NEW screenshots to update their active trade. Here is the analysis from 30 minutes ago: "+lastAnalysis+". Compare the new screenshots to this previous analysis. Tell the user if they should HOLD or CLOSE the active trade."
  : "";
-const balance=Number($('accountBalance').value),risk=Number($('riskPercent').value);if(!Number.isFinite(balance)||balance<=0)throw new Error('Enter a valid account balance.');if(!Number.isFinite(risk)||risk<=0||risk>5)throw new Error('Risk per trade must be between 0 and 5%.');const payload={version:'smc-ict-multi-pair-v2',pairs,tradeContext,balance,risk,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi'}};const body=JSON.stringify(payload);if(body.length>9*1024*1024)throw new Error('Combined screenshots are too large. Use fewer pairs or crop screenshots less tightly; the app compresses them automatically.');const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body});const out=await response.json().catch(()=>({}));if(!response.ok)throw new Error(out.error||('AI service returned HTTP '+response.status));if(typeof out.text!=='string'||!out.text.trim())throw new Error('The AI returned an empty analysis. Please try again.');localStorage.setItem('lastAnalysis',out.text);refreshLastAnalysisButton();$('result').replaceChildren(renderReport(out.text));$('result').classList.add('show');window.analyzerNewsTrade=Boolean(out.newsTrade);renderTradeTicket(out.text,pairs.map(x=>x.pair),window.analyzerNewsTrade);showStatus('Scan complete. Review the report and execution ticket carefully before sending any order.','good');$('result').scrollIntoView({behavior:'smooth',block:'start'})}catch(error){showStatus('Analysis failed: '+error.message,'bad')}finally{btn.disabled=false;btn.textContent='✦ Analyse selected markets'}};
+const balance=Number($('accountBalance').value),risk=Number($('riskPercent').value);if(!Number.isFinite(balance)||balance<=0)throw new Error('Enter a valid account balance.');if(!Number.isFinite(risk)||risk<=0||risk>5)throw new Error('Risk per trade must be between 0 and 5%.');const payload={version:'smc-ict-multi-pair-v2',pairs,tradeContext,balance,risk,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi'}};const body=JSON.stringify(payload);if(body.length>9*1024*1024)throw new Error('Combined screenshots are too large. Use fewer pairs or crop screenshots less tightly; the app compresses them automatically.');const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body});const out=await response.json().catch(()=>({}));if(!response.ok)throw new Error(out.error||('AI service returned HTTP '+response.status));if(typeof out.text!=='string'||!out.text.trim())throw new Error('The AI returned an empty analysis. Please try again.');localStorage.setItem('lastAnalysis',out.text);refreshLastAnalysisButton();$('result').replaceChildren(renderReport(out.text));$('result').classList.add('show');renderTradeTicket(out.text,pairs.map(x=>x.pair));showStatus('Scan complete. Review the report and execution ticket carefully before sending any order.','good');$('result').scrollIntoView({behavior:'smooth',block:'start'})}catch(error){showStatus('Analysis failed: '+error.message,'bad')}finally{btn.disabled=false;btn.textContent='✦ Analyse selected markets'}};
 
 /* London morning and New York evening screenshot sessions are converted to Kenya EAT; DST is automatic. */
 const TIMER_STORE_KEY='analyzerProTimerSettingsV1';
