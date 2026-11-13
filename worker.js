@@ -344,7 +344,13 @@ export default {
     if (url.pathname === "/api/push-config" && request.method === "GET") {
       return json({ appId: env.ONESIGNAL_APP_ID || null, ready: Boolean(env.ONESIGNAL_APP_ID && env.ONESIGNAL_REST_API_KEY) });
     }
-    return env.ASSETS.fetch(request);
+    const assetResponse = await env.ASSETS.fetch(request);
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname.endsWith(".html"))) {
+      const headers = new Headers(assetResponse.headers);
+      headers.set("Cache-Control", "no-store, max-age=0, must-revalidate");
+      return new Response(assetResponse.body, { status: assetResponse.status, statusText: assetResponse.statusText, headers });
+    }
+    return assetResponse;
   },
   async scheduled(controller, env) {
     await sendSessionReminder(env, controller.scheduledTime);
