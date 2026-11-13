@@ -139,6 +139,16 @@ function escapeHTML(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'
 function inlineMarkdown(s){return escapeHTML(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/__(.+?)__/g,'<strong>$1</strong>').replace(/\`([^\`]+)\`/g,'<code>$1</code>').replace(/(?<!\*)\*([^*]+)\*(?!\*)/g,'<em>$1</em>')}
 function renderReport(source){
  const root=document.createElement('div');root.className='report';
+ const rangeMatch=String(source||'').match(/RANGE_DATA:\\s*(\\{[^\\n]*\\})/);
+ let rangePanel='';
+ if(rangeMatch){
+  try{
+   const range=JSON.parse(rangeMatch[1]),high=Number(range.high),low=Number(range.low);
+   if(range.confirmed_closed===true&&Number.isFinite(high)&&Number.isFinite(low)&&high>low){
+    rangePanel='<h3>Verified 30-minute opening range</h3><div class="range-guides"><div class="range-guide high"><span>OPENING RANGE HIGH</span><strong>'+escapeHTML(String(range.high))+'</strong></div><div class="range-guide low"><span>OPENING RANGE LOW</span><strong>'+escapeHTML(String(range.low))+'</strong></div></div><p class="muted small">Calculated from six completed M5 candles · '+escapeHTML(String(range.candle_time||'First 30 minutes'))+'</p>';
+   }
+  }catch{}
+ }
  const lines=String(source||'').replace(/[⭐🌟✨★☆✦✧✩✪✫✬✭✮✯✰＊※❋❊❉❈❇❆❅❄○◯●◦◎◉◌▫▪■□◆◇⬤⬥⬦✓✔☑✕✖✗✘]/gu,'').replace(/[ \t]{2,}/g,' ').replace(/\r/g,'').split('\n');
  let i=0,html='';
  const isTableLine=s=>/^\s*\|.*\|\s*$/.test(s);
@@ -169,7 +179,7 @@ function renderReport(source){
   if(/^(NO VALID TRADE|NO TRADE|WAIT UNTIL|ACTIVE NOW|BEST PAIR)\b/i.test(s)){const cls=/NO VALID|NO TRADE/i.test(s)?'bad':/WAIT/i.test(s)?'warn':'good';html+='<div class="report-callout '+cls+'">'+inlineMarkdown(s)+'</div>';i++;continue}
   html+='<p>'+inlineMarkdown(s)+'</p>';i++;
  }
- root.innerHTML=html||'<p>No readable report was returned.</p>';
+ root.innerHTML=rangePanel+ (html||'<p>No readable report was returned.</p>');
  return root;
 }
 let executionTrade=null,executionAttempted=false;
