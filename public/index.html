@@ -67,13 +67,13 @@ main{padding-bottom:100px}
 <section class="card">
 <div class="eyebrow">AI chart scanner</div><h2>Build your chart scan</h2>
 <p class="muted small">Choose Gold, Bitcoin, Nasdaq or US30. Upload one M5 screenshot for the range breakout and one M1 screenshot for the third-candle FVG confirmation.</p>
-<button class="secondary" id="marketModeToggle" type="button" style="margin:10px 0">＋ Multi Markets</button>
+
 <div id="pairList"></div>
 <div class="pair-card" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
   <div><label class="small muted" for="accountBalance">Account Balance</label><input id="accountBalance" type="number" inputmode="decimal" min="0.01" step="0.01" value="100"></div>
   <div><label class="small muted" for="riskPercent">Risk per Trade (%)</label><input id="riskPercent" type="number" inputmode="decimal" min="0.01" max="5" step="0.01" value="1"></div>
 </div>
-<div class="actions"><button class="secondary" id="addPair">＋ Add another pair</button><div class="analysis-actions"><button class="primary" id="analyze">✦ Analyse M5 + M1 screenshots</button><button class="secondary" id="useLastAnalysis" type="button" aria-pressed="false">Use Last Analysis as Memory</button></div></div>
+<div class="actions"><div class="analysis-actions"><button class="primary" id="analyze">✦ Analyse M5 + M1 screenshots</button><button class="secondary" id="useLastAnalysis" type="button" aria-pressed="false">Use Last Analysis as Memory</button></div></div>
 <button class="secondary" id="clear" style="margin-top:9px">Clear screenshots and results</button>
 <div class="notice" id="status"></div>
 <details><summary>⚙ AI connection settings</summary><p class="muted small">Your Gemini API key remains secured on Cloudflare. Enter the private Analyzer access token provided for this website. Your saved token is reused on this device.</p><div class="token-row"><div><label class="small muted" for="token">Private Analyzer access token</label><input id="token" type="password" autocomplete="off" placeholder="Paste private access token"></div><button id="saveToken">Save token on this device</button></div></details>
@@ -182,7 +182,7 @@ function addPair(initial){
  }
 }
 addPair();
-$('addPair').style.display='none';$('marketModeToggle').style.display='none';
+
 
 
 function readImage(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('Could not read '+file.name));reader.onload=()=>{const img=new Image();img.onload=()=>{const max=1500,scale=Math.min(1,max/Math.max(img.width,img.height)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);resolve(canvas.toDataURL('image/jpeg',.7))};img.onerror=()=>reject(new Error('Could not decode '+file.name));img.src=reader.result};reader.readAsDataURL(file)})}
