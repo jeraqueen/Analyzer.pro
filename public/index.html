@@ -40,26 +40,26 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:14px}
 
 </head>
 <body>
-<header><div class="brand"><div class="logo">A</div><div><h1>Analyzer Pro</h1><div class="muted small">New York session · AI chart intelligence</div></div></div><div class="pill" id="clock">EAT · --:--</div></header>
+<header><div class="brand"><div class="logo">A</div><div><h1>Analyzer Pro</h1><div class="muted small">Multi-timeframe · AI chart intelligence</div></div></div><div class="pill" id="clock">EAT · --:--</div></header>
 <main>
 <section class="card hero">
-<div class="eyebrow">New York opening range · Live session clock</div><div class="hero-line"><h2>Capture the opening move.</h2><span class="pill">● Strategy 1 · AI chart analysis</span></div>
-<p class="muted small">At 9:30 AM New York time, send the last completed M5 candle. Analyzer Pro saves its high and low. Later, when the FVG appears, send the M1 screenshot for breakout confirmation and structure-based targets. Maximum planned hold: 90 minutes.</p>
+<div class="eyebrow">New York opening reference · Live session clock</div><div class="hero-line"><h2>Analyze the chart at any time.</h2><span class="pill">● Strategy 1 · AI chart analysis</span></div>
+<p class="muted small">Take and upload screenshots whenever you want. Analyzer Pro reads the date and time shown on the charts, then checks the M5 opening range and M1 FVG setup. The screenshot does not have to be captured at 9:30 AM. Maximum planned hold: 90 minutes.</p>
 <div class="watch-grid" id="watchlist"></div>
 <div class="session-strip"><div><span>NEW YORK OPEN</span><strong>9:30 AM</strong><small id="sessionHint">5:30 PM EAT in US winter · 4:30 PM in US summer</small></div><div class="session-divider"></div><div><span>KENYA EAT NOW</span><strong id="eatSessionTime">--:--</strong><small>New York daylight saving adjusts automatically</small></div></div>
 </section>
 <section class="card">
 <div class="eyebrow">AI chart scanner</div><h2>Build your chart scan</h2>
-<p class="muted small">Upload both screenshots together: the M5 chart showing the first 9:30 AM New York opening candle, and the M1 chart showing the FVG setup. Press Analyze once for a combined review. No saved-stage waiting.</p>
+<p class="muted small">Upload both screenshots together whenever you are ready: M5 and M1. The AI reads the chart date/time and uses the visible 9:30 AM New York candle as the opening-range reference when it is shown. You do not need to take the screenshots at 9:30 AM. Press Analyze once for a combined review.</p>
 
 <div id="pairList"></div>
-<div class="muted small" style="margin-top:10px">M5 = first 9:30 AM New York opening candle · M1 = current FVG and confirmation</div>
+<div class="muted small" style="margin-top:10px">M5 = opening-range context and breakout · M1 = FVG and confirmation. Screenshot capture is allowed at any time.</div>
 <div class="actions"><div class="analysis-actions"><button class="primary" id="analyze" type="button">Analyze M5 + M1 together</button></div></div>
-<button class="secondary" id="clear" style="margin-top:9px">Reset range and start a new session</button>
+<button class="secondary" id="clear" style="margin-top:9px">Clear screenshots and start a new scan</button>
 <div class="notice" id="status"></div>
 <details><summary>⚙ AI connection settings</summary><p class="muted small">Your Gemini API key remains secured on Cloudflare. Enter the private Analyzer access token provided for this website. Your saved token is reused on this device.</p><div class="token-row"><div><label class="small muted" for="token">Private Analyzer access token</label><input id="token" type="password" autocomplete="off" placeholder="Paste private access token"></div><button id="saveToken">Save token on this device</button></div></details>
 </section>
-<section class="card"><div class="eyebrow">AI intelligence report</div><h2>Combined M5 + M1 analysis</h2><p class="muted small">Gemini reads the 9:30 M5 opening candle and the supplied M1 FVG screenshot in the same request.</p><div id="result" aria-live="polite"></div></section>
+<section class="card"><div class="eyebrow">AI intelligence report</div><h2>Combined M5 + M1 analysis</h2><p class="muted small">Gemini reads the date/time shown on both charts and checks the M5 opening range, breakout and M1 FVG in one request. You can analyse screenshots captured at any time.</p><div id="result" aria-live="polite"></div></section>
 <section class="card" id="tradeTicket" style="display:none">
   <div class="eyebrow">Manual broker handoff</div><h2>Execute trade</h2>
   <p class="muted small">Review every level and confirm before sending. Orders are forwarded to your configured MT5 bridge; this page does not connect directly to MetaTrader.</p>
@@ -80,7 +80,7 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:14px}
   <button class="primary" id="sendToMT5" type="button" disabled style="margin-top:12px">Send to MT5</button>
 </section>
 
-<footer>Analyzer Pro · New York 9:30 AM session · M5 opening range · M1 FVG confirmation · Structure targets</footer>
+<footer>Analyzer Pro · Any-time chart analysis · M5 opening range · M1 FVG confirmation · Structure targets</footer>
 </main>
 <script>
 'use strict';
@@ -113,7 +113,7 @@ function addPair(initial){
  const id=++pairSerial,wrap=document.createElement('div');
  wrap.className='pair-card';wrap.dataset.pairId=String(id);
  const chosen=initial&&PAIRS.includes(initial)?initial:'XAUUSD';
- wrap.innerHTML='<div class="pair-head"><span class="pair-name">Selected market</span><span class="pair-tag">Stage 1 · M5 range</span></div><select class="pair-select" aria-label="Choose instrument">'+pairOptions(chosen)+'</select><div class="uploads">'+TF.map(tf=>'<div class="upload"><div class="upload-top"><strong>'+tf+'</strong><span class="tf-note">'+'Last completed candle'+'</span></div><label class="camera-pick" for="p'+id+tf+'">'+camera+'<span>Choose '+tf+' screenshot</span></label><input class="file-input" type="file" id="p'+id+tf+'" accept="image/*"><img class="preview" id="prev'+id+tf+'" alt="'+tf+' screenshot preview"><span class="file-name" id="name'+id+tf+'">No screenshot selected</span></div>').join('')+'</div>';
+ wrap.innerHTML='<div class="pair-head"><span class="pair-name">Selected market</span><span class="pair-tag">Combined M5 + M1 scan</span></div><select class="pair-select" aria-label="Choose instrument">'+pairOptions(chosen)+'</select><div class="uploads">'+TF.map(tf=>'<div class="upload"><div class="upload-top"><strong>'+tf+'</strong><span class="tf-note">'+'Last completed candle'+'</span></div><label class="camera-pick" for="p'+id+tf+'">'+camera+'<span>Choose '+tf+' screenshot</span></label><input class="file-input" type="file" id="p'+id+tf+'" accept="image/*"><img class="preview" id="prev'+id+tf+'" alt="'+tf+' screenshot preview"><span class="file-name" id="name'+id+tf+'">No screenshot selected</span></div>').join('')+'</div>';
  $('pairList').appendChild(wrap);
  for(const tf of TF){
   const input=$('p'+id+tf);
