@@ -134,7 +134,7 @@ main{padding-bottom:100px}
 const $=id=>document.getElementById(id), TF=['M5','M1'];
 const STORE='fxResearchDesk_v2', PAIRS=['XAUUSD','BTCUSD','NAS100','US30'];
 const LABEL={XAUUSD:'Gold · XAUUSD',BTCUSD:'Bitcoin · BTCUSD',NAS100:'Nasdaq · NAS100',US30:'US30 · Dow Jones'};
-let pairCount=0,pairSerial=0,multiMarketMode=false;
+let pairCount=0,pairSerial=0;
 function getSavedToken(){try{const old=JSON.parse(localStorage.getItem(STORE)||'null');return old?.settings?.accessToken||localStorage.getItem('analyzerAccessToken')||''}catch{return localStorage.getItem('analyzerAccessToken')||''}}
 $('token').value=getSavedToken();
 function showStatus(message,type){const el=$('status');el.textContent=message;el.className='notice show '+(type||'')}
@@ -183,13 +183,8 @@ function addPair(initial){
 }
 addPair();
 $('addPair').style.display='none';$('marketModeToggle').style.display='none';
-$('marketModeToggle').onclick=()=>{
- multiMarketMode=!multiMarketMode;
- if(multiMarketMode){while($('pairList').children.length<3)addPair();$('marketModeToggle').textContent='− Single Market';showStatus('Multi Markets is ON. Choose three different markets and upload H4, H1, M30 and M15 screenshots for each.','good');}
- else{while($('pairList').children.length>1)$('pairList').lastElementChild.remove();pairCount=1;$('marketModeToggle').textContent='＋ Multi Markets';showStatus('Single Market is ON. Only your selected market will be analyzed.','good');}
- invalidateExecutionTicket();
-};
-$('addPair').onclick=()=>addPair();
+
+
 function readImage(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('Could not read '+file.name));reader.onload=()=>{const img=new Image();img.onload=()=>{const max=1500,scale=Math.min(1,max/Math.max(img.width,img.height)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);resolve(canvas.toDataURL('image/jpeg',.7))};img.onerror=()=>reject(new Error('Could not decode '+file.name));img.src=reader.result};reader.readAsDataURL(file)})}
 $('saveToken').onclick=()=>{const token=$('token').value.trim();if(!token){showStatus('Paste the private Analyzer access token first.','bad');return}localStorage.setItem('analyzerAccessToken',token);try{const old=JSON.parse(localStorage.getItem(STORE)||'{}');old.settings={...(old.settings||{}),accessToken:token,backendUrl:'/api/analyze'};localStorage.setItem(STORE,JSON.stringify(old))}catch{}showStatus('Private access token saved on this device.','good')};
 $('clear').onclick=()=>{document.querySelectorAll('.file-input').forEach(input=>{input.value=''});document.querySelectorAll('.preview').forEach(img=>{img.removeAttribute('src');img.classList.remove('show')});document.querySelectorAll('.file-name').forEach(el=>el.textContent='No screenshot selected');$('result').textContent='';$('result').classList.remove('show');$('tradeTicket').style.display='none';executionTrade=null;showStatus('All screenshots and results cleared.','good')};
