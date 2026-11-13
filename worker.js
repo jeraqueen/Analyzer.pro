@@ -134,7 +134,7 @@ async function handleAnalyze(request, env) {
 
   const now = new Date();
   const eatNow = new Intl.DateTimeFormat("en-KE", { timeZone: "Africa/Nairobi", dateStyle: "full", timeStyle: "long", hour12: false }).format(now);
-  const savedRange = payload.range && typeof payload.range === "object" ? payload.range : null;
+  const savedRange = payload.range && typeof payload.range === "object" ? payload.range : { high: "not used in combined mode", low: "not used in combined mode", candle_time: "identified from supplied M5 screenshot" };
   if (stage === "confirm" && (!savedRange || savedRange.confirmed_closed !== true || !Number.isFinite(Number(savedRange.high)) || !Number.isFinite(Number(savedRange.low)))) return json({ error: "A verified saved M5 range is required before the M1 confirmation scan." }, 400, cors);
 
   const rangePrompt = [
