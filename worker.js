@@ -116,10 +116,6 @@ async function handleAnalyze(request, env) {
   } catch {
     return json({ error: "Request body must be valid JSON." }, 400, cors);
   }
-  const balance = Number(payload.balance ?? 100);
-  const risk = Number(payload.risk ?? 1);
-  if (!Number.isFinite(balance) || balance <= 0) return json({ error: "Account balance must be a number greater than zero." }, 400, cors);
-  if (!Number.isFinite(risk) || risk <= 0 || risk > 100) return json({ error: "Risk per trade must be greater than 0 and no more than 100 percent." }, 400, cors);
   const stage = payload.stage === "range" ? "range" : "confirm";
   const timeframes = stage === "range" ? ["M5"] : ["M5", "M1"];
   // Accept the new multi-pair format and the previous single-pair format.
@@ -163,7 +159,6 @@ async function handleAnalyze(request, env) {
     "TAKE PROFITS: For BUY, TP1 is the nearest meaningful resistance/overhead supply or opposing liquidity level in the trade direction; for SELL, TP1 is the nearest meaningful support/demand or opposing liquidity below. TP2 and TP3 are the next successive visible structure levels only if they exist. Explain the chart evidence/timeframe for every TP. Do not use fixed pip/point distances or force an R:R ratio. If the next support/resistance barrier leaves insufficient reward after the structural stop and costs, say WAIT — INSUFFICIENT ROOM.",
     "90-MINUTE LIMIT: Every proposed setup is intended to be completed within a maximum of 90 minutes from entry. Use only visible recent M1/M5 candle pace and distance to the target to judge whether the nearest TP is plausibly reachable within 90 minutes. If the chart does not provide enough evidence to estimate this, say TIME ESTIMATE NOT RELIABLE and do not pretend otherwise. State a hard planned maximum holding time of 90 minutes: if neither SL nor TP is reached by 90 minutes after entry, the user should close manually. The AI/site does not monitor live prices or automatically close broker positions. Never guarantee a TP or profit.",
     "STRICT EVIDENCE: Read exact prices from visible chart labels/axis. Preserve displayed decimal precision. Do not invent volume, indicators, ATR, live prices, news, spreads, win rates, confidence percentages, or pip/contract values. If screenshot timing, price scale or candles are unclear or M5/M1 do not align, report the limitation and WAIT.",
-    "RISK CONTEXT: Account balance " + balance + "; user risk setting " + risk + "%. Do not calculate lot size unless broker contract/tick value data is actually provided. Separate chart setup validity from position sizing.",
     "OUTPUT EXACTLY THIS REPORT STRUCTURE:",
     "INSTRUMENT:",
     "OVERALL VERDICT: BUY / SELL / WAIT — NO TRADE",
@@ -209,7 +204,7 @@ async function handleAnalyze(request, env) {
   const primaryModel = env.GEMINI_MODEL || "gemini-3.1-flash-lite";
   // Keep the configured model first, then use official stable multimodal fallbacks
   // when Google reports temporary overload or rate limiting.
-  const models = [...new Set([primaryModel, "gemini-3.5-flash-lite", "gemini-3.8-flash"])];
+  const models = [...new Set([primaryModel, "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.7-flash"])];
   const aiRequestBody = JSON.stringify({
     contents: [{ role: "user", parts }],
     generationConfig: { temperature: 0, maxOutputTokens: 5000 }
