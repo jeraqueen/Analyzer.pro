@@ -142,11 +142,11 @@ async function handleAnalyze(request, env) {
   if (stage === "confirm" && (!savedRange || savedRange.confirmed_closed !== true || !Number.isFinite(Number(savedRange.high)) || !Number.isFinite(Number(savedRange.low)))) return json({ error: "A verified saved M5 range is required before the M1 confirmation scan." }, 400, cors);
 
   const rangePrompt = [
-    "You are Analyzer Pro. STAGE 1 — M5 RANGE CAPTURE ONLY. Analyze " + submitted[0].pair + ". Current Kenya time: " + eatNow + ". This screenshot is taken at the New York 9:30 AM opening (America/New_York).",
+    "You are Analyzer Pro. STAGE 1 — M5 RANGE CAPTURE ONLY. Analyze " + submitted[0].pair + ". Current Kenya time: " + eatNow + ". This is a practice-capable M5 screenshot and may be captured at any time. Do not require the New York 9:30 AM opening. Identify the latest fully completed M5 candle visible at the right edge; the user may practise outside the live session.",
     "Identify the LAST FULLY COMPLETED five-minute candle visible at the right edge. Ignore any currently forming candle. Use that candle's wick high and wick low as the opening range boundaries.",
     "Read exact high and low from the visible price scale or candle data. Do not guess, round or infer missing prices. If candle closure or either exact price is unclear, say RANGE NOT VERIFIED and do not output RANGE_DATA.",
     "This stage only captures the M5 range. Do not search for an entry, predict direction, invent a breakout, create TP or SL, or call a trade confirmed. M1 FVG confirmation comes later.",
-    "Report instrument, New York 9:30 AM session, selected candle/time, HIGH LINE, LOW LINE and status RANGE SAVED or RANGE NOT VERIFIED. Tell the user to wait for the M1 screenshot when the FVG appears.",
+    "Report instrument, screenshot candle/time if readable, whether this is a practice scan or a live-session scan only if that can be determined, HIGH LINE, LOW LINE and status RANGE SAVED or RANGE NOT VERIFIED. This scan is valid at any time. Tell the user to wait for the M1 screenshot when the FVG appears.",
     "Only if the candle is fully closed and both exact levels are readable, append exactly one single-line JSON record: RANGE_DATA: {\"confirmed_closed\":true,\"symbol\":\"" + submitted[0].pair + "\",\"timeframe\":\"M5\",\"high\":123.45,\"low\":122.45,\"candle_time\":\"09:30\",\"session\":\"America/New_York 09:30\"}. Replace the example prices/time with exact screenshot values. Otherwise omit RANGE_DATA.",
     "Do not claim to draw on the original broker chart; the website will display the saved high and low as range guides. Never claim a trade was placed."
   ].join("\n");
