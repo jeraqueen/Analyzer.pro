@@ -55,11 +55,7 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:14px}
 <div id="pairList"></div>
 <div class="upload" id="m1Stage" style="margin-top:12px;opacity:.55"><div class="upload-top"><strong>M1 · LATER FVG CONFIRMATION</strong><span class="tf-note" id="m1StageStatus">Locked until M5 range is saved</span></div><label class="camera-pick" for="m1Later" id="m1Pick"><span>Choose later M1 screenshot</span></label><input class="file-input" type="file" id="m1Later" accept="image/*" disabled><img class="preview" id="m1Preview" alt="Later M1 screenshot preview"><span class="file-name" id="m1FileName">Upload this only when the FVG appears</span></div>
 <div class="pair-card" id="savedRangeCard" style="display:none"><div class="eyebrow">Saved New York opening range</div><div class="range-guides"><div class="range-guide high"><span>HIGH LINE</span><strong id="savedRangeHigh">—</strong></div><div class="range-guide low"><span>LOW LINE</span><strong id="savedRangeLow">—</strong></div></div><p class="muted small" id="savedRangeTime"></p></div>
-<div class="pair-card" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-  <div><label class="small muted" for="accountBalance">Account Balance</label><input id="accountBalance" type="number" inputmode="decimal" min="0.01" step="0.01" value="100"></div>
-  <div><label class="small muted" for="riskPercent">Risk per Trade (%)</label><input id="riskPercent" type="number" inputmode="decimal" min="0.01" max="5" step="0.01" value="1"></div>
-</div>
-<div class="actions"><div class="analysis-actions"><button class="primary" id="analyze">① Scan M5 & save range</button><button class="secondary" id="useLastAnalysis" type="button" aria-pressed="false">Use Last Analysis as Memory</button></div></div>
+<div class="actions"><div class="analysis-actions"><button class="primary" id="analyze" type="button">① Scan M5 & save range</button></div></div>
 <button class="secondary" id="clear" style="margin-top:9px">Reset range and start a new session</button>
 <div class="notice" id="status"></div>
 <details><summary>⚙ AI connection settings</summary><p class="muted small">Your Gemini API key remains secured on Cloudflare. Enter the private Analyzer access token provided for this website. Your saved token is reused on this device.</p><div class="token-row"><div><label class="small muted" for="token">Private Analyzer access token</label><input id="token" type="password" autocomplete="off" placeholder="Paste private access token"></div><button id="saveToken">Save token on this device</button></div></details>
@@ -90,22 +86,6 @@ let savedRange=null;try{savedRange=JSON.parse(localStorage.getItem('analyzerSave
 function getSavedToken(){try{const old=JSON.parse(localStorage.getItem(STORE)||'null');return old?.settings?.accessToken||localStorage.getItem('analyzerAccessToken')||''}catch{return localStorage.getItem('analyzerAccessToken')||''}}
 $('token').value=getSavedToken();
 function showStatus(message,type){const el=$('status');el.textContent=message;el.className='notice show '+(type||'')}
-let useLastAnalysisMemory=true;
-function refreshLastAnalysisButton(){
- const button=$('useLastAnalysis'),saved=localStorage.getItem('lastAnalysis');
- if(!button)return;
- button.disabled=!saved;
- button.setAttribute('aria-pressed',String(Boolean(saved)&&useLastAnalysisMemory));
- button.title=saved?'Previous successful analysis is available on this device.':'Run a successful analysis first to create memory.';
-}
-$('useLastAnalysis').onclick=()=>{
- const saved=localStorage.getItem('lastAnalysis');
- if(!saved){showStatus('There is no saved analysis yet. Run a successful scan first.','bad');return}
- useLastAnalysisMemory=!useLastAnalysisMemory;
- refreshLastAnalysisButton();
- showStatus(useLastAnalysisMemory?'Previous analysis memory will be included in your next scan.':'Previous analysis memory is turned off for the next scan.','good');
-};
-refreshLastAnalysisButton();
 function getEAT(){return new Date(new Date().toLocaleString('en-US',{timeZone:'Africa/Nairobi'}))}
 function marketClockMinutes(zone,now){const p=new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);return Number(p.find(x=>x.type==='hour').value)*60+Number(p.find(x=>x.type==='minute').value)}
 function minuteText(value){const n=((value%1440)+1440)%1440,h=Math.floor(n/60),m=n%60;return (h%12||12)+':'+String(m).padStart(2,'0')+(h<12?' AM':' PM')}
@@ -262,30 +242,38 @@ $('sendToMT5').onclick=async()=>{
  }finally{button.disabled=!executionTrade||executionAttempted;button.textContent=executionAttempted?'Attempt used — reanalyse':'Send to MT5'}
 };
 $('analyze').onclick=async()=>{
- const btn=$('analyze');invalidateExecutionTicket();
+ const btn=$('analyze');
+ btn.disabled=true;
+ btn.textContent='Starting chart scan…';
+ showStatus('Starting M5 chart scan. Preparing your screenshot…','');
  try{
+  invalidateExecutionTicket();
   const token=$('token').value.trim();if(!token)throw new Error('Open AI connection settings and enter your private Analyzer access token.');
   const card=$('pairList').firstElementChild;if(!card)throw new Error('Choose a market first.');
   const pair=card.querySelector('select').value,stage=savedRange&&savedM5Image?'confirm':'range',charts={};
   if(stage==='range'){const file=card.querySelector('#p'+card.dataset.pairId+'M5').files?.[0];if(!file)throw new Error('First upload any clear M5 chart screenshot. Practice scans are available at any time.');charts.M5=await readImage(file)}
   else{const file=$('m1Later').files?.[0];if(!file)throw new Error('Your M5 range is saved. Upload the later M1 screenshot when the directional FVG appears.');if(savedRange.symbol!==pair)throw new Error('The saved M5 range belongs to '+savedRange.symbol+'. Reset the range before changing markets.');charts.M5=savedM5Image;charts.M1=await readImage(file)}
-  const balance=Number($('accountBalance').value),risk=Number($('riskPercent').value);if(!Number.isFinite(balance)||balance<=0)throw new Error('Enter a valid account balance.');if(!Number.isFinite(risk)||risk<=0||risk>5)throw new Error('Risk per trade must be between 0 and 5%.');
-  btn.disabled=true;btn.textContent=stage==='range'?'Scanning last completed M5 candle…':'Checking M1 breakout and FVG…';$('result').textContent='';$('result').classList.remove('show');showStatus(stage==='range'?'Practice scan: reading the latest fully closed M5 candle. New York session timing is not required.':'Checking the new M1 screenshot against your saved M5 range.','');
-  const payload={version:'ny-open-staged-range-v1',stage,pair,charts,range:stage==='confirm'?savedRange:null,balance,risk,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi',sessionTimeZone:'America/New_York',sessionOpen:'09:30'}};
+  btn.textContent=stage==='range'?'Sending M5 screenshot to Gemini…':'Sending M1 confirmation to Gemini…';$('result').textContent='';$('result').classList.remove('show');showStatus(stage==='range'?'Screenshot ready. Gemini is reading the latest fully closed M5 candle. This practice scan works at any time.':'Screenshot ready. Gemini is checking the M1 breakout and FVG against your saved M5 range.','');
+  const payload={version:'ny-open-staged-range-v1',stage,pair,charts,range:stage==='confirm'?savedRange:null,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi',sessionTimeZone:'America/New_York',sessionOpen:'09:30'}};
   const body=JSON.stringify(payload);if(body.length>9*1024*1024)throw new Error('Screenshot is too large. Please use a smaller chart image.');
-  const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body});const out=await response.json().catch(()=>({}));if(!response.ok)throw new Error(out.error||('AI service returned HTTP '+response.status));if(typeof out.text!=='string'||!out.text.trim())throw new Error('The AI returned an empty analysis. Please try again.');
+  let response;
+  try{response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body,signal:AbortSignal.timeout(90000)})}
+  catch(networkError){if(networkError&&networkError.name==='TimeoutError')throw new Error('Gemini did not respond within 90 seconds. Check your connection and retry.');throw new Error('Could not reach Analyzer Pro. Check your internet connection and retry.')}
+  const out=await response.json().catch(()=>({}));if(!response.ok)throw new Error((out.error||('AI service returned HTTP '+response.status))+(out.code?' ['+out.code+']':'')+(out.upstreamStatus?' (Gemini HTTP '+out.upstreamStatus+')':''));if(typeof out.text!=='string'||!out.text.trim())throw new Error('The AI returned an empty analysis. Please try again.');
   $('result').replaceChildren(renderReport(out.text));$('result').classList.add('show');
   if(stage==='range'){
    const match=out.text.match(/RANGE_DATA\s*:\s*(\{[\s\S]*?\})\s*(?:\n|$)/i);let data=null;if(match){try{data=JSON.parse(match[1])}catch{}}
    if(!data||data.confirmed_closed!==true||data.symbol!==pair||!Number.isFinite(Number(data.high))||!Number.isFinite(Number(data.low))||Number(data.high)<=Number(data.low))throw new Error('AI could not verify the exact high and low of the last completed M5 candle. No range was saved. Check the price scale and try again.');
    savedRange=data;savedM5Image=charts.M5;try{localStorage.setItem('analyzerSavedM5Image',savedM5Image);localStorage.setItem('analyzerSavedM5Range',JSON.stringify(savedRange))}catch{savedRange=null;savedM5Image='';throw new Error('This phone could not save the M5 screenshot. Free browser storage and try again.')}
    updateSavedRangeUI();showStatus('M5 range saved. HIGH: '+data.high+' · LOW: '+data.low+'. Wait for the directional FVG, then upload M1.','good');
-  }else{localStorage.setItem('lastAnalysis',out.text);refreshLastAnalysisButton();renderTradeTicket(out.text,[pair]);showStatus('M1 confirmation scan complete. Review the saved range, FVG, third-candle close and support/resistance targets.','good')}
+  }else{localStorage.setItem('lastAnalysis',out.text);renderTradeTicket(out.text,[pair]);showStatus('M1 confirmation scan complete. Review the saved range, FVG, third-candle close and support/resistance targets.','good')}
   $('result').scrollIntoView({behavior:'smooth',block:'start'});
- }catch(error){showStatus('Analysis failed: '+(error&&error.message?error.message:String(error)),'bad');$('result').textContent='Scan did not complete. '+(error&&error.message?error.message:String(error));$('result').classList.add('show')}
- finally{btn.disabled=false;updateSavedRangeUI()}
+ }catch(error){const message=error&&error.message?error.message:String(error);showStatus('Analysis failed: '+message,'bad');$('result').textContent='Scan did not complete. '+message;$('result').classList.add('show')}
+ finally{btn.disabled=false;btn.textContent=savedRange&&savedM5Image?'② Analyze M1 confirmation':'① Scan M5 & save range';updateSavedRangeUI()}
 };
 
+window.addEventListener('error',event=>{try{showStatus('Page error: '+(event.message||'A script error prevented the scan from starting.'),'bad')}catch{}});
+window.addEventListener('unhandledrejection',event=>{try{showStatus('Page error: '+(event.reason&&event.reason.message?event.reason.message:String(event.reason)),'bad')}catch{}});
 </script>
 
 
