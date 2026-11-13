@@ -1,5 +1,5 @@
 const MAX_BODY_BYTES = 9 * 1024 * 1024;
-const ALLOWED_PAIRS = new Set(["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "BTCUSD"]);
+const ALLOWED_PAIRS = new Set(["XAUUSD", "BTCUSD", "NAS100", "US30"]);
 
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
@@ -120,10 +120,10 @@ async function handleAnalyze(request, env) {
   const risk = Number(payload.risk ?? 1);
   if (!Number.isFinite(balance) || balance <= 0) return json({ error: "Account balance must be a number greater than zero." }, 400, cors);
   if (!Number.isFinite(risk) || risk <= 0 || risk > 100) return json({ error: "Risk per trade must be greater than 0 and no more than 100 percent." }, 400, cors);
-  const timeframes = ["H4", "H1", "M30", "M15"];
+  const timeframes = ["M5", "M1"];
   // Accept the new multi-pair format and the previous single-pair format.
   const submitted = Array.isArray(payload.pairs) ? payload.pairs : [{ pair: payload.pair || "EURUSD", charts: payload.charts || {} }];
-  if (!submitted.length || submitted.length > 3) return json({ error: "Submit between one and three markets per scan." }, 400, cors);
+  if (!submitted.length || submitted.length > 1) return json({ error: "Select one market per scan. Upload its M5 and M1 screenshots." }, 400, cors);
   const seen = new Set();
   for (const item of submitted) {
     item.pair = String(item.pair || "").toUpperCase();
@@ -135,124 +135,52 @@ async function handleAnalyze(request, env) {
     if (missing.length) return json({ error: item.pair + " is missing screenshots: " + missing.join(", ") }, 400, cors);
   }
 
-  // Evaluate each killzone directly in its own market timezone.
-  // Never compare London hours directly with Kenya hours.
-  // Intl/IANA timezone data applies UK and US daylight-saving changes automatically.
-  const getZonedParts = (timeZone, date = new Date()) => {
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23"
-    }).formatToParts(date);
-    return {
-      hour: Number(parts.find(part => part.type === "hour")?.value),
-      minute: Number(parts.find(part => part.type === "minute")?.value)
-    };
-  };
-  const toMinutes = clock => clock.hour * 60 + clock.minute;
   const now = new Date();
-  const londonClock = getZonedParts("Europe/London", now);
-  const nyClock = getZonedParts("America/New_York", now);
-  const eatClock = getZonedParts("Africa/Nairobi", now);
-  const londonMinutes = toMinutes(londonClock);
-  const nyMinutes = toMinutes(nyClock);
-  const eatMinutes = toMinutes(eatClock);
-  const londonHour = londonClock.hour;
-  const nyHour = nyClock.hour;
-  const eatHour = eatClock.hour;
   const eatNow = new Intl.DateTimeFormat("en-KE", {
     timeZone: "Africa/Nairobi", dateStyle: "full", timeStyle: "long", hour12: false
   }).format(now);
-  const clockText = clock => String(clock.hour).padStart(2, "0") + ":" + String(clock.minute).padStart(2, "0");
-  const inWindow = (minute, start, end) => minute >= start && minute < end;
+  const multi = false;
 
-  // Check each source-market 08:00–11:00 window independently.
-  // Either active killzone permits analysis (logical OR).
-  const isLondonKillzone = inWindow(londonMinutes, 8 * 60, 11 * 60);
-  const isNYKillzone = inWindow(nyMinutes, 8 * 60, 11 * 60);
-
-  // Calculate the equivalent EAT windows for diagnostics and display only.
-  const londonToEatOffset = (eatMinutes - londonMinutes + 1440) % 1440;
-  const nyToEatOffset = (eatMinutes - nyMinutes + 1440) % 1440;
-  const formatMinute = minute => String(Math.floor(minute / 60) % 24).padStart(2, "0") + ":" + String(minute % 60).padStart(2, "0");
-  const londonStartEAT = (8 * 60 + londonToEatOffset) % 1440;
-  const londonEndEAT = (11 * 60 + londonToEatOffset) % 1440;
-  const nyStartEAT = (8 * 60 + nyToEatOffset) % 1440;
-  const nyEndEAT = (11 * 60 + nyToEatOffset) % 1440;
-  const londonWindowEAT = formatMinute(londonStartEAT) + "–" + formatMinute(londonEndEAT) + " EAT";
-  const nyWindowEAT = formatMinute(nyStartEAT) + "–" + formatMinute(nyEndEAT) + " EAT";
-
-  // Retained as false compatibility flags for the existing analysis prompt.
-  // No extra NY-evening or Asian session is enabled by these flags.
-  const isNYPmTrap = false;
-  const isAsianSession = false;
-
-  // Only block when BOTH approved market-local killzones are closed.
-  if (!isLondonKillzone && !isNYKillzone) {
-    return json({
-      text: "NO TRADE. OUTSIDE APPROVED KILLZONES. APPROVED WINDOWS: 8:00 AM–11:00 AM LONDON LOCAL TIME (" + londonWindowEAT + ") OR 8:00 AM–11:00 AM NEW YORK LOCAL TIME (" + nyWindowEAT + "). London now: " + clockText(londonClock) + "; New York now: " + clockText(nyClock) + "; Kenya now: " + clockText(eatClock) + " EAT. Session times adjust automatically for daylight saving time. Server time: " + eatNow + " (EAT).",
-      timeLocked: true,
-      serverTimeEAT: eatNow,
-      sessionStatus: {
-        london: "CLOSED", newYork: "CLOSED",
-        londonTime: clockText(londonClock), newYorkTime: clockText(nyClock),
-        kenyaTime: clockText(eatClock), londonWindowEAT, newYorkWindowEAT: nyWindowEAT
-      }
-    }, 200, cors);
-  }
-  const multi = submitted.length > 1;
   const prompt = [
-    `EXECUTION DATA CONTRACT: Only when a setup is fully CONFIRMED and exact numeric values are readable for Entry, SL, TP1, TP2 and TP3, append one single-line JSON record at the very end in this exact format: EXECUTION_DATA: {"confirmed":true,"symbol":"EURUSD","direction":"LONG","entry":1.1,"sl":1.09,"tp1":1.11,"tp2":1.12,"tp3":1.13}. Use the exact submitted symbol code without a slash. Use numeric prices, not strings. Direction must be LONG or SHORT. If the setup is not confirmed, any price is unreadable, or any of the three targets is unavailable, do not output EXECUTION_DATA.`,
-  
-    "TRADE MANAGEMENT DISABLED: Do not attempt to tell the user to HOLD or CLOSE an active trade. You do not have live tick data. Simply analyze the new screenshots as a fresh setup and provide new Entry, SL, and TP levels.",
-    "You are an elite multi-timeframe chart analyst specializing in strict Smart Money Concepts (SMC) and Inner Circle Trader (ICT) methodology.",
-    "Analyze " + submitted.length + " submitted market(s). Each market has its own H4, H1, M30 and M15 screenshots. Never mix evidence or prices between instruments.",
-    "Submitted instruments, in upload order: " + submitted.map(x => x.pair).join(", ") + ".",
-    "CURRENT LOCAL TIME: " + eatNow + " (Kenya / Africa-Nairobi, East Africa Time, UTC+3). Use this server-provided time for all timing recommendations.",
-    "AUTHORITATIVE SESSION DECISION (SERVER-CALCULATED): London local hour is " + londonHour + ", New York local hour is " + nyHour + ", and Kenya local hour is " + eatHour + ". isLondonKillzone=" + isLondonKillzone + "; isNYKillzone=" + isNYKillzone + "; isNYPmTrap=" + isNYPmTrap + "; isAsianSession=" + isAsianSession + ". These booleans are calculated by converting London and New York local windows into their equivalent Kenya EAT windows; all entry time-lock decisions are evaluated using the current Kenya EAT minutes. If isLondonKillzone or isNYKillzone is true, explicitly report the corresponding killzone ACTIVE and NEVER say it is outside the killzone. Always display both the source-market local window and its converted Kenya EAT window. Do not tell the user to close an existing position solely because a session window is ending; assess the actual chart structure and risk evidence. The server has already blocked submissions when the time lock is genuinely closed.",
-    "MANDATORY TABLE CONSISTENCY: Populate the MARKET RANKING & CONTEXT table from the server values above, not from chart interpretation. If isLondonKillzone=true, every pair row must show Execution Window=8:00 AM–11:00 AM London local time and Current Time Status=ACTIVE (London); if isNYKillzone=true, show 8:00 AM–11:00 AM New York local time and ACTIVE (New York). If both are true, report both. Only show OUTSIDE WINDOW when BOTH booleans are false. Pair validity (VALID TRADE / NO VALID TRADE) is a separate chart-setup decision and must never change the session status. At the report time 12:05 PM EAT with London local time 9:05 AM, London is ACTIVE. Do not label pairs OUTSIDE WINDOW in that situation.",
-    "MULTI-PAIR RANKING: " + (multi ? "Analyze every submitted pair independently. Rank all valid candidates and highlight the strongest three (or fewer if fewer valid candidates exist), using confirmed HTF Bias, FVG, BOS/CHoCH and Liquidity Sweep confluence. Name Best Pair (Rank 1). Never promote an invalid setup above a valid one. If none qualifies, say NO VALID TRADE for that pair." : "Only one pair was submitted. Analyze it alone as Best Pair (Rank 1); do not invent comparisons or imply other pairs were scanned."),
-    "HARD TIME LOCK: The server has already blocked every screenshot submission outside the 8:00 AM–11:00 AM London local-time killzone or the 8:00 AM–11:00 AM New York local-time killzone. The server converts both windows into their current Kenya EAT equivalents using live Europe/London, America/New_York and Africa/Nairobi timezone data. During UK winter, London 8:00–11:00 AM is 11:00 AM–2:00 PM EAT. During US winter, New York 8:00–11:00 AM is 4:00–7:00 PM EAT. The offsets shift automatically when either country changes daylight-saving time. All entry time-lock decisions use Kenya EAT minutes. Never recommend, validate, or label a trade outside these converted windows.",
-    "TIME LOCK WARNINGS: When New York local time is 11:00 AM–2:00 PM, the server returns the NY PM Trap warning and blocks the submission. During US winter this trap is 7:00–10:00 PM EAT; its Kenya equivalent shifts automatically with US daylight-saving time. When London local time is 11:00 PM–7:00 AM, the server returns the Asian Session warning and blocks the submission. All other times outside the approved London or New York 8:00–11:00 AM local killzones are NO TRADE.",
-    "The time lock is evaluated by the server using Africa/Nairobi local time at the moment screenshots are submitted, after converting the London and New York source-market windows into Kenya EAT using live IANA timezone offsets. In US winter the New York entry window is 4:00–7:00 PM EAT, with the 8:30 AM New York screenshot at 4:30 PM EAT. Never trust the device clock or a timestamp inside the screenshot.",
-    "For each pair, report H4/H1 bias, M30 setup, M15 trigger, entry, SL, TP1/TP2/TP3, invalidation, evidence score and reasons not to take it. Use exact section headings and clearly label each pair.",
-    "STRICT EVIDENCE: Never invent, estimate, interpolate, round or assume prices. Use only exact prices clearly readable on chart scale or directly labelled; preserve every visible decimal. Distinguish wick extremes from candle bodies. If prices or screenshots are blurry, cropped, inconsistent or lack a readable scale, do not produce a trade plan.",
-    "Never use psychological round numbers as Entry, SL or TP unless the exact chart evidence itself makes that level defensible. Do not use FVG midpoint by default. Use an evidenced FVG boundary, order-block wick, breaker or reaction level.",
-    "A CONFIRMED trade still requires clear H4/H1 directional bias AND either confirmed BOS/CHoCH or a confirmed supporting liquidity sweep. Never lower this confirmation standard for an execution-ready trade. HOWEVER, whenever readable H4/H1/M30 evidence shows a directional bias, you MUST provide the best conditional EARLY OPPORTUNITY even if M15 trigger or BOS/CHoCH is not yet confirmed. Label it exactly EARLY OPPORTUNITY — NOT CONFIRMED, specify LONG or SHORT from the actual aligned bias, name the setup type (trend continuation or pullback), and give the precise observable trigger needed before entry. If H4=Bearish, H1=Bearish and M30=Bearish, the conditional candidate MUST be SHORT continuation; do not describe a bullish reversal as the main idea unless bullish reversal evidence appears. Identify a visible FVG/OB retest zone if readable; otherwise state exact price is NOT READABLE. Include conditional invalidation and visible liquidity targets only when chart prices are readable. Do not invent or interpolate Entry, SL or TP prices. Do not call an early opportunity a confirmed trade, do not claim it is safe or high probability, and NEVER append EXECUTION_DATA for it. The user must wait for the stated trigger; it is not an instruction to enter immediately.",
-    "ENTRY EXECUTION: You must ONLY provide a Pending Limit Order price at a Fair Value Gap (FVG) or Order Block boundary. NEVER recommend a market entry. The price must pull back into the zone before entry.",
-    "TRIGGER CONFIRMATION: The user must not enter the trade immediately when the price touches the limit order. The user must wait for an M15 candle to close inside the FVG before the trade is considered valid.",
-    "Set targets at visible opposing liquidity pools such as recent swing highs/lows or equal highs/lows. Do not require every target to be an exact pre-labelled wick price; if a level cannot be read, label that target unavailable rather than rejecting an otherwise valid setup solely for that reason.",
-    "REPEATABILITY / NO GUESSING: Analyze the same uploaded chart pixels consistently. If the same screenshots are submitted again, reproduce the same price readings and levels; do not choose a new swing, reinterpret the setup, or change a price without new chart evidence. Use temperature 0. Never invent, estimate, interpolate between axis labels, round, normalize, or silently alter a price. Read prices from the right-side price axis and preserve the exact displayed precision. If the exact wick price cannot be read unambiguously from the visible axis/price label, state that it is unreadable and reject the trade plan rather than guessing.",
-    "STRUCTURAL STOP LOSS: The Stop Loss MUST be placed exactly 1-2 pips outside the true structural swing wick (M30 or H1) that created the setup. Do not artificially tighten the Stop Loss. If the structural stop loss is wide (e.g., 100 pips), keep it wide. To protect a small account, the bot must calculate a micro lot size (e.g., 0.01 or 0.001). If the account is too small to afford the structural Stop Loss even at minimum lot size, output: 'WARNING: Stop Loss is too wide for your balance. Do not trade. Wait for a tighter setup.' State the structural timeframe, swing wick, buffer and exact entry-to-stop distance. For instruments whose broker point/pip convention is not known, do not invent a pip conversion; report the raw price distance and state that pip distance is not verifiable.",
-    "TAKE PROFITS: Select TP1, TP2 and TP3 from successive visible opposing liquidity pools, prioritizing the nearest reasonable pool first. Identify the timeframe and type of liquidity for each target. If a target is not clearly visible, mark it unavailable; do not substitute a guessed price.",
-    "PRICE PRECISION: Preserve every clearly readable decimal from the chart. Never round, interpolate, invent or infer hidden precision. If a required entry or stop price is unreadable, state that clearly and withhold the numeric order level while still explaining the setup evidence and missing data.",
-    "ATR(14) may be used as supporting volatility context only when visible/readable or reliably calculable from clearly readable candle OHLC data. Never invent an ATR value. Missing ATR does not invalidate an otherwise confirmed market-structure setup.",
-    "LONG/SHORT SYMMETRY: Apply the same evidence standard to both directions. For longs, use bullish structure and opposing buy-side liquidity targets; for shorts, use bearish structure and opposing sell-side liquidity targets. Stop placement must be beyond the relevant structural invalidation point.",
-    "RISK CHECK: Show risk/reward only when entry, stop and target prices are sufficiently clear. Separate setup validity from price-measurement quality: a chart may show a valid developing/confirmed setup while exact prices remain unavailable.",
-    "NO-ENTRY DIAGNOSTICS AND OPPORTUNITY (MANDATORY): Never return only NONE or a generic NO VALID TRADE. For EVERY submitted pair, include a diagnostic row with Pair; Setup Stage (NO SETUP / DEVELOPING / WATCH / CONFIRMED); Confirmed Evidence; Missing Confirmations; Required Timeframe; and Next Observable Trigger. Separately provide a BEST CONDITIONAL OPPORTUNITY for every pair with readable directional evidence, even when the confirmed setup is not ready. A pair may be ACTIVE in-session while its setup stage is DEVELOPING or WATCH. Keep WAIT — NO ENTRY for unconfirmed setups, but explain the conditional direction, setup type, price zone only when visibly readable, exact trigger, invalidation and what cancels the idea. If no directional bias can be read, say why and identify the next evidence needed; do not invent a direction. The opportunity is conditional, not an executable order. Never manufacture numeric prices or execution data.",
-    "TRADE MANAGEMENT DISABLED: Do not assess existing positions and do not issue HOLD, CLOSE, EXIT, or position-management instructions. Analyze only the newly submitted screenshots as a fresh setup. Never claim to see broker positions or execute/close orders.",
-    "Current price only if visible in screenshots. No live market data claims. No broker execution, continuous monitoring, watchdog, order placement, position closure or pending-order cancellation claims.",
-    "REQUIRED REPORT COMPLETENESS — OVERRIDES ANY SHORT SUMMARY: You MUST analyze and name EVERY instrument in the submitted list, even when there is no trade. Never output only the ranking table. Output in this exact order: (1) MARKET RANKING & CONTEXT table with one row per submitted pair and its exact instrument name; (2) PAIR-BY-PAIR DIAGNOSTICS table with one row per submitted pair and columns Pair, H4 Bias, H1 Bias, M30 Structure, M15 Trigger, Confirmed Evidence, Missing Confirmation, Required Timeframe, Setup Stage, Next Observable Trigger; (3) a separate short analysis section for EACH submitted pair explaining the chart evidence and why it is or is not tradable. If a chart feature or price cannot be read, write NOT READABLE and say which screenshot/timeframe is unclear; do not replace the whole analysis with NONE. If there are zero valid trades, Best Pair must be NONE, but every submitted pair still needs its own diagnostic row and explanation. Never omit a pair. Never say only generic NO VALID TRADE without naming the missing evidence. Do not fabricate pair names or chart observations.",
-    "For every valid pair include: Chart Breakdown (H4/H1/M30/M15), HTF Bias, Best Setup, Trade Plan (Direction, Entry Zone, Trigger, SL, TP1, TP2, TP3, Invalidation), Confluence Score /10, What Would Make Me Not Take This Trade, and Final Answer table.",
-    "H1 invalidation is a proposed rule only: LONG invalidates on H1 close below invalidation price; SHORT invalidates on H1 close above. Wick alone is not a close. Do not claim a watchdog is active.",
-    "At the very end, compare visible current price with entry zone for the Best Pair. If not visible, say so and identify the required zone. A confluence score is evidence rating, not win probability. Do not promise profit.",
-    `RISK MANAGEMENT ENGINE: 
-  The user has an account balance of ${balance} and a risk tolerance of ${risk}%.
-  Calculate the exact Stop Loss distance in pips.
-  Calculate the Risk Amount = Balance * (Risk / 100).
-  Calculate Recommended Lot Size = Risk Amount / (Stop Loss Distance * Pip Value).
-
-  OUTPUT RULES:
-  - Provide a trade plan only when the setup is confirmed and exact structural Entry/SL levels are readable. Do not reject a valid setup merely because the stop is wide; size the position down to a broker-supported micro lot.
-  - Add a new row to the Final Table: 'Recommended Lot Size' (e.g., 0.001, 0.01, 0.10).
-  - Add a new row to the Final Table: 'Max Allowed Loss ($)'.
-  - If the calculated risk cannot be kept within the selected risk amount at the broker's minimum supported lot size, output exactly: 'WARNING: Stop Loss is too wide for your balance. Do not trade. Wait for a tighter setup.'
-  - This risk engine must NEVER turn an unconfirmed or invalid chart into a trade. If chart evidence does not confirm a valid setup or exact Entry/SL cannot be read, retain NO VALID TRADE / WAIT — NO ENTRY and explain why; account size is not a reason to reject a valid setup.
-  - Risk Amount is the maximum planned loss before fees, slippage and gaps; display it as Max Allowed Loss ($).
-  - Determine pip size and pip value for the exact submitted instrument and the broker's contract convention. For non-FX instruments such as XAUUSD and BTCUSD, do not assume a forex pip or a universal contract size. If the broker's contract size, tick value or pip value is not supplied or cannot be reliably derived from chart metadata, state PIP VALUE / LOT SIZE NOT VERIFIABLE and do not invent a lot size.
-  - For USD-quoted FX pairs, use the appropriate standard-lot pip value only when the account currency and contract convention support it. For cross-currency pairs, convert pip value to USD using a supported conversion rate; if unavailable, state that exact sizing cannot be verified.
-  - Respect the broker's lot step and minimum volume when known. Do not round a calculated size upward; round down to the valid lot step so the planned loss does not exceed the selected risk amount. Never assume a Cent Account contract specification or minimum lot size; use only the broker's verified contract specifications.
-  - Show the calculation: balance, risk %, risk amount, stop distance in pips, pip value per standard lot, raw lot size and rounded executable lot size. If any input is unavailable, label it unavailable instead of fabricating a precise result.
-  
-  STRUCTURAL STOP LOSS: The Stop Loss MUST be placed exactly 1-2 pips outside the true structural swing wick (M30 or H1) that created the setup. Do not artificially tighten the Stop Loss. If the structural stop loss is wide (e.g., 100 pips), keep it wide. To protect a small account, the bot must calculate a micro lot size (e.g., 0.01 or 0.001). If the account is too small to afford the structural Stop Loss even at minimum lot size, output: 'WARNING: Stop Loss is too wide for your balance. Do not trade. Wait for a tighter setup.'`
+    "You are Analyzer Pro, an expert AI multi-timeframe chart analyst. You MUST actively inspect the uploaded screenshots and produce a careful chart scan. Analyze only the one selected instrument " + submitted[0].pair + " using its M5 and M1 screenshots. Current Kenya time: " + eatNow + ".",
+    "SUPPORTED MARKETS ONLY: XAUUSD (Gold), BTCUSD (Bitcoin), NAS100 (Nasdaq 100), US30 (Dow Jones 30). Use the selected instrument's own chart prices. Do not compare or mix symbols.",
+    "USE STRATEGY 1 ONLY — M5 RANGE BREAKOUT + M1 FVG CONFIRMATION. There is no Strategy 2. Do not use or mention any alternative strategy, FVG tap bounce, engulfing bounce, or other setup.",
+    "M5 RANGE: Identify the specific five-minute candle/range marked or selected by the user. Record its exact high and low. If the selected candle/range is unclear, state NOT IDENTIFIABLE and WAIT. Do not invent range boundaries.",
+    "BREAKOUT: BUY only after an M5 candle body closes decisively above the range high. SELL only after an M5 candle body closes decisively below the range low. Wick-only breaks are invalid. Require clear displacement and no immediate rejection back inside the range.",
+    "FVG CONFIRMATION: A valid visible Fair Value Gap must support the breakout direction. Describe the three-candle imbalance and its price zone only when readable. No valid directional FVG means no trade.",
+    "M1 ENTRY: Confirm the entry using M1. Count the valid confirmation sequence and enter only at the close of its THIRD candle. State candle 1, candle 2 and candle 3. If candle 3 has not closed or the screenshots do not show enough history, say WAITING FOR M1 THIRD-CANDLE CLOSE. Never enter early.",
+    "STOP LOSS: For BUY, use the lowest wick of the M5 breakout candle. For SELL, use the highest wick of the M5 breakout candle. Do not substitute an M1 swing or arbitrary ATR stop. If the exact breakout wick is unreadable, withhold the numeric trade plan.",
+    "SUPPORT AND RESISTANCE: Map meaningful support and resistance visible on both supplied timeframes. M5 defines broader intraday structure and the breakout context. M1 identifies nearby execution obstacles and minor structure. Clearly label each level with its timeframe and whether it is support or resistance. Never fabricate or interpolate prices.",
+    "TAKE PROFITS: For BUY, TP1 is the nearest meaningful resistance/overhead supply or opposing liquidity level in the trade direction; for SELL, TP1 is the nearest meaningful support/demand or opposing liquidity below. TP2 and TP3 are the next successive visible structure levels only if they exist. Explain the chart evidence/timeframe for every TP. Do not use fixed pip/point distances or force an R:R ratio. If the next support/resistance barrier leaves insufficient reward after the structural stop and costs, say WAIT — INSUFFICIENT ROOM.",
+    "90-MINUTE LIMIT: Every proposed setup is intended to be completed within a maximum of 90 minutes from entry. Use only visible recent M1/M5 candle pace and distance to the target to judge whether the nearest TP is plausibly reachable within 90 minutes. If the chart does not provide enough evidence to estimate this, say TIME ESTIMATE NOT RELIABLE and do not pretend otherwise. State a hard planned maximum holding time of 90 minutes: if neither SL nor TP is reached by 90 minutes after entry, the user should close manually. The AI/site does not monitor live prices or automatically close broker positions. Never guarantee a TP or profit.",
+    "STRICT EVIDENCE: Read exact prices from visible chart labels/axis. Preserve displayed decimal precision. Do not invent volume, indicators, ATR, live prices, news, spreads, win rates, confidence percentages, or pip/contract values. If screenshot timing, price scale or candles are unclear or M5/M1 do not align, report the limitation and WAIT.",
+    "RISK CONTEXT: Account balance " + balance + "; user risk setting " + risk + "%. Do not calculate lot size unless broker contract/tick value data is actually provided. Separate chart setup validity from position sizing.",
+    "OUTPUT EXACTLY THIS REPORT STRUCTURE:",
+    "INSTRUMENT:",
+    "OVERALL VERDICT: BUY / SELL / WAIT — NO TRADE",
+    "ACTIVE STRATEGY: STRATEGY 1 — M5 RANGE BREAKOUT + M1 FVG CONFIRMATION ONLY",
+    "M5 SELECTED RANGE: high / low / how identified",
+    "M5 BREAKOUT: direction / candle body-close price / displacement evidence",
+    "SUPPORTING FVG: direction / three-candle evidence / price zone",
+    "M1 ENTRY CONFIRMATION: candle 1 / candle 2 / candle 3 / confirmation close",
+    "ENTRY:",
+    "STOP LOSS: M5 breakout candle extreme",
+    "M5 SUPPORT:",
+    "M5 RESISTANCE:",
+    "M1 SUPPORT:",
+    "M1 RESISTANCE:",
+    "TP1: nearest opposing structure level + timeframe + reason",
+    "TP2: next structure level + timeframe + reason (or unavailable)",
+    "TP3: next structure level + timeframe + reason (or unavailable)",
+    "R:R TO EACH TARGET: only when exact prices are readable",
+    "ESTIMATED TIME TO TP1: only if supported by visible candle pace",
+    "MAXIMUM HOLDING TIME: 90 minutes; manual close if still open",
+    "STATUS: CONFIRMED / WAITING FOR M1 THIRD-CANDLE CLOSE / INVALID",
+    "INVALIDATION:",
+    "WHY THE SETUP DOES OR DOES NOT FIT THE 90-MINUTE LIMIT:",
+    "LIMITATIONS:",
+    "If the setup is not confirmed, say WAIT — NO VALID STRATEGY 1 SETUP and name the exact missing condition. Do not output a second strategy. Do not claim an order was placed.",
+    "EXECUTION_DATA CONTRACT: Append one single-line EXECUTION_DATA JSON record only when Strategy 1 is fully confirmed and exact numeric Entry, SL, TP1, TP2 and TP3 are all visible and correctly ordered. Format: EXECUTION_DATA: {\"confirmed\":true,\"symbol\":\"" + submitted[0].pair + "\",\"direction\":\"LONG\",\"entry\":1.1,\"sl\":1.09,\"tp1\":1.11,\"tp2\":1.12,\"tp3\":1.13}. Use LONG for BUY and SHORT for SELL. Never append it if any required level is missing or unconfirmed."
   ].join("\n");
 
   const parts = [{ text: prompt }];
