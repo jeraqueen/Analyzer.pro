@@ -267,22 +267,22 @@ $('analyze').onclick=async()=>{
   const token=$('token').value.trim();if(!token)throw new Error('Open AI connection settings and enter your private Analyzer access token.');
   const card=$('pairList').firstElementChild;if(!card)throw new Error('Choose a market first.');
   const pair=card.querySelector('select').value,stage=savedRange&&savedM5Image?'confirm':'range',charts={};
-  if(stage==='range'){const file=card.querySelector('#p'+card.dataset.pairId+'M5').files?.[0];if(!file)throw new Error('First upload the M5 screenshot taken at the New York 9:30 AM open.');charts.M5=await readImage(file)}
+  if(stage==='range'){const file=card.querySelector('#p'+card.dataset.pairId+'M5').files?.[0];if(!file)throw new Error('First upload any clear M5 chart screenshot. Practice scans are available at any time.');charts.M5=await readImage(file)}
   else{const file=$('m1Later').files?.[0];if(!file)throw new Error('Your M5 range is saved. Upload the later M1 screenshot when the directional FVG appears.');if(savedRange.symbol!==pair)throw new Error('The saved M5 range belongs to '+savedRange.symbol+'. Reset the range before changing markets.');charts.M5=savedM5Image;charts.M1=await readImage(file)}
   const balance=Number($('accountBalance').value),risk=Number($('riskPercent').value);if(!Number.isFinite(balance)||balance<=0)throw new Error('Enter a valid account balance.');if(!Number.isFinite(risk)||risk<=0||risk>5)throw new Error('Risk per trade must be between 0 and 5%.');
-  btn.disabled=true;btn.textContent=stage==='range'?'Scanning last completed M5 candle…':'Checking M1 breakout and FVG…';$('result').textContent='';$('result').classList.remove('show');showStatus(stage==='range'?'AI is identifying the last fully completed M5 candle and saving its high and low.':'AI is checking the new M1 screenshot against your saved M5 range.','');
+  btn.disabled=true;btn.textContent=stage==='range'?'Scanning last completed M5 candle…':'Checking M1 breakout and FVG…';$('result').textContent='';$('result').classList.remove('show');showStatus(stage==='range'?'Practice scan: reading the latest fully closed M5 candle. New York session timing is not required.':'Checking the new M1 screenshot against your saved M5 range.','');
   const payload={version:'ny-open-staged-range-v1',stage,pair,charts,range:stage==='confirm'?savedRange:null,balance,risk,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi',sessionTimeZone:'America/New_York',sessionOpen:'09:30'}};
   const body=JSON.stringify(payload);if(body.length>9*1024*1024)throw new Error('Screenshot is too large. Please use a smaller chart image.');
   const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body});const out=await response.json().catch(()=>({}));if(!response.ok)throw new Error(out.error||('AI service returned HTTP '+response.status));if(typeof out.text!=='string'||!out.text.trim())throw new Error('The AI returned an empty analysis. Please try again.');
   $('result').replaceChildren(renderReport(out.text));$('result').classList.add('show');
   if(stage==='range'){
-   const match=out.text.match(/RANGE_DATA\s*:\s*(\{[^\r\n]*\})/i);let data=null;if(match){try{data=JSON.parse(match[1])}catch{}}
+   const match=out.text.match(/RANGE_DATA\s*:\s*(\{[\s\S]*?\})\s*(?:\n|$)/i);let data=null;if(match){try{data=JSON.parse(match[1])}catch{}}
    if(!data||data.confirmed_closed!==true||data.symbol!==pair||!Number.isFinite(Number(data.high))||!Number.isFinite(Number(data.low))||Number(data.high)<=Number(data.low))throw new Error('AI could not verify the exact high and low of the last completed M5 candle. No range was saved. Check the price scale and try again.');
    savedRange=data;savedM5Image=charts.M5;try{localStorage.setItem('analyzerSavedM5Image',savedM5Image);localStorage.setItem('analyzerSavedM5Range',JSON.stringify(savedRange))}catch{savedRange=null;savedM5Image='';throw new Error('This phone could not save the M5 screenshot. Free browser storage and try again.')}
    updateSavedRangeUI();showStatus('M5 range saved. HIGH: '+data.high+' · LOW: '+data.low+'. Wait for the directional FVG, then upload M1.','good');
   }else{localStorage.setItem('lastAnalysis',out.text);refreshLastAnalysisButton();renderTradeTicket(out.text,[pair]);showStatus('M1 confirmation scan complete. Review the saved range, FVG, third-candle close and support/resistance targets.','good')}
   $('result').scrollIntoView({behavior:'smooth',block:'start'});
- }catch(error){showStatus('Analysis failed: '+error.message,'bad')}
+ }catch(error){showStatus('Analysis failed: '+(error&&error.message?error.message:String(error)),'bad');$('result').textContent='Scan did not complete. '+(error&&error.message?error.message:String(error));$('result').classList.add('show')}
  finally{btn.disabled=false;updateSavedRangeUI()}
 };
 
