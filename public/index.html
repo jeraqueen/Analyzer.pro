@@ -65,6 +65,14 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:14px}
   <div class="eyebrow">Manual broker handoff</div><h2>Execute trade</h2>
   <p class="muted small">Review every level and confirm before sending. Orders are forwarded to your configured MT5 bridge; this page does not connect directly to MetaTrader.</p>
   <div id="tradeSummary" class="push-status">Waiting for a confirmed trade setup…</div>
+  <div class="pair-card" style="margin-top:12px">
+    <div class="eyebrow">Position sizing · MT5 handoff only</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label class="small muted" for="accountBalance">Account Balance</label><input id="accountBalance" type="number" inputmode="decimal" min="0.01" step="0.01" value="100"></div>
+      <div><label class="small muted" for="riskPercent">Risk per Trade (%)</label><input id="riskPercent" type="number" inputmode="decimal" min="0.01" max="5" step="0.01" value="1"></div>
+    </div>
+    <p class="muted small">These settings are used only if you choose to send a confirmed setup to MT5. They are not required for chart analysis.</p>
+  </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
     <div><label class="small muted" for="lotMode">Lot Size</label><select id="lotMode"><option value="auto" selected>Auto</option><option value="manual">Manual</option></select><input id="lotSize" type="number" inputmode="decimal" min="0.001" step="0.001" value="0.01" disabled style="margin-top:7px"></div>
     <div><label class="small muted" for="positionCount">Number of Positions</label><input id="positionCount" type="number" inputmode="numeric" min="1" max="10" step="1" value="1"></div>
