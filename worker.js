@@ -116,7 +116,7 @@ async function handleAnalyze(request, env) {
   } catch {
     return json({ error: "Request body must be valid JSON." }, 400, cors);
   }
-  const stage = payload.stage === "range" ? "range" : "confirm";
+  const stage = payload.stage === "combined" ? "combined" : (payload.stage === "range" ? "range" : "confirm");
   const timeframes = stage === "range" ? ["M5"] : ["M5", "M1"];
   // Accept the new multi-pair format and the previous single-pair format.
   const submitted = Array.isArray(payload.pairs) ? payload.pairs : [{ pair: payload.pair || "EURUSD", charts: payload.charts || {} }];
@@ -146,6 +146,18 @@ async function handleAnalyze(request, env) {
     "Only if the candle is fully closed and both exact levels are readable, append exactly one single-line JSON record: RANGE_DATA: {\"confirmed_closed\":true,\"symbol\":\"" + submitted[0].pair + "\",\"timeframe\":\"M5\",\"high\":123.45,\"low\":122.45,\"candle_time\":\"09:30\",\"session\":\"America/New_York 09:30\"}. Replace the example prices/time with exact screenshot values. Otherwise omit RANGE_DATA.",
     "Do not claim to draw on the original broker chart; the website will display the saved high and low as range guides. Never claim a trade was placed."
   ].join("\n");
+  const combinedPrompt = [
+    "You are Analyzer Pro, an expert multi-timeframe chart analyst. Analyze the TWO supplied screenshots together for " + submitted[0].pair + ". The M5 screenshot is the chart containing the FIRST 9:30 AM New York opening candle. The M1 screenshot is the later/current chart showing the Fair Value Gap setup. The user intentionally uploads both at the same time; do not require a previous scan, saved browser memory, or another waiting stage.",
+    "M5 OPENING RANGE: Identify the specific first M5 candle that opened at 9:30 AM New York time (not simply the latest candle at the right edge). Use its full wick high and wick low as the range boundaries. If the timestamp or exact prices cannot be verified from the screenshot, clearly say RANGE NOT VERIFIED and do not invent levels.",
+    "ONLY ACTIVE STRATEGY: M5 RANGE BREAKOUT + M1 FVG CONFIRMATION. No other strategy. BUY requires an M5 candle body close decisively above the 9:30 candle high; SELL requires an M5 candle body close decisively below its low. Wick-only breaks are invalid.",
+    "M1 FVG: Identify the three-candle imbalance in the supplied M1 screenshot, its direction and exact zone only if readable. Check the third candle has fully closed in the breakout direction. Do not enter before the third candle closes. If the M1 screenshot does not show the complete FVG/third-candle confirmation, verdict must be WAIT.",
+    "STOP LOSS: BUY uses the lowest wick of the M5 breakout candle. SELL uses the highest wick of the M5 breakout candle. If that candle or wick is not visible/readable, withhold the numeric plan.",
+    "TAKE PROFITS: Use only visible support/resistance and market structure. TP1 is the nearest meaningful opposing structure level; TP2 and TP3 are successive visible levels only if they exist. Do not force R:R or fabricate prices. Consider a maximum 90-minute holding horizon, but do not guarantee a target or claim automatic monitoring/closing.",
+    "STRICT EVIDENCE: Keep M5 and M1 evidence separate, verify both screenshots are the same symbol, read prices only from visible scale/labels, preserve precision. If screenshots conflict, are unclear, or the 9:30 candle cannot be identified, say WAIT — NO TRADE and state exactly what is missing. Never invent indicators, volume, news, spreads, confidence or live prices.",
+    "REPORT: INSTRUMENT; OVERALL VERDICT BUY/SELL/WAIT; STRATEGY; 9:30 M5 OPENING CANDLE; M5 RANGE HIGH/LOW; M5 BREAKOUT DIRECTION AND BODY CLOSE; M1 FVG DIRECTION/THREE-CANDLE ZONE; THIRD-CANDLE CLOSE CONFIRMATION; ENTRY; STOP LOSS (M5 breakout wick); M5 SUPPORT; M5 RESISTANCE; M1 SUPPORT; M1 RESISTANCE; TP1/TP2/TP3 with timeframe and evidence; estimated time to TP1 only if supported; maximum holding time 90 minutes; invalidation; limitations.",
+    "If the exact 9:30 candle high and low are both verified, append one single-line RANGE_DATA JSON with confirmed_closed true, symbol, timeframe M5, exact high, exact low, candle_time and session. If any required data is uncertain, omit RANGE_DATA. Do not append EXECUTION_DATA unless the full setup is confirmed and every required exact price is visible. Never claim an order was placed."
+  ].join("\\n");
+
   const confirmPrompt = [
     "You are Analyzer Pro, an expert AI multi-timeframe chart analyst. Analyze " + submitted[0].pair + " using the saved M5 range screenshot and the new M1 screenshot. Current Kenya time: " + eatNow + ". Saved verified M5 range: high=" + savedRange.high + ", low=" + savedRange.low + ", candle time=" + (savedRange.candle_time || "not readable") + ". Do not change these boundaries.",
     "SUPPORTED MARKETS ONLY: XAUUSD (Gold), BTCUSD (Bitcoin), NAS100 (Nasdaq 100), US30 (Dow Jones 30). Use the selected instrument's own chart prices. Do not compare or mix symbols.",
@@ -187,7 +199,7 @@ async function handleAnalyze(request, env) {
     "The saved M5 range is the last fully completed candle captured at New York 9:30 AM. Never change its stored high/low. M1 is a later screenshot; validate breakout, directional FVG and third-candle close against those saved boundaries.",
     "EXECUTION_DATA CONTRACT: Append one single-line EXECUTION_DATA JSON record only when Strategy 1 is fully confirmed and exact numeric Entry, SL, TP1, TP2 and TP3 are all visible and correctly ordered. Format: EXECUTION_DATA: {\"confirmed\":true,\"symbol\":\"" + submitted[0].pair + "\",\"direction\":\"LONG\",\"entry\":1.1,\"sl\":1.09,\"tp1\":1.11,\"tp2\":1.12,\"tp3\":1.13}. Use LONG for BUY and SHORT for SELL. Never append it if any required level is missing or unconfirmed."
   ].join("\n");
-  const prompt = stage === "range" ? rangePrompt : confirmPrompt;
+  const prompt = stage === "range" ? rangePrompt : (stage === "combined" ? combinedPrompt : confirmPrompt);
 
   const parts = [{ text: prompt }];
   for (const item of submitted) {
