@@ -29,56 +29,42 @@ button{width:100%;border:1px solid #405674;border-radius:12px;background:#1a2a42
 details{margin-top:14px;border-top:1px solid var(--line);padding-top:13px}summary{cursor:pointer;color:#a9bdd8;font-size:13px;font-weight:700}.token-row{display:grid;gap:8px;margin-top:10px}
 footer{text-align:center;color:var(--muted);font-size:11px;padding:14px}
 .remove-pair{display:none}
+.session-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding:15px 16px;border:1px solid #456184;border-radius:16px;background:linear-gradient(110deg,#132d49,#102033 75%);box-shadow:inset 0 1px #ffffff0b}
+.session-strip>div:not(.session-divider){display:grid;gap:3px}.session-strip span{font-size:9px;letter-spacing:.14em;font-weight:900;color:#a8c9f4}.session-strip strong{font-size:24px;line-height:1.2;color:#f5d38c;font-variant-numeric:tabular-nums}.session-strip small{font-size:10px;color:#9fb2cb}.session-divider{height:42px;border-left:1px solid #3a526e}
+.range-guides{display:grid;grid-template-columns:1fr 1fr;gap:9px}.range-guide{padding:12px;border-radius:12px;background:#101e31;border:1px solid #344d69}.range-guide span{display:block;font-size:10px;font-weight:900;letter-spacing:.12em}.range-guide strong{display:block;margin-top:5px;font-size:20px;font-variant-numeric:tabular-nums}.range-guide.high{border-top:3px solid #f2b96b}.range-guide.high span{color:#f2c47d}.range-guide.low{border-top:3px solid #65d8b1}.range-guide.low span{color:#83e2c3}
+.hero{position:relative;overflow:hidden}.hero:after{content:"";position:absolute;right:-65px;top:-100px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,#76b8ff20,transparent 70%);pointer-events:none}
+@media(max-width:420px){.session-strip{padding:12px}.session-strip strong{font-size:21px}.range-guide strong{font-size:17px}}
 @media(max-width:560px){.watch-grid{grid-template-columns:1fr 1fr 1fr;gap:6px}.watch{padding:9px 7px}.watch b{font-size:12px}.watch span{font-size:10px}.card{padding:13px}.hero{padding:16px}.hero h2{font-size:20px}.actions{grid-template-columns:1fr}.uploads{gap:7px}.upload{padding:8px}.pair-card{padding:10px}}
 
-/* Timer navigation and session reminders */
-main{padding-bottom:100px}
-.timer-panel{display:none}
-.timer-panel.active{display:block}
-.timer-nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:9px max(14px,env(safe-area-inset-right)) calc(9px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));background:#08111ff2;border-top:1px solid #30445e;backdrop-filter:blur(18px)}
-.timer-nav button{display:flex;align-items:center;justify-content:center;gap:9px;padding:11px;border-radius:13px;background:#101d30;border:1px solid #2b405b;color:#a9bdd8;font-size:13px}
-.timer-nav button.active{background:#1a3452;border-color:#77aeea;color:#eaf4ff}
-.timer-nav svg{width:19px;height:19px}
-.timer-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin-top:14px}
-.timer-card{background:#0b1728;border:1px solid #304761;border-radius:16px;padding:14px;min-width:0}
-.timer-card h3{margin:0 0 5px;font-size:15px}
-.timer-time{font-size:25px;font-weight:900;letter-spacing:.02em;color:#9acaff;font-variant-numeric:tabular-nums}
-.timer-count{font-size:22px;font-weight:850;font-variant-numeric:tabular-nums;color:#71dfb5;margin-top:5px}
-.timer-meta{font-size:11px;color:#91a2ba}
-.timer-reminder{margin-top:11px;padding-top:10px;border-top:1px solid #2a3d55;font-size:12px;color:#c6d8ee}
-.timer-actions{display:grid;gap:9px;margin-top:14px}
-.timer-actions button{min-height:46px}
-.push-status{font-size:12px;color:#a9bdd8;background:#0c192b;border:1px solid #2b405b;padding:11px;border-radius:11px;white-space:pre-wrap}
-.timer-note{font-size:12px;color:#91a2ba;line-height:1.55}
-@media(max-width:520px){.timer-grid{grid-template-columns:1fr}.timer-count{font-size:25px}}
-
 </style>
-<link rel="manifest" href="/manifest.webmanifest"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+
 </head>
 <body>
-<header><div class="brand"><div class="logo">A</div><div><h1>Analyzer Pro</h1><div class="muted small">SMC / ICT intelligence scanner</div></div></div><div class="pill" id="clock">EAT · --:--</div></header>
+<header><div class="brand"><div class="logo">A</div><div><h1>Analyzer Pro</h1><div class="muted small">New York session · AI chart intelligence</div></div></div><div class="pill" id="clock">EAT · --:--</div></header>
 <main>
 <section class="card hero">
-<div class="eyebrow">Market intelligence · Kenya time</div><div class="hero-line"><h2>Find the strongest setup.</h2><span class="pill">● Analysis only · No auto-trading</span></div>
-<p class="muted small">The AI scans one selected market at a time using M5 range breakout and M1 FVG confirmation. It maps support and resistance to set structure-based targets for a maximum 90-minute trade.</p>
+<div class="eyebrow">New York opening range · Live session clock</div><div class="hero-line"><h2>Capture the opening move.</h2><span class="pill">● Strategy 1 · AI chart analysis</span></div>
+<p class="muted small">At 9:30 AM New York time, send the last completed M5 candle. Analyzer Pro saves its high and low. Later, when the FVG appears, send the M1 screenshot for breakout confirmation and structure-based targets. Maximum planned hold: 90 minutes.</p>
 <div class="watch-grid" id="watchlist"></div>
-<p class="muted small" id="sessionHint" style="margin-top:10px"></p>
+<div class="session-strip"><div><span>NEW YORK OPEN</span><strong>9:30 AM</strong><small id="sessionHint">5:30 PM EAT in US winter · 4:30 PM in US summer</small></div><div class="session-divider"></div><div><span>KENYA EAT NOW</span><strong id="eatSessionTime">--:--</strong><small>New York daylight saving adjusts automatically</small></div></div>
 </section>
 <section class="card">
 <div class="eyebrow">AI chart scanner</div><h2>Build your chart scan</h2>
-<p class="muted small">Choose Gold, Bitcoin, Nasdaq or US30. Upload one M5 screenshot for the range breakout and one M1 screenshot for the third-candle FVG confirmation.</p>
+<p class="muted small">Step 1: capture the last completed M5 candle at the New York open. Step 2: later upload M1 when the directional FVG appears. Your saved M5 range stays attached to the second scan.</p>
 
 <div id="pairList"></div>
+<div class="upload" id="m1Stage" style="margin-top:12px;opacity:.55"><div class="upload-top"><strong>M1 · LATER FVG CONFIRMATION</strong><span class="tf-note" id="m1StageStatus">Locked until M5 range is saved</span></div><label class="camera-pick" for="m1Later" id="m1Pick"><span>Choose later M1 screenshot</span></label><input class="file-input" type="file" id="m1Later" accept="image/*" disabled><img class="preview" id="m1Preview" alt="Later M1 screenshot preview"><span class="file-name" id="m1FileName">Upload this only when the FVG appears</span></div>
+<div class="pair-card" id="savedRangeCard" style="display:none"><div class="eyebrow">Saved New York opening range</div><div class="range-guides"><div class="range-guide high"><span>HIGH LINE</span><strong id="savedRangeHigh">—</strong></div><div class="range-guide low"><span>LOW LINE</span><strong id="savedRangeLow">—</strong></div></div><p class="muted small" id="savedRangeTime"></p></div>
 <div class="pair-card" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
   <div><label class="small muted" for="accountBalance">Account Balance</label><input id="accountBalance" type="number" inputmode="decimal" min="0.01" step="0.01" value="100"></div>
   <div><label class="small muted" for="riskPercent">Risk per Trade (%)</label><input id="riskPercent" type="number" inputmode="decimal" min="0.01" max="5" step="0.01" value="1"></div>
 </div>
-<div class="actions"><div class="analysis-actions"><button class="primary" id="analyze">✦ Analyse M5 + M1 screenshots</button><button class="secondary" id="useLastAnalysis" type="button" aria-pressed="false">Use Last Analysis as Memory</button></div></div>
-<button class="secondary" id="clear" style="margin-top:9px">Clear screenshots and results</button>
+<div class="actions"><div class="analysis-actions"><button class="primary" id="analyze">① Scan M5 & save range</button><button class="secondary" id="useLastAnalysis" type="button" aria-pressed="false">Use Last Analysis as Memory</button></div></div>
+<button class="secondary" id="clear" style="margin-top:9px">Reset range and start a new session</button>
 <div class="notice" id="status"></div>
 <details><summary>⚙ AI connection settings</summary><p class="muted small">Your Gemini API key remains secured on Cloudflare. Enter the private Analyzer access token provided for this website. Your saved token is reused on this device.</p><div class="token-row"><div><label class="small muted" for="token">Private Analyzer access token</label><input id="token" type="password" autocomplete="off" placeholder="Paste private access token"></div><button id="saveToken">Save token on this device</button></div></details>
 </section>
-<section class="card"><div class="eyebrow">AI intelligence report · REPORT VIEW 3</div><h2>Analysis results</h2><p class="muted small">Strategy 1 only · M5 breakout + M1 FVG confirmation · support/resistance targets · 90-minute maximum hold.</p><div id="result" aria-live="polite"></div></section>
+<section class="card"><div class="eyebrow">AI intelligence report · REPORT VIEW 3</div><h2>Analysis results</h2><p class="muted small">First scan saves the M5 high/low. Your later scan checks the M1 breakout, FVG and third-candle close.</p><div id="result" aria-live="polite"></div></section>
 <section class="card" id="tradeTicket" style="display:none">
   <div class="eyebrow">Manual broker handoff</div><h2>Execute trade</h2>
   <p class="muted small">Review every level and confirm before sending. Orders are forwarded to your configured MT5 bridge; this page does not connect directly to MetaTrader.</p>
@@ -91,50 +77,16 @@ main{padding-bottom:100px}
   <button class="primary" id="sendToMT5" type="button" disabled style="margin-top:12px">Send to MT5</button>
 </section>
 
-<section class="card timer-panel" id="timerPanel">
-  <div class="eyebrow">Daily screenshot schedule · daylight-saving aware</div>
-  <h2>London and New York trading reminders</h2>
-  <p class="muted small">Screenshot sessions follow 8:30 AM local time in London and New York. A preparation alert arrives five minutes earlier. Kenya times adjust automatically when either market changes its clocks.</p>
-  <div class="timer-grid">
-    <article class="timer-card">
-      <h3>London screenshot session</h3>
-      <div class="timer-time" id="morningSessionTime">Calculating…</div>
-      <div class="timer-meta" id="morningReminderTime">Preparation alert: calculating…</div>
-      <div class="timer-count" id="morningCountdown">--:--:--</div>
-      <div class="timer-meta">Countdown to 8:30 AM London time</div>
-      <div class="timer-reminder" id="morningScheduleText">8:25 AM · Prepare charts · 8:30 AM · London screenshots</div>
-    </article>
-    <article class="timer-card">
-      <h3>New York evening screenshot session · 4:00–7:00 PM EAT in US winter</h3>
-      <div class="timer-time" id="afternoonSessionTime">Calculating…</div>
-      <div class="timer-meta" id="afternoonReminderTime">Preparation alert: calculating…</div>
-      <div class="timer-count" id="afternoonCountdown">--:--:--</div>
-      <div class="timer-meta">Countdown to 8:30 AM New York time</div>
-      <div class="timer-reminder" id="afternoonScheduleText">4:25 PM EAT · Prepare charts · 4:30 PM EAT · New York screenshots (US winter)</div>
-    </article>
-  </div>
-  <div class="card" style="margin:14px 0 0;padding:14px;background:#0d1a2b">
-    <div class="eyebrow">Next scheduled alert</div>
-    <h2 id="nextAlertTitle">Loading next reminder…</h2>
-    <div class="timer-count" id="nextAlertCountdown">--:--:--</div>
-    <p class="timer-meta" id="nextAlertDescription">Kenya time · Africa/Nairobi</p>
-  </div>
-  <div class="timer-actions">
-    <button class="primary" id="enablePush">Enable phone notifications</button>
-    <button class="secondary" id="installApp" style="display:none">Install Analyzer Pro on this phone</button>
-    <div class="push-status" id="pushStatus">Checking notification setup…</div>
-  </div>
-  <p class="timer-note">For background alerts, install Analyzer Pro on your Android home screen, allow notifications, and keep Chrome notifications enabled. The reminder service sends alerts at 10:26, 10:31, 3:26 and 3:31 EAT. Tapping an alert opens this Timers screen.</p>
-</section>
-
-<footer>Analyzer Pro · Strategy 1 M5/M1 AI scanner · Support/resistance targets · 90-minute maximum hold · Manual MT5 bridge</footer>
+<footer>Analyzer Pro · New York 9:30 AM session · M5 opening range · M1 FVG confirmation · Structure targets</footer>
 </main>
 <script>
 'use strict';
-const $=id=>document.getElementById(id), TF=['M5','M1'];
+const $=id=>document.getElementById(id), TF=['M5'];
 const STORE='fxResearchDesk_v2', PAIRS=['XAUUSD','BTCUSD','NAS100','US30'];
 const LABEL={XAUUSD:'Gold · XAUUSD',BTCUSD:'Bitcoin · BTCUSD',NAS100:'Nasdaq · NAS100',US30:'US30 · Dow Jones'};
 let pairCount=0,pairSerial=0;
+let savedM5Image=localStorage.getItem('analyzerSavedM5Image')||'';
+let savedRange=null;try{savedRange=JSON.parse(localStorage.getItem('analyzerSavedM5Range')||'null')}catch{savedRange=null}
 function getSavedToken(){try{const old=JSON.parse(localStorage.getItem(STORE)||'null');return old?.settings?.accessToken||localStorage.getItem('analyzerAccessToken')||''}catch{return localStorage.getItem('analyzerAccessToken')||''}}
 $('token').value=getSavedToken();
 function showStatus(message,type){const el=$('status');el.textContent=message;el.className='notice show '+(type||'')}
@@ -158,8 +110,15 @@ function getEAT(){return new Date(new Date().toLocaleString('en-US',{timeZone:'A
 function marketClockMinutes(zone,now){const p=new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);return Number(p.find(x=>x.type==='hour').value)*60+Number(p.find(x=>x.type==='minute').value)}
 function minuteText(value){const n=((value%1440)+1440)%1440,h=Math.floor(n/60),m=n%60;return (h%12||12)+':'+String(m).padStart(2,'0')+(h<12?' AM':' PM')}
 function inMinuteWindow(value,start,end){return start<end?value>=start&&value<end:value>=start||value<end}
-function marketPlan(){return {session:'AI chart scanner ready',note:'Scan any time. Use one selected market, an M5 range screenshot and an M1 confirmation screenshot. The AI applies Strategy 1 only and a 90-minute maximum holding plan.',pairs:['XAUUSD','BTCUSD','NAS100','US30']}}
-function updateClock(){const plan=marketPlan();$('clock').textContent='KENYA EAT · '+new Intl.DateTimeFormat('en-KE',{timeZone:'Africa/Nairobi',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());$('watchlist').innerHTML=plan.pairs.map((p,i)=>'<div class="watch"><b>'+(i+1)+'. '+LABEL[p]+'</b><span>Session priority</span></div>').join('');$('sessionHint').textContent=plan.session+' — '+plan.note}
+function updateClock(){
+ const now=new Date();
+ const ny=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',hour12:true}).format(now);
+ const eat=new Intl.DateTimeFormat('en-KE',{timeZone:'Africa/Nairobi',hour:'numeric',minute:'2-digit',hour12:true}).format(now);
+ $('clock').textContent='NEW YORK · '+ny;
+ $('watchlist').innerHTML=PAIRS.map(p=>'<div class="watch"><b>'+LABEL[p]+'</b><span>Available for this session</span></div>').join('');
+ $('sessionHint').textContent='9:30 AM New York = 5:30 PM EAT in winter / 4:30 PM EAT in summer';
+ $('eatSessionTime').textContent=eat;
+}
 updateClock();setInterval(updateClock,30000);
 const camera='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4H10L8.5 6H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3.5L14 4Z"/><circle cx="12" cy="13" r="3.5"/></svg>';
 function pairOptions(selected){return PAIRS.map(p=>'<option value="'+p+'" '+(p===selected?'selected':'')+'>'+LABEL[p]+'</option>').join('')}
@@ -169,13 +128,13 @@ function addPair(initial){
  const id=++pairSerial,wrap=document.createElement('div');
  wrap.className='pair-card';wrap.dataset.pairId=String(id);
  const chosen=initial&&PAIRS.includes(initial)?initial:'XAUUSD';
- wrap.innerHTML='<div class="pair-head"><span class="pair-name">Selected market</span><span class="pair-tag">2 screenshots required</span></div><select class="pair-select" aria-label="Choose instrument">'+pairOptions(chosen)+'</select><div class="uploads">'+TF.map(tf=>'<div class="upload"><div class="upload-top"><strong>'+tf+'</strong><span class="tf-note">'+(tf==='M5'?'Range and breakout':'Entry confirmation')+'</span></div><label class="camera-pick" for="p'+id+tf+'">'+camera+'<span>Choose '+tf+' screenshot</span></label><input class="file-input" type="file" id="p'+id+tf+'" accept="image/*"><img class="preview" id="prev'+id+tf+'" alt="'+tf+' screenshot preview"><span class="file-name" id="name'+id+tf+'">No screenshot selected</span></div>').join('')+'</div>';
+ wrap.innerHTML='<div class="pair-head"><span class="pair-name">Selected market</span><span class="pair-tag">Stage 1 · M5 range</span></div><select class="pair-select" aria-label="Choose instrument">'+pairOptions(chosen)+'</select><div class="uploads">'+TF.map(tf=>'<div class="upload"><div class="upload-top"><strong>'+tf+'</strong><span class="tf-note">'+'Last completed candle'+'</span></div><label class="camera-pick" for="p'+id+tf+'">'+camera+'<span>Choose '+tf+' screenshot</span></label><input class="file-input" type="file" id="p'+id+tf+'" accept="image/*"><img class="preview" id="prev'+id+tf+'" alt="'+tf+' screenshot preview"><span class="file-name" id="name'+id+tf+'">No screenshot selected</span></div>').join('')+'</div>';
  $('pairList').appendChild(wrap);
  for(const tf of TF){
   const input=$('p'+id+tf);
   input.addEventListener('change',()=>{
    const file=input.files&&input.files[0],preview=$('prev'+id+tf),name=$('name'+id+tf);
-   if(!file){preview.removeAttribute('src');preview.classList.remove('show');name.textContent='No screenshot selected';return}
+   if(!file){preview.removeAttribute('src');preview.classList.remove('show');name.textContent='No M5 screenshot selected';return}
    if(!file.type.startsWith('image/')){showStatus('Please select an image screenshot.','bad');input.value='';return}
    preview.src=URL.createObjectURL(file);preview.classList.add('show');name.textContent=file.name;
   });
@@ -185,9 +144,25 @@ addPair();
 
 
 
+function updateSavedRangeUI(){
+ const card=$('savedRangeCard'),input=$('m1Later'),stage=$('m1Stage');
+ if(savedRange&&savedM5Image){
+  card.style.display='block';$('savedRangeHigh').textContent=String(savedRange.high);$('savedRangeLow').textContent=String(savedRange.low);
+  $('savedRangeTime').textContent='Last completed M5 candle · '+(savedRange.candle_time||'time not readable')+' · '+(savedRange.symbol||'');
+  input.disabled=false;stage.style.opacity='1';$('m1StageStatus').textContent='Ready when the FVG appears';$('analyze').textContent='② Scan M1 FVG confirmation';
+ }else{
+  card.style.display='none';input.disabled=true;stage.style.opacity='.55';$('m1StageStatus').textContent='Locked until M5 range is saved';$('analyze').textContent='① Scan M5 & save range';
+ }
+}
+$('m1Later').addEventListener('change',()=>{const file=$('m1Later').files?.[0];if(!file)return;if(!file.type.startsWith('image/')){showStatus('Please select an image screenshot.','bad');$('m1Later').value='';return}$('m1Preview').src=URL.createObjectURL(file);$('m1Preview').classList.add('show');$('m1FileName').textContent=file.name});
+updateSavedRangeUI();
 function readImage(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('Could not read '+file.name));reader.onload=()=>{const img=new Image();img.onload=()=>{const max=1500,scale=Math.min(1,max/Math.max(img.width,img.height)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);resolve(canvas.toDataURL('image/jpeg',.7))};img.onerror=()=>reject(new Error('Could not decode '+file.name));img.src=reader.result};reader.readAsDataURL(file)})}
 $('saveToken').onclick=()=>{const token=$('token').value.trim();if(!token){showStatus('Paste the private Analyzer access token first.','bad');return}localStorage.setItem('analyzerAccessToken',token);try{const old=JSON.parse(localStorage.getItem(STORE)||'{}');old.settings={...(old.settings||{}),accessToken:token,backendUrl:'/api/analyze'};localStorage.setItem(STORE,JSON.stringify(old))}catch{}showStatus('Private access token saved on this device.','good')};
-$('clear').onclick=()=>{document.querySelectorAll('.file-input').forEach(input=>{input.value=''});document.querySelectorAll('.preview').forEach(img=>{img.removeAttribute('src');img.classList.remove('show')});document.querySelectorAll('.file-name').forEach(el=>el.textContent='No screenshot selected');$('result').textContent='';$('result').classList.remove('show');$('tradeTicket').style.display='none';executionTrade=null;showStatus('All screenshots and results cleared.','good')};
+$('clear').onclick=()=>{
+ document.querySelectorAll('.file-input').forEach(input=>{input.value=''});document.querySelectorAll('.preview').forEach(img=>{img.removeAttribute('src');img.classList.remove('show')});document.querySelectorAll('.file-name').forEach(el=>el.textContent='No screenshot selected');
+ localStorage.removeItem('analyzerSavedM5Image');localStorage.removeItem('analyzerSavedM5Range');savedM5Image='';savedRange=null;updateSavedRangeUI();$('m1FileName').textContent='Upload this only when the FVG appears';
+ $('result').textContent='';$('result').classList.remove('show');$('tradeTicket').style.display='none';executionTrade=null;showStatus('Saved M5 range, screenshots and results cleared. Ready for a new New York session.','good')
+};
 function escapeHTML(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}
 function inlineMarkdown(s){return escapeHTML(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/__(.+?)__/g,'<strong>$1</strong>').replace(/\`([^\`]+)\`/g,'<code>$1</code>').replace(/(?<!\*)\*([^*]+)\*(?!\*)/g,'<em>$1</em>')}
 function renderReport(source){
@@ -286,96 +261,33 @@ $('sendToMT5').onclick=async()=>{
   $('executeStatus').className='notice show bad';$('executeStatus').textContent=error.message;
  }finally{button.disabled=!executionTrade||executionAttempted;button.textContent=executionAttempted?'Attempt used — reanalyse':'Send to MT5'}
 };
-$('analyze').onclick=async()=>{const btn=$('analyze');invalidateExecutionTicket();try{const token=$('token').value.trim();if(!token)throw new Error('Open AI connection settings and enter your private Analyzer access token.');const cards=[...$('pairList').children];if(!cards.length)throw new Error('Add at least one market.');const pairs=[];for(const card of cards){const pair=card.querySelector('select').value,charts={},missing=[];for(const tf of TF){const file=card.querySelector('#p'+card.dataset.pairId+tf).files?.[0];if(!file)missing.push(tf);else charts[tf]=await readImage(file)}if(missing.length)throw new Error(LABEL[pair]+' is missing: '+missing.join(', '));pairs.push({pair,charts})}btn.disabled=true;btn.textContent='Scanning markets…';$('result').textContent='';$('result').classList.remove('show');showStatus('Preparing M5 and M1 screenshots for Strategy 1 AI analysis…');const lastAnalysis=localStorage.getItem('lastAnalysis');
-const tradeContext=(useLastAnalysisMemory&&lastAnalysis)
- ? "Previous scan for consistency only: "+lastAnalysis+". Reassess the NEW screenshots independently. Do not issue HOLD/CLOSE instructions based on stale screenshots and do not assume any active broker position."
- : "";
-const balance=Number($('accountBalance').value),risk=Number($('riskPercent').value);if(!Number.isFinite(balance)||balance<=0)throw new Error('Enter a valid account balance.');if(!Number.isFinite(risk)||risk<=0||risk>5)throw new Error('Risk per trade must be between 0 and 5%.');const payload={version:'m5-m1-strategy1-90m-v3',pairs,tradeContext,balance,risk,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi'}};const body=JSON.stringify(payload);if(body.length>9*1024*1024)throw new Error('Combined screenshots are too large. Use fewer pairs or crop screenshots less tightly; the app compresses them automatically.');const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body});const out=await response.json().catch(()=>({}));if(!response.ok)throw new Error(out.error||('AI service returned HTTP '+response.status));if(typeof out.text!=='string'||!out.text.trim())throw new Error('The AI returned an empty analysis. Please try again.');localStorage.setItem('lastAnalysis',out.text);refreshLastAnalysisButton();$('result').replaceChildren(renderReport(out.text));$('result').classList.add('show');renderTradeTicket(out.text,pairs.map(x=>x.pair));showStatus('AI scan complete. Review the M5/M1 evidence, support/resistance targets and 90-minute limit before any trade.','good');$('result').scrollIntoView({behavior:'smooth',block:'start'})}catch(error){showStatus('Analysis failed: '+error.message,'bad')}finally{btn.disabled=false;btn.textContent='✦ Analyse M5 + M1 screenshots'}};
-
-/* London morning and New York evening screenshot sessions are converted to Kenya EAT; DST is automatic. */
-const TIMER_STORE_KEY='analyzerProTimerSettingsV1';
-let deferredInstallPrompt=null;
-function zonedParts(timeZone,date=new Date()){return new Intl.DateTimeFormat('en-GB',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(date).reduce((o,p)=>(o[p.type]=p.value,o),{});}
-function zonedEpoch(timeZone,year,month,day,hour,minute){let t=Date.UTC(year,month-1,day,hour,minute,0);for(let i=0;i<4;i++){const p=zonedParts(timeZone,new Date(t));const actual=Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,0);const wanted=Date.UTC(year,month-1,day,hour,minute,0);const delta=wanted-actual;if(!delta)break;t+=delta;}return t;}
-function nextLocalTime(timeZone,hour,minute,now=Date.now()){const p=zonedParts(timeZone,new Date(now));let t=zonedEpoch(timeZone,+p.year,+p.month,+p.day,hour,minute);if(t<=now){const d=new Date(Date.UTC(+p.year,+p.month-1,+p.day+1));t=zonedEpoch(timeZone,d.getUTCFullYear(),d.getUTCMonth()+1,d.getUTCDate(),hour,minute);}return t;}
-function fmtTimer(ms){const sec=Math.max(0,Math.floor(ms/1000)),h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return [h,m,s].map(v=>String(v).padStart(2,'0')).join(':');}
-function fmtEAT(epoch){return new Intl.DateTimeFormat('en-KE',{timeZone:'Africa/Nairobi',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(epoch));}
-function updateSessionTimers(){
- const now=Date.now(),london=nextLocalTime('Europe/London',8,30,now),ny=nextLocalTime('America/New_York',8,30,now);
- const londonPrep=nextLocalTime('Europe/London',8,25,now),nyPrep=nextLocalTime('America/New_York',8,25,now);
- const morning=document.getElementById('morningCountdown'),afternoon=document.getElementById('afternoonCountdown');
- if(morning)morning.textContent=fmtTimer(london-now);if(afternoon)afternoon.textContent=fmtTimer(ny-now);
- const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};
- set('morningSessionTime',fmtEAT(london)+' EAT');set('morningReminderTime','Preparation alert: '+fmtEAT(londonPrep)+' EAT · 5 minutes earlier');
- set('afternoonSessionTime',fmtEAT(ny)+' EAT');set('afternoonReminderTime','Preparation alert: '+fmtEAT(nyPrep)+' EAT · 5 minutes earlier');
- set('morningScheduleText',fmtEAT(londonPrep)+' EAT · Prepare charts · '+fmtEAT(london)+' EAT · London screenshots');
- set('afternoonScheduleText',fmtEAT(nyPrep)+' EAT · Prepare charts · '+fmtEAT(ny)+' EAT · New York screenshots');
- const alerts=[
-  {at:londonPrep,title:'London reminder · 5 minutes to go',desc:'Prepare charts for the 8:30 AM London screenshot session.'},
-  {at:london,title:'London screenshot time',desc:'Capture your charts for the London session now.'},
-  {at:nyPrep,title:'New York reminder · 5 minutes to go',desc:'Prepare charts for the 8:30 AM New York screenshot session.'},
-  {at:ny,title:'New York screenshot time',desc:'Capture your charts for the New York session now.'}
- ].sort((x,y)=>x.at-y.at);
- const next=alerts[0];const title=document.getElementById('nextAlertTitle'),count=document.getElementById('nextAlertCountdown'),desc=document.getElementById('nextAlertDescription');
- if(title)title.textContent=next.title;if(count)count.textContent=fmtTimer(next.at-now);if(desc)desc.textContent=next.desc+' · Times shown in Kenya time (EAT)';
-}
-function setPushStatus(s){const el=document.getElementById('pushStatus');if(el)el.textContent=s;}
-function initTimerNavigation(){
- const panel=document.getElementById('timerPanel'),navButtons=[...document.querySelectorAll('.timer-nav button')],main=document.querySelector('main');
- function showView(view){
-  navButtons.forEach(b=>{const active=b.dataset.view===view;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
-  [...main.children].forEach(el=>{if(el===panel)return;if(el.tagName==='FOOTER'){el.style.display=view==='home'?'':'none';return}el.style.display=view==='home'?'':'none'});
-  panel.style.display=view==='timers'?'block':'none';
-  if(view==='timers')updateSessionTimers();
-  window.scrollTo({top:0,behavior:'smooth'});
- }
- navButtons.forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
- if(location.hash==='#timers')showView('timers');
- document.getElementById('enablePush')?.addEventListener('click',async()=>{
-  let one=window.AnalyzerOneSignal;
-  if(!one){
-   setPushStatus('Connecting to OneSignal… please wait.');
-   one=await Promise.race([analyzerOneSignalReady,new Promise(resolve=>setTimeout(()=>resolve(null),12000))]);
-  }
-  if(!one){setPushStatus(window.AnalyzerOneSignalError||'OneSignal is still loading. Refresh this page, wait a few seconds, then tap Enable phone notifications again.');return}
-  try{
-   await one.Notifications.requestPermission();
-   if(one.Notifications.permission)await one.User.PushSubscription.optIn();
-   setPushStatus(one.User.PushSubscription.optedIn?'Notifications enabled. You will receive all four daily reminders.':'Permission was not granted. Allow notifications for Analyzer Pro in Chrome site settings.');
-  }catch(e){setPushStatus('Could not enable notifications: '+(e?.message||String(e)));}
- });
- document.getElementById('installApp')?.addEventListener('click',async()=>{
-  if(!deferredInstallPrompt)return;
-  deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;
-  document.getElementById('installApp').style.display='none';
- });
- window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;const b=document.getElementById('installApp');if(b)b.style.display='block'});
- if('serviceWorker' in navigator)navigator.serviceWorker.register('/OneSignalSDKWorker.js',{scope:'/'}).catch(e=>console.warn('Service worker registration:',e));
- updateSessionTimers();setInterval(updateSessionTimers,1000);
-}
-let analyzerOneSignalReadyResolve;
-const analyzerOneSignalReady=new Promise(resolve=>{analyzerOneSignalReadyResolve=resolve;});
-window.AnalyzerOneSignalError='';
-window.OneSignalDeferred=window.OneSignalDeferred||[];
-window.OneSignalDeferred.push(async function(OneSignal){
+$('analyze').onclick=async()=>{
+ const btn=$('analyze');invalidateExecutionTicket();
  try{
-  const cfg=await fetch('/api/push-config',{cache:'no-store'}).then(r=>r.json());
-  if(!cfg.appId){const msg='The Analyzer Pro Worker is not returning a OneSignal App ID. Check /api/push-config.';window.AnalyzerOneSignalError=msg;setPushStatus(msg);analyzerOneSignalReadyResolve(null);return}
-  if(!cfg.ready){const msg='The OneSignal App ID is present, but the Worker reports that its REST API key is missing.';window.AnalyzerOneSignalError=msg;setPushStatus(msg);analyzerOneSignalReadyResolve(null);return}
-  await OneSignal.init({appId:cfg.appId,serviceWorkerPath:'/OneSignalSDKWorker.js',serviceWorkerParam:{scope:'/'}});
-  window.AnalyzerOneSignal=OneSignal;
-  analyzerOneSignalReadyResolve(OneSignal);
-  setPushStatus(OneSignal.User.PushSubscription.optedIn?'Phone notifications are enabled.':'Tap “Enable phone notifications” to allow the four daily reminders.');
- }catch(e){window.AnalyzerOneSignalError='OneSignal initialization failed: '+(e?.message||String(e));setPushStatus(window.AnalyzerOneSignalError);analyzerOneSignalReadyResolve(null);}
-});
-document.addEventListener('DOMContentLoaded',initTimerNavigation,{once:true});
-
+  const token=$('token').value.trim();if(!token)throw new Error('Open AI connection settings and enter your private Analyzer access token.');
+  const card=$('pairList').firstElementChild;if(!card)throw new Error('Choose a market first.');
+  const pair=card.querySelector('select').value,stage=savedRange&&savedM5Image?'confirm':'range',charts={};
+  if(stage==='range'){const file=card.querySelector('#p'+card.dataset.pairId+'M5').files?.[0];if(!file)throw new Error('First upload the M5 screenshot taken at the New York 9:30 AM open.');charts.M5=await readImage(file)}
+  else{const file=$('m1Later').files?.[0];if(!file)throw new Error('Your M5 range is saved. Upload the later M1 screenshot when the directional FVG appears.');if(savedRange.symbol!==pair)throw new Error('The saved M5 range belongs to '+savedRange.symbol+'. Reset the range before changing markets.');charts.M5=savedM5Image;charts.M1=await readImage(file)}
+  const balance=Number($('accountBalance').value),risk=Number($('riskPercent').value);if(!Number.isFinite(balance)||balance<=0)throw new Error('Enter a valid account balance.');if(!Number.isFinite(risk)||risk<=0||risk>5)throw new Error('Risk per trade must be between 0 and 5%.');
+  btn.disabled=true;btn.textContent=stage==='range'?'Scanning last completed M5 candle…':'Checking M1 breakout and FVG…';$('result').textContent='';$('result').classList.remove('show');showStatus(stage==='range'?'AI is identifying the last fully completed M5 candle and saving its high and low.':'AI is checking the new M1 screenshot against your saved M5 range.','');
+  const payload={version:'ny-open-staged-range-v1',stage,pair,charts,range:stage==='confirm'?savedRange:null,balance,risk,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi',sessionTimeZone:'America/New_York',sessionOpen:'09:30'}};
+  const body=JSON.stringify(payload);if(body.length>9*1024*1024)throw new Error('Screenshot is too large. Please use a smaller chart image.');
+  const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body});const out=await response.json().catch(()=>({}));if(!response.ok)throw new Error(out.error||('AI service returned HTTP '+response.status));if(typeof out.text!=='string'||!out.text.trim())throw new Error('The AI returned an empty analysis. Please try again.');
+  $('result').replaceChildren(renderReport(out.text));$('result').classList.add('show');
+  if(stage==='range'){
+   const match=out.text.match(/RANGE_DATA\s*:\s*(\{[^\r\n]*\})/i);let data=null;if(match){try{data=JSON.parse(match[1])}catch{}}
+   if(!data||data.confirmed_closed!==true||data.symbol!==pair||!Number.isFinite(Number(data.high))||!Number.isFinite(Number(data.low))||Number(data.high)<=Number(data.low))throw new Error('AI could not verify the exact high and low of the last completed M5 candle. No range was saved. Check the price scale and try again.');
+   savedRange=data;savedM5Image=charts.M5;try{localStorage.setItem('analyzerSavedM5Image',savedM5Image);localStorage.setItem('analyzerSavedM5Range',JSON.stringify(savedRange))}catch{savedRange=null;savedM5Image='';throw new Error('This phone could not save the M5 screenshot. Free browser storage and try again.')}
+   updateSavedRangeUI();showStatus('M5 range saved. HIGH: '+data.high+' · LOW: '+data.low+'. Wait for the directional FVG, then upload M1.','good');
+  }else{localStorage.setItem('lastAnalysis',out.text);refreshLastAnalysisButton();renderTradeTicket(out.text,[pair]);showStatus('M1 confirmation scan complete. Review the saved range, FVG, third-candle close and support/resistance targets.','good')}
+  $('result').scrollIntoView({behavior:'smooth',block:'start'});
+ }catch(error){showStatus('Analysis failed: '+error.message,'bad')}
+ finally{btn.disabled=false;updateSavedRangeUI()}
+};
 
 </script>
 
-<nav class="timer-nav" aria-label="Main navigation">
-  <button type="button" class="active" data-view="home" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>Home</button>
-  <button type="button" data-view="timers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6M12 5V2"/></svg>Timers</button>
-</nav>
+
 
 </body></html>
