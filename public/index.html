@@ -149,9 +149,9 @@ function updateSavedRangeUI(){
  if(savedRange&&savedM5Image){
   card.style.display='block';$('savedRangeHigh').textContent=String(savedRange.high);$('savedRangeLow').textContent=String(savedRange.low);
   $('savedRangeTime').textContent='Last completed M5 candle · '+(savedRange.candle_time||'time not readable')+' · '+(savedRange.symbol||'');
-  input.disabled=false;stage.style.opacity='1';$('m1StageStatus').textContent='Ready when the FVG appears';$('analyze').textContent='② Scan M1 FVG confirmation';
+  input.disabled=false;card.querySelector('.pair-select').disabled=true;stage.style.opacity='1';$('m1StageStatus').textContent='Ready when the FVG appears';$('analyze').textContent='② Scan M1 FVG confirmation';
  }else{
-  card.style.display='none';input.disabled=true;stage.style.opacity='.55';$('m1StageStatus').textContent='Locked until M5 range is saved';$('analyze').textContent='① Scan M5 & save range';
+  card.style.display='none';input.disabled=true;card.querySelector('.pair-select').disabled=false;stage.style.opacity='.55';$('m1StageStatus').textContent='Locked until M5 range is saved';$('analyze').textContent='① Scan M5 & save range';
  }
 }
 $('m1Later').addEventListener('change',()=>{const file=$('m1Later').files?.[0];if(!file)return;if(!file.type.startsWith('image/')){showStatus('Please select an image screenshot.','bad');$('m1Later').value='';return}$('m1Preview').src=URL.createObjectURL(file);$('m1Preview').classList.add('show');$('m1FileName').textContent=file.name});
