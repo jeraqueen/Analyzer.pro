@@ -1,8 +1,8 @@
 {
   "name": "Analyzer Pro",
   "short_name": "Analyzer Pro",
-  "description": "SMC/ICT chart scanner with Kenya-time screenshot reminders.",
-  "start_url": "/#timers",
+  "description": "New York session M5 opening range and M1 FVG chart analysis.",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#080d18",
