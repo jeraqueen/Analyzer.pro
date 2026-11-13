@@ -120,7 +120,8 @@ async function handleAnalyze(request, env) {
   const risk = Number(payload.risk ?? 1);
   if (!Number.isFinite(balance) || balance <= 0) return json({ error: "Account balance must be a number greater than zero." }, 400, cors);
   if (!Number.isFinite(risk) || risk <= 0 || risk > 100) return json({ error: "Risk per trade must be greater than 0 and no more than 100 percent." }, 400, cors);
-  const timeframes = ["M5", "M1"];
+  const stage = payload.stage === "range" ? "range" : "confirm";
+  const timeframes = stage === "range" ? ["M5"] : ["M5", "M1"];
   // Accept the new multi-pair format and the previous single-pair format.
   const submitted = Array.isArray(payload.pairs) ? payload.pairs : [{ pair: payload.pair || "EURUSD", charts: payload.charts || {} }];
   if (!submitted.length || submitted.length > 1) return json({ error: "Select one market per scan. Upload its M5 and M1 screenshots." }, 400, cors);
@@ -136,19 +137,27 @@ async function handleAnalyze(request, env) {
   }
 
   const now = new Date();
-  const eatNow = new Intl.DateTimeFormat("en-KE", {
-    timeZone: "Africa/Nairobi", dateStyle: "full", timeStyle: "long", hour12: false
-  }).format(now);
-  const multi = false;
+  const eatNow = new Intl.DateTimeFormat("en-KE", { timeZone: "Africa/Nairobi", dateStyle: "full", timeStyle: "long", hour12: false }).format(now);
+  const savedRange = payload.range && typeof payload.range === "object" ? payload.range : null;
+  if (stage === "confirm" && (!savedRange || savedRange.confirmed_closed !== true || !Number.isFinite(Number(savedRange.high)) || !Number.isFinite(Number(savedRange.low)))) return json({ error: "A verified saved M5 range is required before the M1 confirmation scan." }, 400, cors);
 
-  const prompt = [
-    "You are Analyzer Pro, an expert AI multi-timeframe chart analyst. You MUST actively inspect the uploaded screenshots and produce a careful chart scan. Analyze only the one selected instrument " + submitted[0].pair + " using its M5 and M1 screenshots. Current Kenya time: " + eatNow + ".",
+  const rangePrompt = [
+    "You are Analyzer Pro. STAGE 1 — M5 RANGE CAPTURE ONLY. Analyze \" + submitted[0].pair + \". Current Kenya time: \" + eatNow + \". This screenshot is taken at the New York 9:30 AM opening (America/New_York).",
+    "Identify the LAST FULLY COMPLETED five-minute candle visible at the right edge. Ignore any currently forming candle. Use that candle's wick high and wick low as the opening range boundaries.",
+    "Read exact high and low from the visible price scale or candle data. Do not guess, round or infer missing prices. If candle closure or either exact price is unclear, say RANGE NOT VERIFIED and do not output RANGE_DATA.",
+    "This stage only captures the M5 range. Do not search for an entry, predict direction, invent a breakout, create TP or SL, or call a trade confirmed. M1 FVG confirmation comes later.",
+    "Report instrument, New York 9:30 AM session, selected candle/time, HIGH LINE, LOW LINE and status RANGE SAVED or RANGE NOT VERIFIED. Tell the user to wait for the M1 screenshot when the FVG appears.",
+    "Only if the candle is fully closed and both exact levels are readable, append one single-line RANGE_DATA JSON with confirmed_closed=true, symbol, timeframe=M5, exact high, exact low and candle_time. Otherwise omit RANGE_DATA.",
+    "Do not claim to draw on the original broker chart; the website will display the saved high and low as range guides. Never claim a trade was placed."
+  ].join("\n");
+  const confirmPrompt = [
+    "You are Analyzer Pro, an expert AI multi-timeframe chart analyst. Analyze " + submitted[0].pair + " using the saved M5 range screenshot and the new M1 screenshot. Current Kenya time: " + eatNow + ". Saved verified M5 range: high=" + savedRange.high + ", low=" + savedRange.low + ", candle time=" + (savedRange.candle_time || "not readable") + ". Do not change these boundaries.",
     "SUPPORTED MARKETS ONLY: XAUUSD (Gold), BTCUSD (Bitcoin), NAS100 (Nasdaq 100), US30 (Dow Jones 30). Use the selected instrument's own chart prices. Do not compare or mix symbols.",
     "ONLY ACTIVE SETUP: M5 RANGE BREAKOUT + M1 FVG CONFIRMATION. No other setup is permitted.",
-    "M5 RANGE: Identify the specific five-minute candle/range marked or selected by the user. Record its exact high and low. If the selected candle/range is unclear, state NOT IDENTIFIABLE and WAIT. Do not invent range boundaries.",
+    "M5 RANGE: Use the saved range from the LAST COMPLETED M5 candle at the New York 9:30 AM session opening. Stored high=" + savedRange.high + " and low=" + savedRange.low + ". Do not change these boundaries.",
     "BREAKOUT: BUY only after an M5 candle body closes decisively above the range high. SELL only after an M5 candle body closes decisively below the range low. Wick-only breaks are invalid. Require clear displacement and no immediate rejection back inside the range.",
     "FVG CONFIRMATION: A valid visible Fair Value Gap must support the breakout direction. Describe the three-candle imbalance and its price zone only when readable. No valid directional FVG means no trade.",
-    "M1 ENTRY: Confirm the entry using M1. Count the valid confirmation sequence and enter only at the close of its THIRD candle. State candle 1, candle 2 and candle 3. If candle 3 has not closed or the screenshots do not show enough history, say WAITING FOR M1 THIRD-CANDLE CLOSE. Never enter early.",
+    "M1 ENTRY: This screenshot is supplied later when a directional FVG appears. Check decisive body-close breakout beyond the saved M5 high/low, then a valid directional FVG and three-candle confirmation. Enter only at the close of the THIRD candle. State candles 1, 2 and 3. If breakout, FVG or third-candle close is missing, WAIT. Never enter early.",
     "STOP LOSS: For BUY, use the lowest wick of the M5 breakout candle. For SELL, use the highest wick of the M5 breakout candle. Do not substitute an M1 swing or arbitrary ATR stop. If the exact breakout wick is unreadable, withhold the numeric trade plan.",
     "SUPPORT AND RESISTANCE: Map meaningful support and resistance visible on both supplied timeframes. M5 defines broader intraday structure and the breakout context. M1 identifies nearby execution obstacles and minor structure. Clearly label each level with its timeframe and whether it is support or resistance. Never fabricate or interpolate prices.",
     "TAKE PROFITS: For BUY, TP1 is the nearest meaningful resistance/overhead supply or opposing liquidity level in the trade direction; for SELL, TP1 is the nearest meaningful support/demand or opposing liquidity below. TP2 and TP3 are the next successive visible structure levels only if they exist. Explain the chart evidence/timeframe for every TP. Do not use fixed pip/point distances or force an R:R ratio. If the next support/resistance barrier leaves insufficient reward after the structural stop and costs, say WAIT — INSUFFICIENT ROOM.",
@@ -180,8 +189,10 @@ async function handleAnalyze(request, env) {
     "WHY THE SETUP DOES OR DOES NOT FIT THE 90-MINUTE LIMIT:",
     "LIMITATIONS:",
     "If the setup is not confirmed, say WAIT — NO VALID STRATEGY 1 SETUP and name the exact missing condition. Do not output a second strategy. Do not claim an order was placed.",
+    "The saved M5 range is the last fully completed candle captured at New York 9:30 AM. Never change its stored high/low. M1 is a later screenshot; validate breakout, directional FVG and third-candle close against those saved boundaries.",
     "EXECUTION_DATA CONTRACT: Append one single-line EXECUTION_DATA JSON record only when Strategy 1 is fully confirmed and exact numeric Entry, SL, TP1, TP2 and TP3 are all visible and correctly ordered. Format: EXECUTION_DATA: {\"confirmed\":true,\"symbol\":\"" + submitted[0].pair + "\",\"direction\":\"LONG\",\"entry\":1.1,\"sl\":1.09,\"tp1\":1.11,\"tp2\":1.12,\"tp3\":1.13}. Use LONG for BUY and SHORT for SELL. Never append it if any required level is missing or unconfirmed."
   ].join("\n");
+  const prompt = stage === "range" ? rangePrompt : confirmPrompt;
 
   const parts = [{ text: prompt }];
   for (const item of submitted) {
@@ -281,69 +292,11 @@ async function handleAnalyze(request, env) {
   }, 502, cors);
 }
 
-function getZonedClock(timeZone, date = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hourCycle: "h23"
-  }).formatToParts(date).reduce((out, part) => (out[part.type] = part.value, out), {});
-  return { year: Number(parts.year), month: Number(parts.month), day: Number(parts.day), hour: Number(parts.hour), minute: Number(parts.minute) };
-}
-
-async function sendSessionReminder(env, scheduledTime) {
-  if (!env.ONESIGNAL_APP_ID || !env.ONESIGNAL_REST_API_KEY) {
-    console.error("Session reminder skipped: OneSignal app ID or REST API key is not configured.");
-    return;
-  }
-  const now = new Date(scheduledTime || Date.now());
-  const london = getZonedClock("Europe/London", now);
-  const newYork = getZonedClock("America/New_York", now);
-  const candidates = [
-    { local: london, market: "London" },
-    { local: newYork, market: "New York" }
-  ];
-  const due = [];
-  for (const item of candidates) {
-    if (item.local.hour === 8 && item.local.minute === 25) {
-      due.push({ title: "Analyzer Pro · " + item.market + " reminder", message: "Five minutes until the 8:30 AM " + item.market + " screenshot session. Prepare your charts now." });
-    }
-    if (item.local.hour === 8 && item.local.minute === 30) {
-      due.push({ title: "Analyzer Pro · " + item.market + " screenshot time", message: "It is 8:30 AM " + item.market + " local time. Capture your charts now. Kenya time is adjusted automatically for daylight saving." });
-    }
-  }
-  if (!due.length) return;
-  const appUrl = env.PUBLIC_APP_URL || "https://analyzer-pro.fx77.workers.dev";
-  for (const alert of due) {
-    const response = await fetch("https://api.onesignal.com/notifications", {
-      method: "POST",
-      headers: {
-        "Authorization": "Key " + env.ONESIGNAL_REST_API_KEY,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        app_id: env.ONESIGNAL_APP_ID,
-        included_segments: ["All"],
-        headings: { en: alert.title },
-        contents: { en: alert.message },
-        web_url: appUrl + "/#timers"
-      })
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      console.error("OneSignal reminder send failed", JSON.stringify({ market: alert.title, status: response.status, response: JSON.stringify(result).slice(0, 500) }));
-      throw new Error("OneSignal reminder failed with HTTP " + response.status);
-    }
-    console.log("OneSignal reminder sent", JSON.stringify({ market: alert.title, notificationId: result.id || null }));
-  }
-}
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/analyze") return handleAnalyze(request, env);
     if (url.pathname === "/api/execute-trade") return handleExecuteTrade(request, env);
-    if (url.pathname === "/api/push-config" && request.method === "GET") {
-      return json({ appId: env.ONESIGNAL_APP_ID || null, ready: Boolean(env.ONESIGNAL_APP_ID && env.ONESIGNAL_REST_API_KEY) });
-    }
     const assetResponse = await env.ASSETS.fetch(request);
     if (request.method === "GET" && (url.pathname === "/" || url.pathname.endsWith(".html"))) {
       const headers = new Headers(assetResponse.headers);
@@ -351,8 +304,5 @@ export default {
       return new Response(assetResponse.body, { status: assetResponse.status, statusText: assetResponse.statusText, headers });
     }
     return assetResponse;
-  },
-  async scheduled(controller, env) {
-    await sendSessionReminder(env, controller.scheduledTime);
   }
 };
