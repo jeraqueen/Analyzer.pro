@@ -88,8 +88,6 @@ const $=id=>document.getElementById(id), TF=['M5','M1'];
 const STORE='fxResearchDesk_v2', PAIRS=['XAUUSD','BTCUSD','NAS100','US30'];
 const LABEL={XAUUSD:'Gold · XAUUSD',BTCUSD:'Bitcoin · BTCUSD',NAS100:'Nasdaq · NAS100',US30:'US30 · Dow Jones'};
 let pairCount=0,pairSerial=0;
-let savedM5Image=localStorage.getItem('analyzerSavedM5Image')||'';
-let savedRange=null;try{savedRange=JSON.parse(localStorage.getItem('analyzerSavedM5Range')||'null')}catch{savedRange=null}
 function getSavedToken(){try{const old=JSON.parse(localStorage.getItem(STORE)||'null');return old?.settings?.accessToken||localStorage.getItem('analyzerAccessToken')||''}catch{return localStorage.getItem('analyzerAccessToken')||''}}
 $('token').value=getSavedToken();
 function showStatus(message,type){const el=$('status');el.textContent=message;el.className='notice show '+(type||'')}
