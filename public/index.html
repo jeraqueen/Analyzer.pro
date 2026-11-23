@@ -38,7 +38,26 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:14px}
 
 </style>
 
-</head>
+<style>
+/* Live scalper terminal */
+#liveTerminal{background:#07101b;border:1px solid #263d58;border-radius:18px;overflow:hidden;margin:16px 0}
+#liveTerminal .lt-head{padding:15px;background:linear-gradient(100deg,#10253c,#0a1524);display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+#liveTerminal .lt-title{font-weight:900;font-size:18px;color:#e6f2ff}
+#liveTerminal .lt-status{font-size:11px;color:#a5b8d0;display:flex;gap:7px;align-items:center}
+#liveTerminal .lt-dot{width:8px;height:8px;border-radius:50%;background:#f0b45e;display:inline-block}
+#liveTerminal .lt-dot.ok{background:#64d9a9;box-shadow:0 0 10px #64d9a9}
+#liveTerminal .lt-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px}
+#liveTerminal .lt-controls select{padding:10px;border-radius:10px;background:#0d1b2b;border:1px solid #2c4662;color:#dceaff}
+#liveTerminal .lt-pricebar{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:0 12px 10px}
+#liveTerminal .lt-stat{padding:10px;border:1px solid #20354c;border-radius:11px;background:#0c1929;min-width:0}
+#liveTerminal .lt-stat small{display:block;font-size:9px;letter-spacing:.1em;color:#8fa8c4}
+#liveTerminal .lt-stat strong{display:block;font-size:14px;font-weight:850;color:#dceaff;margin-top:3px;overflow-wrap:anywhere}
+#liveTerminal .lt-chart{height:330px;width:100%;background:#091321}
+#liveTerminal .lt-msg{padding:10px 13px;font-size:12px;color:#a4bad3;border-top:1px solid #1e3045;white-space:pre-wrap}
+#liveTerminal .lt-msg.error{color:#ffaaa9}
+#liveTerminal .lt-foot{padding:10px 13px;font-size:10px;color:#788da8}
+@media(max-width:480px){#liveTerminal .lt-chart{height:300px}#liveTerminal .lt-pricebar{gap:5px}#liveTerminal .lt-stat{padding:8px}#liveTerminal .lt-stat strong{font-size:12px}}
+</style>\n<script src='https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js'></script>\n</head>
 <body>
 <header><div class="brand"><div class="logo">A</div><div><h1>Analyzer Pro</h1><div class="muted small">Multi-timeframe · AI chart intelligence</div></div></div><div class="pill" id="clock">EAT · --:--</div></header>
 <main>
@@ -81,7 +100,11 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:14px}
 </section>
 
 <footer>Analyzer Pro · Any-time chart analysis · M5 opening range · M1 FVG confirmation · Structure targets</footer>
-</main>
+<section class="card" id="liveTerminal">
+<div class="lt-head"><div><div class="eyebrow">LIVE MARKET TERMINAL</div><div class="lt-title">AI Scalper · Live chart desk</div></div><div class="lt-status"><i id="ltDot" class="lt-dot"></i><span id="ltStatus">Initializing chart…</span></div></div>
+<div class="lt-controls"><select id="ltSymbol" aria-label="Market"><option value="XAUUSD">Gold · XAUUSD</option><option value="NAS100">Nasdaq · NAS100</option><option value="GBPUSD">GBP/USD</option><option value="USDJPY">USD/JPY</option><option value="BTCUSD">Bitcoin · BTCUSD</option></select><select id="ltTimeframe" aria-label="Chart timeframe"><option value="1m">1 minute</option><option value="5m" selected>5 minutes</option><option value="15m">15 minutes</option><option value="1h">1 hour</option><option value="4h">4 hours</option><option value="1d">Daily</option></select></div>
+<div class="lt-pricebar"><div class="lt-stat"><small>LAST CLOSE</small><strong id="ltLast">—</strong></div><div class="lt-stat"><small>CHANGE (VISIBLE)</small><strong id="ltChange">—</strong></div><div class="lt-stat"><small>BAR COUNT</small><strong id="ltCount">—</strong></div></div>
+<div id="ltChart" class="lt-chart"></div><div class="lt-msg" id="ltMessage">Chart waiting for market data. No prices are simulated.</div><div class="lt-foot">Charts are for analysis only. Data feed availability is not yet independently verified. Not an execution system.</div></section></main>
 <script>
 'use strict';
 const $=id=>document.getElementById(id), TF=['M5','M1'];
@@ -274,4 +297,46 @@ window.addEventListener('unhandledrejection',event=>{try{showStatus('Page error:
 
 
 
-</body></html>
+<script>
+(function(){
+const el=id=>document.getElementById(id);const sym=el('ltSymbol'),tf=el('ltTimeframe'),msg=el('ltMessage'),dot=el('ltDot');
+let chart=null,candleSeries=null,refreshTimer=null,resizeObserver=null,chartReady=false,requestId=0;
+function status(s,ok){el('ltStatus').textContent=s;dot.className='lt-dot'+(ok?' ok':'')}
+function setMsg(s,error){msg.textContent=s;msg.className='lt-msg'+(error?' error':'')}
+function parseCandles(raw){
+ let arr=Array.isArray(raw)?raw:(raw?.candles||raw?.data||raw?.result||raw?.ohlc||raw?.bars||[]);
+ if(!Array.isArray(arr))return [];
+ return arr.map(v=>{
+  const t=v.time??v.timestamp??v.date??v.t,open=Number(v.open??v.o),high=Number(v.high??v.h),low=Number(v.low??v.l),close=Number(v.close??v.c);
+  if(!Number.isFinite(open)||!Number.isFinite(high)||!Number.isFinite(low)||!Number.isFinite(close)||!t)return null;
+  let time=typeof t==='number'?t:Math.floor(Date.parse(t)/1000);if(time>1e12)time=Math.floor(time/1000);
+  return Number.isFinite(time)?{time,open,high,low,close}:null;
+ }).filter(Boolean).sort((a,b)=>a.time-b.time);
+}
+function interval(){return tf.value}
+async function load(){
+ if(!chartReady)return;const thisId=++requestId;const symbol=sym.value,inter=interval();
+ status('Loading candles…',false);
+ try{
+  const url='https://biquote.io/api/'+encodeURIComponent(symbol)+'/ohlc?interval='+encodeURIComponent(inter)+'&limit=220';
+  const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('Feed HTTP '+r.status);
+  const raw=await r.json();if(thisId!==requestId)return;
+  const bars=parseCandles(raw);if(!bars.length)throw Error('Feed responded, but its candle format was not recognized.');
+  candleSeries.setData(bars);chart.timeScale().fitContent();
+  const last=bars[bars.length-1],first=bars[0],change=((last.close-first.open)/first.open)*100;
+  el('ltLast').textContent=last.close.toLocaleString(undefined,{maximumFractionDigits:5});
+  el('ltChange').textContent=(change>=0?'+':'')+change.toFixed(2)+'%';el('ltCount').textContent=String(bars.length);
+  status('Chart loaded · refresh 30s',true);setMsg('Candles loaded from public market-feed endpoint. Last bar time: '+new Date(last.time*1000).toLocaleString()+' · Auto-refresh every 30 seconds.');
+ }catch(e){if(thisId!==requestId)return;status('Feed unavailable',false);setMsg('Could not load real candles: '+e.message+'. No synthetic candles are shown. If this persists, the data provider may block this browser or the symbol/timeframe may be unsupported.',true);el('ltLast').textContent='—';el('ltChange').textContent='—';el('ltCount').textContent='—'}
+}
+function init(){
+ if(!window.LightweightCharts){status('Chart library unavailable',false);setMsg('Chart library could not load. Check internet connection or CDN availability.',true);return}
+ chart=LightweightCharts.createChart(el('ltChart'),{layout:{background:{color:'#091321'},textColor:'#b4c6dc'},grid:{vertLines:{color:'#142439'},horzLines:{color:'#142439'}},rightPriceScale:{borderColor:'#23374f'},timeScale:{borderColor:'#23374f',timeVisible:true,secondsVisible:false},crosshair:{mode:1},width:el('ltChart').clientWidth,height:el('ltChart').clientHeight});
+ candleSeries=chart.addSeries(LightweightCharts.CandlestickSeries,{upColor:'#37c991',downColor:'#f06d79',borderUpColor:'#37c991',borderDownColor:'#f06d79',wickUpColor:'#37c991',wickDownColor:'#f06d79});
+ chartReady=true;resizeObserver=new ResizeObserver(entries=>{const w=entries[0].contentRect.width;if(w>0)chart.applyOptions({width:w,height:el('ltChart').clientHeight})});resizeObserver.observe(el('ltChart'));load();refreshTimer=setInterval(load,30000)
+}
+sym.addEventListener('change',load);tf.addEventListener('change',load);
+window.addEventListener('pagehide',()=>{if(refreshTimer)clearInterval(refreshTimer);if(resizeObserver)resizeObserver.disconnect()});
+if(window.LightweightCharts)init();else setTimeout(init,3000);
+})();
+</script></body></html>
