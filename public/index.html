@@ -57,7 +57,17 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:14px}
 #liveTerminal .lt-msg.error{color:#ffaaa9}
 #liveTerminal .lt-foot{padding:10px 13px;font-size:10px;color:#788da8}
 @media(max-width:480px){#liveTerminal .lt-chart{height:300px}#liveTerminal .lt-pricebar{gap:5px}#liveTerminal .lt-stat{padding:8px}#liveTerminal .lt-stat strong{font-size:12px}}
-</style>\n<script src='https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js'></script>\n</head>
+</style>\n<script src='https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js'></script>\n<style id="analyzer-responsive-fix">
+#liveTerminal{width:100%;max-width:100%;box-sizing:border-box}
+#liveTerminal *{box-sizing:border-box}
+#liveTerminal .lt-head{align-items:flex-start}
+#liveTerminal .lt-controls{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+#liveTerminal select{width:100%;min-width:0}
+#liveTerminal .lt-chart{height:clamp(280px,45vw,480px)}
+@media(min-width:900px){#liveTerminal{margin:24px 0}#liveTerminal .lt-controls{grid-template-columns:repeat(2,minmax(220px,320px));justify-content:start}#liveTerminal .lt-chart{height:480px}}
+@media(max-width:600px){#liveTerminal{border-radius:13px;margin:12px 0}#liveTerminal .lt-head{padding:12px}#liveTerminal .lt-controls{padding:9px;gap:6px}#liveTerminal .lt-pricebar{padding:0 9px 9px;grid-template-columns:repeat(3,minmax(0,1fr))}#liveTerminal .lt-stat{min-width:0;padding:8px}#liveTerminal .lt-stat strong{font-size:clamp(11px,3.3vw,14px)}#liveTerminal .lt-chart{height:290px}#liveTerminal .lt-msg,#liveTerminal .lt-foot{padding:9px;font-size:11px}}
+@media(max-width:360px){#liveTerminal .lt-controls{grid-template-columns:minmax(0,1fr)}#liveTerminal .lt-chart{height:260px}#liveTerminal .lt-title{font-size:16px}}
+</style></head>
 <body>
 <header><div class="brand"><div class="logo">A</div><div><h1>Analyzer Pro</h1><div class="muted small">Multi-timeframe · AI chart intelligence</div></div></div><div class="pill" id="clock">EAT · --:--</div></header>
 <main>
