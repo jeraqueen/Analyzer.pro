@@ -313,9 +313,11 @@ async function handleAnalyze(request, env) {
   }, 502, cors);
 }
 
+async function handleCandles(request) { const u=new URL(request.url); const symbol=u.searchParams.get('symbol')||''; const interval=u.searchParams.get('interval')||'5m'; const limit=Math.min(500,Math.max(10,Number(u.searchParams.get('limit')||250))); if(!ALLOWED_PAIRS.has(symbol)) return new Response(JSON.stringify({error:'Symbol not supported'}),{status:400,headers:{'Content-Type':'application/json'}}); const allowedIntervals=new Set(['1m','5m','15m','30m','1h','4h','1d']); if(!allowedIntervals.has(interval)) return new Response(JSON.stringify({error:'Timeframe not supported'}),{status:400,headers:{'Content-Type':'application/json'}}); try { const upstream=await fetch('https://biquote.io/api/'+encodeURIComponent(symbol)+'/ohlc?interval='+encodeURIComponent(interval)+'&limit='+limit,{headers:{'Accept':'application/json'},signal:AbortSignal.timeout(12000)}); const body=await upstream.text(); return new Response(body,{status:upstream.status,headers:{'Content-Type':upstream.headers.get('content-type')||'application/json','Cache-Control':'no-store'}}); } catch(e) {return new Response(JSON.stringify({error:'Candle data provider could not be reached',detail:String(e.message||e)}),{status:502,headers:{'Content-Type':'application/json'}})} }
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === "/api/candles" && request.method === "GET") return handleCandles(request);
     if (url.pathname === "/api/analyze") return handleAnalyze(request, env);
     if (url.pathname === "/api/execute-trade") return handleExecuteTrade(request, env);
     if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) return new Response(APP_HTML, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, max-age=0, must-revalidate" } });
