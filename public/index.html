@@ -1,360 +1,44 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#10110f">
-<title>Analyzer Pro · SMC/ICT AI</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#08111d"><title>Analyzer Pro | Market Terminal</title>
 <style>
-:root{color-scheme:dark;--bg:#080d18;--panel:#111b2d;--line:#26364d;--text:#edf4ff;--muted:#91a2ba;--gold:#e9bd68;--green:#66d6ad;--red:#ff817f;--blue:#7eb6ff}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#1e385b 0%,#0b1423 45%,#070b13 100%);color:var(--text);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}
-header{padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #26364d;background:#08111fee;position:sticky;top:0;z-index:5;backdrop-filter:blur(16px)}
-.brand{display:flex;align-items:center;gap:11px}.logo{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:linear-gradient(145deg,#8bc2ff,#4779c7);color:#071322;font-weight:950;font-size:20px;box-shadow:0 5px 22px #4c8bdf44}
-h1{font-size:18px;margin:0;letter-spacing:.01em}h2{font-size:20px;margin:0 0 5px}.muted{color:var(--muted)}.small{font-size:12px}p{margin:7px 0}
-main{max-width:960px;margin:auto;padding:18px 13px 48px}.card{background:linear-gradient(155deg,#142139ee,#101a2bee);border:1px solid var(--line);border-radius:20px;padding:17px;margin-bottom:14px;box-shadow:0 12px 35px #0002}
-.eyebrow{color:var(--gold);font-size:10px;font-weight:850;letter-spacing:.15em;text-transform:uppercase;margin-bottom:5px}
-.hero{padding:20px;background:linear-gradient(120deg,#182e4d,#121d31 70%);border:1px solid #345071}.hero h2{font-size:23px}.hero-line{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #3a5678;border-radius:99px;padding:6px 10px;color:#b8d8ff;font-size:11px;font-weight:750;background:#14263e}
-.watch-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:13px}.watch{background:#0d1a2c;border:1px solid #2d4564;border-radius:13px;padding:11px}.watch b{display:block;font-size:14px}.watch span{font-size:11px;color:var(--muted)}
-.pair-card{background:#0d1728;border:1px solid #2b3e58;border-radius:16px;padding:13px;margin-top:12px}.pair-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}.pair-name{font-weight:850;font-size:15px}.pair-tag{font-size:10px;color:#a8caff;background:#172c49;border-radius:20px;padding:4px 8px}
-select,input{width:100%;background:#0a1321;border:1px solid #30445e;border-radius:11px;color:var(--text);padding:12px;font:inherit;min-width:0}.pair-select{max-width:230px}
-.uploads{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:11px}.upload{border:1px dashed #405878;border-radius:14px;padding:10px;background:linear-gradient(145deg,#12213a,#0e192a);min-width:0}.upload-top{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:8px}.upload strong{font-size:12px;color:#d9e8ff}.tf-note{font-size:10px;color:#8197b5}
-.file-input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}.camera-pick{display:flex;align-items:center;justify-content:center;gap:7px;min-height:43px;border:1px solid #47658c;border-radius:11px;background:#172b47;color:#dcecff;font-size:12px;font-weight:750;cursor:pointer;padding:9px;text-align:center}.camera-pick:active{transform:scale(.98)}.camera-pick svg{width:18px;height:18px;flex:none}
-.preview{display:none;width:100%;max-height:155px;object-fit:contain;margin-top:9px;border-radius:9px;background:#050a12}.preview.show{display:block}.file-name{font-size:10px;color:#8ea6c4;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:5px}
-button{width:100%;border:1px solid #405674;border-radius:12px;background:#1a2a42;color:var(--text);padding:13px;font:inherit;font-weight:750;cursor:pointer}button.primary{background:linear-gradient(135deg,#9acaff,#5e96e5);color:#071424;border-color:#9acaff}button.secondary{background:#15243a}button:disabled{opacity:.5;cursor:not-allowed}
-.actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:15px}.analysis-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;min-width:0}.analysis-actions button{font-size:11px;padding:10px 7px;min-width:0}.analysis-actions button[aria-pressed="true"]{border-color:#3f8c75;background:#12352e;color:#b9f6df}@media(max-width:520px){.analysis-actions{grid-template-columns:1fr}}.notice{display:none;margin-top:12px;padding:12px;border-radius:11px;border:1px solid var(--line);font-size:13px;white-space:pre-wrap}.notice.show{display:block}.notice.bad{background:#351d28;border-color:#704151;color:#ffc4d1}.notice.good{background:#102b27;border-color:#32685a;color:#b9f6df}
-#result{display:none;overflow-wrap:anywhere;background:#0a1422;border:1px solid #344862;border-radius:16px;padding:14px;max-height:none;font:14px/1.6 Inter,system-ui,sans-serif;color:#e8f0fb}#result.show{display:block}
-.report{display:grid;gap:12px}.report h3{font-size:16px;line-height:1.35;margin:17px 0 7px;color:#f3f7ff;border-bottom:1px solid #2b405a;padding:0 0 8px}.report h3:first-child{margin-top:0}.report h4{font-size:13px;margin:13px 0 6px;color:#bcd8fa}.report p{margin:6px 0;color:#d5dfec}.report strong{color:#fff;font-weight:800}.report ul,.report ol{padding-left:21px;margin:7px 0;color:#d5dfec}.report li{padding:3px 0}.report hr{border:0;border-top:1px solid #30445c;margin:9px 0}.report-table-wrap{overflow-x:auto;border:1px solid #31445e;border-radius:11px;margin:8px 0 13px}.report table{width:100%;border-collapse:collapse;min-width:300px;font-size:12px}.report th{background:#1a2d47;color:#cfe3ff;text-align:left;font-weight:800}.report th,.report td{padding:9px 10px;border-bottom:1px solid #293d55;vertical-align:top}.report td{color:#dce6f3}.report tr:last-child td{border-bottom:0}.report blockquote{margin:9px 0;padding:10px 12px;border-left:3px solid #e8bd68;background:#1c2634;border-radius:0 9px 9px 0;color:#f4dfb8}.report .report-callout{padding:12px;border:1px solid #3b526e;background:#122238;border-radius:12px;margin:8px 0}.report .report-callout.good{border-color:#286a58;background:#102a26}.report .report-callout.warn{border-color:#8b6532;background:#302719}.report .report-callout.bad{border-color:#85444c;background:#301c25}.report .level-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:9px 0}.report .level{padding:10px;border:1px solid #344a65;background:#122037;border-radius:10px;min-width:0}.report .level span{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#a9bad0;font-weight:800}.report .level b{display:block;font-size:16px;color:#f3f7ff;margin-top:3px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.report code{color:#b8d9ff;background:#1a2a40;padding:2px 5px;border-radius:5px;font-size:.92em}
-@media(max-width:420px){#result{padding:10px}.report .level-grid{grid-template-columns:1fr 1fr}.report .level b{font-size:14px}.report th,.report td{padding:8px 7px}}
-details{margin-top:14px;border-top:1px solid var(--line);padding-top:13px}summary{cursor:pointer;color:#a9bdd8;font-size:13px;font-weight:700}.token-row{display:grid;gap:8px;margin-top:10px}
-footer{text-align:center;color:var(--muted);font-size:11px;padding:14px}
-.remove-pair{display:none}
-.session-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding:15px 16px;border:1px solid #456184;border-radius:16px;background:linear-gradient(110deg,#132d49,#102033 75%);box-shadow:inset 0 1px #ffffff0b}
-.session-strip>div:not(.session-divider){display:grid;gap:3px}.session-strip span{font-size:9px;letter-spacing:.14em;font-weight:900;color:#a8c9f4}.session-strip strong{font-size:24px;line-height:1.2;color:#f5d38c;font-variant-numeric:tabular-nums}.session-strip small{font-size:10px;color:#9fb2cb}.session-divider{height:42px;border-left:1px solid #3a526e}
-.range-guides{display:grid;grid-template-columns:1fr 1fr;gap:9px}.range-guide{padding:12px;border-radius:12px;background:#101e31;border:1px solid #344d69}.range-guide span{display:block;font-size:10px;font-weight:900;letter-spacing:.12em}.range-guide strong{display:block;margin-top:5px;font-size:20px;font-variant-numeric:tabular-nums}.range-guide.high{border-top:3px solid #f2b96b}.range-guide.high span{color:#f2c47d}.range-guide.low{border-top:3px solid #65d8b1}.range-guide.low span{color:#83e2c3}
-.hero{position:relative;overflow:hidden}.hero:after{content:"";position:absolute;right:-65px;top:-100px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,#76b8ff20,transparent 70%);pointer-events:none}
-@media(max-width:420px){.session-strip{padding:12px}.session-strip strong{font-size:21px}.range-guide strong{font-size:17px}}
-@media(max-width:560px){.watch-grid{grid-template-columns:1fr 1fr 1fr;gap:6px}.watch{padding:9px 7px}.watch b{font-size:12px}.watch span{font-size:10px}.card{padding:13px}.hero{padding:16px}.hero h2{font-size:20px}.actions{grid-template-columns:1fr}.uploads{gap:7px}.upload{padding:8px}.pair-card{padding:10px}}
-
-</style>
-
-<style>
-/* Live scalper terminal */
-#liveTerminal{background:#07101b;border:1px solid #263d58;border-radius:18px;overflow:hidden;margin:16px 0}
-#liveTerminal .lt-head{padding:15px;background:linear-gradient(100deg,#10253c,#0a1524);display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
-#liveTerminal .lt-title{font-weight:900;font-size:18px;color:#e6f2ff}
-#liveTerminal .lt-status{font-size:11px;color:#a5b8d0;display:flex;gap:7px;align-items:center}
-#liveTerminal .lt-dot{width:8px;height:8px;border-radius:50%;background:#f0b45e;display:inline-block}
-#liveTerminal .lt-dot.ok{background:#64d9a9;box-shadow:0 0 10px #64d9a9}
-#liveTerminal .lt-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px}
-#liveTerminal .lt-controls select{padding:10px;border-radius:10px;background:#0d1b2b;border:1px solid #2c4662;color:#dceaff}
-#liveTerminal .lt-pricebar{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:0 12px 10px}
-#liveTerminal .lt-stat{padding:10px;border:1px solid #20354c;border-radius:11px;background:#0c1929;min-width:0}
-#liveTerminal .lt-stat small{display:block;font-size:9px;letter-spacing:.1em;color:#8fa8c4}
-#liveTerminal .lt-stat strong{display:block;font-size:14px;font-weight:850;color:#dceaff;margin-top:3px;overflow-wrap:anywhere}
-#liveTerminal .lt-chart{height:330px;width:100%;background:#091321}
-#liveTerminal .lt-msg{padding:10px 13px;font-size:12px;color:#a4bad3;border-top:1px solid #1e3045;white-space:pre-wrap}
-#liveTerminal .lt-msg.error{color:#ffaaa9}
-#liveTerminal .lt-foot{padding:10px 13px;font-size:10px;color:#788da8}
-@media(max-width:480px){#liveTerminal .lt-chart{height:300px}#liveTerminal .lt-pricebar{gap:5px}#liveTerminal .lt-stat{padding:8px}#liveTerminal .lt-stat strong{font-size:12px}}
-</style>\n<script src='https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js'></script>\n<style id="analyzer-responsive-fix">
-#liveTerminal{width:100%;max-width:100%;box-sizing:border-box}
-#liveTerminal *{box-sizing:border-box}
-#liveTerminal .lt-head{align-items:flex-start}
-#liveTerminal .lt-controls{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-#liveTerminal select{width:100%;min-width:0}
-#liveTerminal .lt-chart{height:clamp(280px,45vw,480px)}
-@media(min-width:900px){body[data-view="live"] main{max-width:1440px}#liveTerminal{margin:24px 0}#liveTerminal .lt-controls{grid-template-columns:repeat(2,minmax(220px,320px));justify-content:start}#liveTerminal .lt-chart{height:480px}}
-@media(max-width:600px){#liveTerminal{border-radius:13px;margin:12px 0}#liveTerminal .lt-head{padding:12px}#liveTerminal .lt-controls{padding:9px;gap:6px}#liveTerminal .lt-pricebar{padding:0 9px 9px;grid-template-columns:repeat(3,minmax(0,1fr))}#liveTerminal .lt-stat{min-width:0;padding:8px}#liveTerminal .lt-stat strong{font-size:clamp(11px,3.3vw,14px)}#liveTerminal .lt-chart{height:290px}#liveTerminal .lt-msg,#liveTerminal .lt-foot{padding:9px;font-size:11px}}
-@media(max-width:360px){#liveTerminal .lt-controls{grid-template-columns:minmax(0,1fr)}#liveTerminal .lt-chart{height:260px}#liveTerminal .lt-title{font-size:16px}}
-</style></head>
+:root{color-scheme:dark;--bg:#08111d;--panel:#111e2f;--panel2:#0d1928;--border:#25374c;--text:#e8f1fc;--muted:#91a6bd;--blue:#55a4f6;--green:#47d3a0;--red:#ff777d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,system-ui,Segoe UI,sans-serif;padding-bottom:86px}button,input,select{font:inherit}button{cursor:pointer;color:var(--text);border:1px solid var(--border);background:#14253a;border-radius:12px;padding:11px 13px;font-weight:700}button:active{transform:scale(.98)}button.active{background:#194c79;border-color:#4c9eea}header{height:64px;position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:10px 15px;background:#08111df0;backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}.brand{display:flex;gap:10px;align-items:center}.logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(145deg,#5ba9f8,#214e8e);display:grid;place-items:center;font-weight:950;font-size:20px;color:white}.brand h1{font-size:16px;margin:0}.brand small{color:var(--muted);font-size:11px}.livepill{color:#77e2b6;background:#153729;border:1px solid #275b47;padding:5px 9px;border-radius:99px;font-size:10px;font-weight:800}main{max-width:1100px;margin:auto;padding:14px}.view{display:none}.view.active{display:block}.section-title{font-size:20px;font-weight:850;margin:5px 0 3px}.sub{color:var(--muted);font-size:12px;margin:0 0 14px}.panel{background:linear-gradient(160deg,#142239,#101b2b);border:1px solid var(--border);border-radius:17px;padding:15px;margin-bottom:13px}.market-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.market{background:#0e1b2b;border:1px solid #25394f;border-radius:14px;padding:13px;text-align:left;width:100%;display:flex;align-items:center;gap:10px}.market .coin{width:38px;height:38px;border-radius:12px;background:#1b3047;display:grid;place-items:center;font-size:13px;font-weight:900;color:#9dcaff;flex-shrink:0}.market .marketname{font-weight:800}.market .ticker{font-size:11px;color:var(--muted)}.market .arrow{margin-left:auto;color:#8aa6c2}.market.selected{border-color:#3d88d3;background:#122b45}.market-list{display:grid;gap:8px}.chart-head{display:flex;justify-content:space-between;align-items:center;gap:9px;flex-wrap:wrap}.chart-title{font-weight:900;font-size:17px}.chart-price{font-size:20px;font-weight:900}.chart-wrap{height:370px;width:100%;margin-top:10px;background:#091321;border-radius:12px;overflow:hidden}.timeframes{display:flex;gap:6px;overflow-x:auto;padding:10px 0 4px}.timeframes button{flex:0 0 auto;padding:9px 11px;font-size:12px}.statrow{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}.stat{border:1px solid var(--border);background:#0c1827;border-radius:11px;padding:9px;min-width:0}.stat label{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.09em}.stat strong{font-size:13px;display:block;overflow-wrap:anywhere}.message{font-size:12px;color:var(--muted);padding:9px 3px;min-height:24px}.message.error{color:#ffaaa9}.message.good{color:var(--green)}.upload-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.upload{border:1px solid var(--border);background:#0c1827;border-radius:13px;padding:11px}.upload label{font-weight:800;display:block;margin-bottom:7px}.upload input{width:100%;font-size:11px;color:var(--muted)}.preview{display:none;width:100%;max-height:160px;object-fit:contain;margin-top:8px;border-radius:8px;background:#070d16}.preview.show{display:block}.btn-main{background:linear-gradient(135deg,#2175ca,#185392);border:0;width:100%;margin-top:12px;padding:14px}.btn-clear{width:100%;margin-top:8px}.result{display:none;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;background:#0b1726;border:1px solid var(--border);border-radius:13px;padding:13px}.result.show{display:block}.settings input{width:100%;padding:12px;border:1px solid var(--border);border-radius:11px;background:#0a1725;color:var(--text);margin:8px 0}.settings button{width:100%}.bottomnav{position:fixed;bottom:0;left:0;right:0;z-index:20;background:#091320f5;backdrop-filter:blur(15px);border-top:1px solid #26374b;display:grid;grid-template-columns:repeat(5,1fr);padding:7px 4px calc(7px + env(safe-area-inset-bottom));}.navbtn{border:0;background:transparent;border-radius:11px;padding:7px 2px;color:#8195ad;font-size:10px;display:flex;flex-direction:column;align-items:center;gap:4px}.navbtn .ico{font-size:19px;line-height:1}.navbtn.active{color:#78baff;background:#112a43}.homehero{padding:19px;background:linear-gradient(130deg,#183452,#0e1b2b 65%);border:1px solid #2a4969;border-radius:18px;margin-bottom:14px}.homehero h2{font-size:23px;margin:0}.homehero p{color:#a9c1d9;font-size:12px;margin:6px 0 0}.quick{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.quick button{height:80px;text-align:left}.muted{color:var(--muted)}@media(min-width:760px){main{padding:22px}.market-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.market-list{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-wrap{height:480px}.upload-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:420px){main{padding:10px}.panel{padding:12px}.chart-wrap{height:300px}.market{padding:10px;gap:8px}.market .coin{width:34px;height:34px}.upload-grid{grid-template-columns:1fr 1fr}.timeframes button{padding:9px 10px}}
+</style><script src="https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js"></script></head>
 <body>
-<header><div class="brand"><div class="logo">A</div><div><h1>Analyzer Pro</h1><div class="muted small">Multi-timeframe · AI chart intelligence</div></div></div><div class="pill" id="clock">EAT · --:--</div></header>
-<nav id="analyzerNav" class="app-nav"><button class="nav-tab active" data-view="live">LIVE CHARTS</button><button class="nav-tab" data-view="ai">GEMINI AI ANALYSIS</button></nav>
-
-<style>
-.app-nav{display:flex;gap:8px;padding:9px 12px;background:#0b1422;border-bottom:1px solid #263b54;position:sticky;top:68px;z-index:4}.nav-tab{width:auto;flex:1;padding:11px 8px;border-radius:10px;font-size:12px;background:#13243a;color:#a9bfdc;border:1px solid #2a415e}.nav-tab.active{background:linear-gradient(135deg,#1f4770,#17304d);border-color:#5e91c7;color:#e7f4ff}
-body[data-view="live"] #oldHero,body[data-view="live"] #aiUploadPanel,body[data-view="live"] #aiReportPanel,body[data-view="live"] #tradeTicket{display:none!important}body[data-view="ai"] #liveTerminal{display:none!important}body[data-view="ai"] #oldHero{display:none!important}body[data-view="ai"] #aiUploadPanel,body[data-view="ai"] #aiReportPanel{display:block!important}
-#liveTerminal .lt-symbols,#liveTerminal .lt-timeframes{display:flex;gap:7px;padding:9px 10px;overflow-x:auto;scrollbar-width:thin}#liveTerminal .market-tab,#liveTerminal .tf-tab{width:auto;flex:0 0 auto;padding:10px 12px;border-radius:10px;font-size:12px;background:#0e1b2b;color:#aac2df;border:1px solid #2a415e}#liveTerminal .market-tab.active{background:#1c3e60;border-color:#72a8df;color:#e7f4ff}#liveTerminal .tf-tab.active{background:#173a30;border-color:#51b995;color:#c7f7e2}@media(max-width:600px){.app-nav{top:62px;padding:7px}.nav-tab{font-size:11px;padding:10px 7px}#liveTerminal .market-tab,#liveTerminal .tf-tab{padding:9px 11px}}
-</style>
+<header><div class="brand"><div class="logo">A</div><div><h1>Analyzer Pro</h1><small>Clean market terminal · AI chart analyst</small></div></div><span class="livepill">● MARKET VIEW</span></header>
 <main>
-<section class="card hero" id="oldHero">
-<div class="eyebrow">New York opening 30-minute range</div><div class="hero-line"><h2>Build the first 30-minute opening range.</h2><span class="pill">● Strategy 1 · AI chart analysis</span></div>
-<p class="muted small">No need for MT5 to display New York time. After the first 30 minutes of the New York session (9:30–10:00 AM), capture the M5 chart showing those six completed 5-minute candles. You can upload the screenshot later. Analyzer Pro uses their combined highest and lowest wicks as the opening range. Then upload M1 when the FVG setup appears. Maximum planned hold: 90 minutes.</p>
-<div class="watch-grid" id="watchlist"></div>
-<div class="session-strip"><div><span>NEW YORK OPEN</span><strong>9:30–10:00 AM</strong><small id="sessionHint">5:30 PM EAT in US winter · 4:30 PM in US summer</small></div><div class="session-divider"></div><div><span>KENYA EAT NOW</span><strong id="eatSessionTime">--:--</strong><small>New York daylight saving adjusts automatically</small></div></div>
-</section>
-<section class="card" id="aiUploadPanel">
-<div class="eyebrow">Gemini multi-timeframe screenshot analyst</div><h2>Analyze any selected timeframe with Gemini</h2>
-<p class="muted small">Upload both screenshots together whenever you are ready. M5: show the six completed candles forming the first 30 minutes of the New York session (9:30–10:00 AM New York). M1: show the FVG and its three-candle confirmation. MT5 does not need to show New York time; capture the M5 range at the end of that 30-minute window, or scroll back later so those six candles are visible. Press Analyze once for a combined review.</p>
-
-<div id="pairList"></div>
-<div class="muted small" style="margin-top:10px">Timeframes: D1 · H4 · H1 · M30 · M15 · M5 · M1. Upload one or more screenshots.</div>
-<div class="actions"><div class="analysis-actions"><button class="primary" id="analyze" type="button">Analyze uploaded charts with Gemini</button></div></div>
-<button class="secondary" id="clear" style="margin-top:9px">Clear screenshots and start a new scan</button>
-<div class="notice" id="status"></div>
-<details><summary>⚙ AI connection settings</summary><p class="muted small">Your Gemini API key remains secured on Cloudflare. Enter the private Analyzer access token provided for this website. Your saved token is reused on this device.</p><div class="token-row"><div><label class="small muted" for="token">Private Analyzer access token</label><input id="token" type="password" autocomplete="off" placeholder="Paste private access token"></div><button id="saveToken">Save token on this device</button></div></details>
-</section>
-<section class="card" id="aiReportPanel"><div class="eyebrow">AI intelligence report</div><h2>Gemini multi-timeframe analysis</h2><p class="muted small">Gemini analyzes the selected chart screenshots together, describing trend, structure, key levels, setups, invalidation and risk based only on uploaded timeframes.</p><div id="result" aria-live="polite"></div></section>
-<section class="card" id="tradeTicket" style="display:none">
-  <div class="eyebrow">Manual broker handoff</div><h2>Execute trade</h2>
-  <p class="muted small">Review every level and confirm before sending. Orders are forwarded to your configured MT5 bridge; this page does not connect directly to MetaTrader.</p>
-  <div id="tradeSummary" class="push-status">Waiting for a confirmed trade setup…</div>
-  <div class="pair-card" style="margin-top:12px">
-    <div class="eyebrow">Position sizing · MT5 handoff only</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div><label class="small muted" for="accountBalance">Account Balance</label><input id="accountBalance" type="number" inputmode="decimal" min="0.01" step="0.01" value="100"></div>
-      <div><label class="small muted" for="riskPercent">Risk per Trade (%)</label><input id="riskPercent" type="number" inputmode="decimal" min="0.01" max="5" step="0.01" value="1"></div>
-    </div>
-    <p class="muted small">These settings are used only if you choose to send a confirmed setup to MT5. They are not required for chart analysis.</p>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
-    <div><label class="small muted" for="lotMode">Lot Size</label><select id="lotMode"><option value="auto" selected>Auto</option><option value="manual">Manual</option></select><input id="lotSize" type="number" inputmode="decimal" min="0.001" step="0.001" value="0.01" disabled style="margin-top:7px"></div>
-    <div><label class="small muted" for="positionCount">Number of Positions</label><input id="positionCount" type="number" inputmode="numeric" min="1" max="10" step="1" value="1"></div>
-  </div>
-  <div class="notice" id="executeStatus"></div>
-  <button class="primary" id="sendToMT5" type="button" disabled style="margin-top:12px">Send to MT5</button>
-</section>
-
-<footer>Analyzer Pro · Any-time chart analysis · M5 opening range · M1 FVG confirmation · Structure targets</footer>
-<section class="card" id="liveTerminal">
-<div class="lt-head"><div><div class="eyebrow">LIVE MARKET TERMINAL</div><div class="lt-title">AI Scalper · Live chart desk</div></div><div class="lt-status"><i id="ltDot" class="lt-dot"></i><span id="ltStatus">Initializing chart…</span></div></div>
-<div class="lt-symbols" id="ltSymbolTabs"><button class="market-tab active" data-symbol="XAUUSD">GOLD</button><button class="market-tab" data-symbol="NAS100">NASDAQ</button><button class="market-tab" data-symbol="GBPUSD">GBP/USD</button><button class="market-tab" data-symbol="USDJPY">USD/JPY</button><button class="market-tab" data-symbol="BTCUSD">BTC</button></div><div class="lt-timeframes"><button class="tf-tab" data-tf="1d">1D</button><button class="tf-tab" data-tf="4h">4H</button><button class="tf-tab" data-tf="1h">1H</button><button class="tf-tab" data-tf="30m">30M</button><button class="tf-tab" data-tf="15m">15M</button><button class="tf-tab active" data-tf="5m">5M</button><button class="tf-tab" data-tf="1m">1M</button></div><div class="lt-controls"><select id="ltSymbol" aria-label="Market"><option value="XAUUSD">Gold · XAUUSD</option><option value="NAS100">Nasdaq · NAS100</option><option value="GBPUSD">GBP/USD</option><option value="USDJPY">USD/JPY</option><option value="BTCUSD">Bitcoin · BTCUSD</option></select><select id="ltTimeframe" aria-label="Chart timeframe"><option value="1m">1 minute</option><option value="5m" selected>5 minutes</option><option value="30m">30 minutes</option><option value="15m">15 minutes</option><option value="1h">1 hour</option><option value="4h">4 hours</option><option value="1d">Daily</option></select></div>
-<div class="lt-pricebar"><div class="lt-stat"><small>LAST CLOSE</small><strong id="ltLast">—</strong></div><div class="lt-stat"><small>CHANGE (VISIBLE)</small><strong id="ltChange">—</strong></div><div class="lt-stat"><small>BAR COUNT</small><strong id="ltCount">—</strong></div></div>
-<div id="ltChart" class="lt-chart"></div><div class="lt-msg" id="ltMessage">Chart waiting for market data. No prices are simulated.</div><div class="lt-foot">Charts are for analysis only. Data feed availability is not yet independently verified. Not an execution system.</div></section></main>
+<section class="view active" id="homeView"><div class="homehero"><h2>Market intelligence</h2><p>Select an instrument to open its chart. Upload your chart screenshots for Gemini AI analysis.</p></div><div class="panel"><div class="section-title">Watchlist</div><p class="sub">Your 5 selected markets — no extra instruments.</p><div class="market-grid" id="homeMarkets"></div></div><div class="quick"><button onclick="navigate('trade')">📊 Open trade charts</button><button onclick="navigate('ai')">✨ Gemini screenshot analysis</button></div></section>
+<section class="view" id="tradeView"><div class="section-title">Trade · Markets</div><p class="sub">Tap any symbol to open its chart.</p><div class="panel"><div class="market-list" id="tradeMarkets"></div></div><div class="panel" id="chartPanel"><div class="chart-head"><div><div class="chart-title" id="chartSymbolTitle">XAU/USD · Gold</div><div class="sub" id="chartFeedStatus">Connecting to market feed…</div></div><div class="chart-price" id="chartPrice">—</div></div><div class="timeframes" id="tfButtons"></div><div class="chart-wrap" id="chartContainer"></div><div class="statrow"><div class="stat"><label>Last close</label><strong id="lastClose">—</strong></div><div class="stat"><label>Change</label><strong id="change">—</strong></div><div class="stat"><label>Candles</label><strong id="barsCount">—</strong></div></div><div class="message" id="chartMessage">Choose a market.</div></div></section>
+<section class="view" id="chartsView"><div class="section-title">Charts</div><p class="sub">Choose the chart timeframe to use as screenshot evidence for Gemini.</p><div class="panel"><div class="timeframes" id="uploadTfButtons"></div><div class="upload-grid" id="uploadGrid"></div><button class="btn-main" id="analyzeBtn">Analyze screenshots with Gemini</button><button class="btn-clear" id="clearBtn">Clear screenshots and start fresh</button><div class="message" id="aiMessage"></div></div><div class="panel"><div class="section-title">Gemini analysis</div><div class="sub">Analysis based only on screenshots you upload.</div><div class="result" id="aiResult"></div></div></section>
+<section class="view" id="aiView"><div class="section-title">AI Analysis</div><p class="sub">Multi-timeframe technical analysis by Gemini.</p><div class="panel"><p class="sub">Go to Charts to upload D1, H4, H1, M30, M15, M5 or M1 screenshots. Gemini API stays protected on the server.</p><button onclick="navigate('charts')">Open screenshot analysis</button></div></section>
+<section class="view" id="settingsView"><div class="section-title">Settings</div><p class="sub">Clean reset · Gemini API is kept securely on Cloudflare.</p><div class="panel settings"><label for="accessToken">Analyzer private access token</label><input type="password" id="accessToken" autocomplete="off" placeholder="Paste your private Analyzer token"><button id="saveTokenBtn">Save access token on this device</button><div class="message" id="settingsMessage"></div><p class="sub">Gemini API key is not displayed here. It remains in the server secret and is used only for screenshot analysis.</p></div></section>
+</main>
+<nav class="bottomnav" aria-label="Main navigation"><button class="navbtn active" data-view="home"><span class="ico">⌂</span>Home</button><button class="navbtn" data-view="trade"><span class="ico">▥</span>Trade</button><button class="navbtn" data-view="charts"><span class="ico">⌁</span>Charts</button><button class="navbtn" data-view="ai"><span class="ico">✧</span>AI</button><button class="navbtn" data-view="settings"><span class="ico">⚙</span>Settings</button></nav>
 <script>
-'use strict';
-const $=id=>document.getElementById(id), TF=['D1','H4','H1','M30','M15','M5','M1'];
-const STORE='fxResearchDesk_v2', PAIRS=['XAUUSD','BTCUSD','NAS100','US30'];
-const LABEL={XAUUSD:'Gold · XAUUSD',BTCUSD:'Bitcoin · BTCUSD',NAS100:'Nasdaq · NAS100',US30:'US30 · Dow Jones'};
-let pairCount=0,pairSerial=0;
-function getSavedToken(){try{const old=JSON.parse(localStorage.getItem(STORE)||'null');return old?.settings?.accessToken||localStorage.getItem('analyzerAccessToken')||''}catch{return localStorage.getItem('analyzerAccessToken')||''}}
-$('token').value=getSavedToken();
-function showStatus(message,type){const el=$('status');el.textContent=message;el.className='notice show '+(type||'')}
-function getEAT(){return new Date(new Date().toLocaleString('en-US',{timeZone:'Africa/Nairobi'}))}
-function marketClockMinutes(zone,now){const p=new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);return Number(p.find(x=>x.type==='hour').value)*60+Number(p.find(x=>x.type==='minute').value)}
-function minuteText(value){const n=((value%1440)+1440)%1440,h=Math.floor(n/60),m=n%60;return (h%12||12)+':'+String(m).padStart(2,'0')+(h<12?' AM':' PM')}
-function inMinuteWindow(value,start,end){return start<end?value>=start&&value<end:value>=start||value<end}
-function updateClock(){
- const now=new Date();
- const ny=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',hour12:true}).format(now);
- const eat=new Intl.DateTimeFormat('en-KE',{timeZone:'Africa/Nairobi',hour:'numeric',minute:'2-digit',hour12:true}).format(now);
- $('clock').textContent='NEW YORK · '+ny;
- $('watchlist').innerHTML=PAIRS.map(p=>'<div class="watch"><b>'+LABEL[p]+'</b><span>Available for this session</span></div>').join('');
- $('sessionHint').textContent='9:30 AM New York = 5:30 PM EAT in winter / 4:30 PM EAT in summer';
- $('eatSessionTime').textContent=eat;
-}
-updateClock();setInterval(updateClock,30000);
-const camera='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4H10L8.5 6H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3.5L14 4Z"/><circle cx="12" cy="13" r="3.5"/></svg>';
-function pairOptions(selected){return PAIRS.map(p=>'<option value="'+p+'" '+(p===selected?'selected':'')+'>'+LABEL[p]+'</option>').join('')}
-function addPair(initial){
- if($('pairList').children.length){showStatus('One market per scan. Clear or change the selected market to scan another instrument.','bad');return}
- pairCount=1;
- const id=++pairSerial,wrap=document.createElement('div');
- wrap.className='pair-card';wrap.dataset.pairId=String(id);
- const chosen=initial&&PAIRS.includes(initial)?initial:'XAUUSD';
- wrap.innerHTML='<div class="pair-head"><span class="pair-name">Selected market</span><span class="pair-tag">M5 30-minute range + M1 FVG</span></div><select class="pair-select" aria-label="Choose instrument">'+pairOptions(chosen)+'</select><div class="uploads">'+TF.map(tf=>'<div class="upload"><div class="upload-top"><strong>'+tf+'</strong><span class="tf-note">'+'Chart evidence'+'</span></div><label class="camera-pick" for="p'+id+tf+'">'+camera+'<span>Choose '+tf+' screenshot</span></label><input class="file-input" type="file" id="p'+id+tf+'" accept="image/*"><img class="preview" id="prev'+id+tf+'" alt="'+tf+' screenshot preview"><span class="file-name" id="name'+id+tf+'">No screenshot selected</span></div>').join('')+'</div>';
- $('pairList').appendChild(wrap);
- for(const tf of TF){
-  const input=$('p'+id+tf);
-  input.addEventListener('change',()=>{
-   const file=input.files&&input.files[0],preview=$('prev'+id+tf),name=$('name'+id+tf);
-   if(!file){preview.removeAttribute('src');preview.classList.remove('show');name.textContent='No screenshot selected';return}
-   if(!file.type.startsWith('image/')){showStatus('Please select an image screenshot.','bad');input.value='';return}
-   preview.src=URL.createObjectURL(file);preview.classList.add('show');name.textContent=file.name;
-  });
- }
-}
-addPair();
-
-
-
-function readImage(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('Could not read '+file.name));reader.onload=()=>{const img=new Image();img.onload=()=>{const max=1500,scale=Math.min(1,max/Math.max(img.width,img.height)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);resolve(canvas.toDataURL('image/jpeg',.7))};img.onerror=()=>reject(new Error('Could not decode '+file.name));img.src=reader.result};reader.readAsDataURL(file)})}
-$('saveToken').onclick=()=>{const token=$('token').value.trim();if(!token){showStatus('Paste the private Analyzer access token first.','bad');return}localStorage.setItem('analyzerAccessToken',token);try{const old=JSON.parse(localStorage.getItem(STORE)||'{}');old.settings={...(old.settings||{}),accessToken:token,backendUrl:'/api/analyze'};localStorage.setItem(STORE,JSON.stringify(old))}catch{}showStatus('Private access token saved on this device.','good')};
-$('clear').onclick=()=>{
- document.querySelectorAll('.file-input').forEach(input=>{input.value=''});document.querySelectorAll('.preview').forEach(img=>{img.removeAttribute('src');img.classList.remove('show')});document.querySelectorAll('.file-name').forEach(el=>el.textContent='No screenshot selected');
- $('result').textContent='';$('result').classList.remove('show');invalidateExecutionTicket();$('tradeTicket').style.display='none';showStatus('Both screenshots and the previous report are cleared. Upload M5 and M1 together for a fresh analysis.','good')
-};
-function escapeHTML(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
-function inlineMarkdown(s){return escapeHTML(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/__(.+?)__/g,'<strong>$1</strong>').replace(/\`([^\`]+)\`/g,'<code>$1</code>').replace(/(?<!\*)\*([^*]+)\*(?!\*)/g,'<em>$1</em>')}
-function renderReport(source){
- const root=document.createElement('div');root.className='report';
- const rangeMatch=String(source||'').match(/RANGE_DATA:\\s*(\\{[^\\n]*\\})/);
- let rangePanel='';
- if(rangeMatch){
-  try{
-   const range=JSON.parse(rangeMatch[1]),high=Number(range.high),low=Number(range.low);
-   if(range.confirmed_closed===true&&Number.isFinite(high)&&Number.isFinite(low)&&high>low){
-    rangePanel='<h3>Verified 30-minute opening range</h3><div class="range-guides"><div class="range-guide high"><span>OPENING RANGE HIGH</span><strong>'+escapeHTML(String(range.high))+'</strong></div><div class="range-guide low"><span>OPENING RANGE LOW</span><strong>'+escapeHTML(String(range.low))+'</strong></div></div><p class="muted small">Calculated from six completed M5 candles · '+escapeHTML(String(range.candle_time||'First 30 minutes'))+'</p>';
-   }
-  }catch{}
- }
- const lines=String(source||'').replace(/[⭐🌟✨★☆✦✧✩✪✫✬✭✮✯✰＊※❋❊❉❈❇❆❅❄○◯●◦◎◉◌▫▪■□◆◇⬤⬥⬦✓✔☑✕✖✗✘]/gu,'').replace(/[ \t]{2,}/g,' ').replace(/\r/g,'').split('\n');
- let i=0,html='';
- const isTableLine=s=>/^\s*\|.*\|\s*$/.test(s);
- const isDivider=s=>/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(s);
- const isBullet=s=>/^\s*[-•]\s+/.test(s);
- const isNumber=s=>/^\s*\d+[.)]\s+/.test(s);
- while(i<lines.length){
-  const raw=lines[i],s=raw.trim();
-  if(!s){i++;continue}
-  if(/^\s*[-*_]{3,}\s*$/.test(s)){html+='<hr>';i++;continue}
-  if(isTableLine(s)&&i+1<lines.length&&isDivider(lines[i+1])){
-   const rows=[];rows.push(s);i+=2;while(i<lines.length&&isTableLine(lines[i].trim()))rows.push(lines[i++].trim());
-   const cells=line=>line.replace(/^\|/,'').replace(/\|$/,'').split('|').map(x=>x.trim());
-   const head=cells(rows[0]);html+='<div class="report-table-wrap"><table><thead><tr>'+head.map(x=>'<th>'+inlineMarkdown(x)+'</th>').join('')+'</tr></thead><tbody>';
-   rows.slice(1).forEach(row=>{const cols=cells(row);html+='<tr>'+head.map((_,n)=>'<td>'+(inlineMarkdown(cols[n]||'—'))+'</td>').join('')+'</tr>'});
-   html+='</tbody></table></div>';continue;
-  }
-  const hm=s.match(/^(#{1,4})\s+(.+)$/);
-  const boldHeading=!hm?s.match(/^\\*\\*(.{2,90})\\*\\*:?$/):null;
-  if(hm||boldHeading){const headingText=hm?hm[2]:boldHeading[1];const level=hm&&hm[1].length>2?'h4':'h3';html+='<'+level+'>'+inlineMarkdown(headingText)+'</'+level+'>';i++;continue}
-
-  if(/^>/.test(s)){html+='<blockquote>'+inlineMarkdown(s.replace(/^>\s?/,''))+'</blockquote>';i++;continue}
-  if(isBullet(s)||isNumber(s)){
-   const ordered=isNumber(s),tag=ordered?'ol':'ul';let items='';
-   while(i<lines.length&&(ordered?isNumber(lines[i].trim()):isBullet(lines[i].trim()))){items+='<li>'+inlineMarkdown(lines[i].trim().replace(ordered?/^\d+[.)]\s+/:/^[-•]\s+/,''))+'</li>';i++}
-   html+='<'+tag+'>'+items+'</'+tag+'>';continue;
-  }
-  if(/^(NO VALID TRADE|NO TRADE|WAIT UNTIL|ACTIVE NOW|BEST PAIR)\b/i.test(s)){const cls=/NO VALID|NO TRADE/i.test(s)?'bad':/WAIT/i.test(s)?'warn':'good';html+='<div class="report-callout '+cls+'">'+inlineMarkdown(s)+'</div>';i++;continue}
-  html+='<p>'+inlineMarkdown(s)+'</p>';i++;
- }
- root.innerHTML=rangePanel+ (html||'<p>No readable report was returned.</p>');
- return root;
-}
-let executionTrade=null,executionAttempted=false;
-function invalidateExecutionTicket(){
- executionTrade=null;executionAttempted=false;
- const ticket=$('tradeTicket');if(ticket)ticket.style.display='none';
- const button=$('sendToMT5');if(button)button.disabled=true;
-}
-$('pairList').addEventListener('change',event=>{
- if(event.target.matches('.file-input,.pair-select'))invalidateExecutionTicket();
-});
-function parseExecutionData(source, submittedPairs){
- const match=String(source||'').match(/EXECUTION_DATA\s*:\s*(\{[^\r\n]*\})/i);
- if(!match)return null;
- let data;try{data=JSON.parse(match[1])}catch{return null}
- const symbol=String(data.symbol||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
- const direction=String(data.direction||'').toUpperCase();
- const numeric=['entry','sl','tp1','tp2','tp3'].map(k=>Number(data[k]));
- if(data.confirmed!==true||!submittedPairs.includes(symbol)||!['LONG','SHORT'].includes(direction)||numeric.some(v=>!Number.isFinite(v)||v<=0))return null;
- const [entry,sl,tp1,tp2,tp3]=numeric;
- if(direction==='LONG'&&!(sl<entry&&entry<tp1&&tp1<=tp2&&tp2<=tp3))return null;
- if(direction==='SHORT'&&!(sl>entry&&entry>tp1&&tp1>=tp2&&tp2>=tp3))return null;
- return {symbol,direction,entry,sl,tp1,tp2,tp3};
-}
-function renderTradeTicket(source, submittedPairs){
- executionTrade=parseExecutionData(source,submittedPairs);executionAttempted=false;
- $('tradeTicket').style.display='block';
- $('executeStatus').className='notice';
- $('executeStatus').textContent='';
- $('sendToMT5').disabled=!executionTrade;
- $('tradeSummary').textContent=executionTrade
-  ? 'CONFIRMED SETUP · '+executionTrade.symbol+' · '+executionTrade.direction+' · Entry '+executionTrade.entry+' · SL '+executionTrade.sl+' · TP1 '+executionTrade.tp1+' · TP2 '+executionTrade.tp2+' · TP3 '+executionTrade.tp3
-  : 'No machine-verified confirmed setup with complete numeric Entry, SL, TP1, TP2 and TP3 was returned. Execution is disabled. WAIT — NO ENTRY.';
- $('lotMode').value='auto';$('lotSize').disabled=true;
-}
-$('lotMode').addEventListener('change',()=>{$('lotSize').disabled=$('lotMode').value!=='manual'});
-$('sendToMT5').onclick=async()=>{
- const button=$('sendToMT5');
- try{
-  if(!executionTrade)throw new Error('There is no confirmed execution-ready setup.');
-  if(executionAttempted)throw new Error('This analysis has already been sent or attempted. Run a fresh analysis before sending another request.');
-  const token=$('token').value.trim();if(!token)throw new Error('Enter your private Analyzer access token first.');
-  const balance=Number($('accountBalance').value),risk=Number($('riskPercent').value);
-  const positionCount=Number($('positionCount').value);
-  const lotSize=$('lotMode').value==='auto'?'auto':Number($('lotSize').value);
-  if(!Number.isFinite(balance)||balance<=0)throw new Error('Enter a valid account balance.');
-  if(!Number.isFinite(risk)||risk<=0||risk>5)throw new Error('Risk per trade must be between 0 and 5%.');
-  if(!Number.isInteger(positionCount)||positionCount<1||positionCount>10)throw new Error('Number of positions must be an integer from 1 to 10.');
-  if(lotSize!=='auto'&&(!Number.isFinite(lotSize)||lotSize<=0))throw new Error('Enter a valid manual lot size.');
-  const payload={...executionTrade,lotSize,positionCount,balance,risk};
-  const effectiveLot=lotSize==='auto'?'Auto (MT5 calculates)':String(lotSize);
-  if(!window.confirm('Send '+executionTrade.direction+' '+executionTrade.symbol+' to MT5?\nEntry: '+executionTrade.entry+'\nSL: '+executionTrade.sl+'\nTP3: '+executionTrade.tp3+'\nLot: '+effectiveLot+'\nPositions: '+positionCount+'\nRisk: '+risk+'% of '+balance+'\n\nThis may place real broker orders. Continue?'))return;
-  executionAttempted=true;button.disabled=true;button.textContent='Sending to MT5…';
-  $('executeStatus').className='notice show';$('executeStatus').textContent='Forwarding the confirmed trade to your secure MT5 webhook…';
-  const response=await fetch('/api/execute-trade',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body:JSON.stringify(payload)});
-  const out=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(out.error||('MT5 bridge returned HTTP '+response.status));
-  $('executeStatus').className='notice show good';
-  $('executeStatus').textContent='Webhook accepted the request. '+(out.orders_placed?'Orders placed: '+out.orders_placed:out.message||'Check your MT5 bridge response for execution status.');
- }catch(error){
-  $('executeStatus').className='notice show bad';$('executeStatus').textContent=error.message;
- }finally{button.disabled=!executionTrade||executionAttempted;button.textContent=executionAttempted?'Attempt used — reanalyse':'Send to MT5'}
-};
-$('analyze').onclick=async()=>{
- const btn=$('analyze');
- if(btn.disabled)return;
- btn.disabled=true;btn.textContent='Analyzing uploaded charts…';
- showStatus('Preparing both chart screenshots for Gemini…','');
- try{
-  invalidateExecutionTicket();
-  const token=$('token').value.trim();if(!token)throw new Error('Open AI connection settings and enter your private Analyzer access token.');
-  const card=$('pairList').firstElementChild;if(!card)throw new Error('Choose a market first.');
-  const pair=card.querySelector('select').value,charts={};
-  for(const tf of TF){const file=card.querySelector('#p'+card.dataset.pairId+tf)?.files?.[0];if(file)charts[tf]=await readImage(file)}if(!Object.keys(charts).length)throw new Error('Upload at least one timeframe screenshot (D1, H4, H1, M30, M15, M5 or M1).')
-  btn.textContent='Sending charts to Gemini…';$('result').textContent='';$('result').classList.remove('show');showStatus('Your selected timeframe screenshots are ready. Gemini is analyzing them together.','');
-  const payload={version:'multi-timeframe-v2',stage:'multi',pair,charts,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi',sessionTimeZone:'America/New_York',sessionOpen:'09:30'}};
-  const body=JSON.stringify(payload);if(body.length>9*1024*1024)throw new Error('Combined screenshots are too large. Use smaller chart images.');
-  let response;
-  try{response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body,signal:AbortSignal.timeout(90000)})}
-  catch(networkError){if(networkError&&networkError.name==='TimeoutError')throw new Error('Gemini did not respond within 90 seconds. Check your connection and retry.');throw new Error('Could not reach Analyzer Pro. Check your internet connection and retry.')}
-  const out=await response.json().catch(()=>({}));if(!response.ok)throw new Error((out.error||('AI service returned HTTP '+response.status))+(out.code?' ['+out.code+']':'')+(out.upstreamStatus?' (Gemini HTTP '+out.upstreamStatus+')':''));if(typeof out.text!=='string'||!out.text.trim())throw new Error('The AI returned an empty analysis. Please try again.');
-  $('result').replaceChildren(renderReport(out.text));$('result').classList.add('show');
-  renderTradeTicket(out.text,[pair]);showStatus('Gemini analysis complete. Review the multi-timeframe evidence and risk before making any decision.','good');
-  $('result').scrollIntoView({behavior:'smooth',block:'start'});
- }catch(error){const message=error&&error.message?error.message:String(error);showStatus('Analysis failed: '+message,'bad');$('result').textContent='Scan did not complete. '+message;$('result').classList.add('show')}
- finally{btn.disabled=false;btn.textContent='Analyze uploaded charts with Gemini'}
-};
-
-window.addEventListener('error',event=>{try{showStatus('Page error: '+(event.message||'A script error prevented the scan from starting.'),'bad')}catch{}});
-window.addEventListener('unhandledrejection',event=>{try{showStatus('Page error: '+(event.reason&&event.reason.message?event.reason.message:String(event.reason)),'bad')}catch{}});
-</script>
-
-
-
-<script>
-(function(){
-const el=id=>document.getElementById(id);const sym=el('ltSymbol'),tf=el('ltTimeframe'),msg=el('ltMessage'),dot=el('ltDot');
-let chart=null,candleSeries=null,refreshTimer=null,resizeObserver=null,chartReady=false,requestId=0;
-function status(s,ok){el('ltStatus').textContent=s;dot.className='lt-dot'+(ok?' ok':'')}
-function setMsg(s,error){msg.textContent=s;msg.className='lt-msg'+(error?' error':'')}
-function parseCandles(raw){
- let arr=Array.isArray(raw)?raw:(raw?.candles||raw?.data||raw?.result||raw?.ohlc||raw?.bars||[]);
- if(!Array.isArray(arr))return [];
- return arr.map(v=>{
-  const t=v.time??v.timestamp??v.date??v.t,open=Number(v.open??v.o),high=Number(v.high??v.h),low=Number(v.low??v.l),close=Number(v.close??v.c);
-  if(!Number.isFinite(open)||!Number.isFinite(high)||!Number.isFinite(low)||!Number.isFinite(close)||!t)return null;
-  let time=typeof t==='number'?t:Math.floor(Date.parse(t)/1000);if(time>1e12)time=Math.floor(time/1000);
-  return Number.isFinite(time)?{time,open,high,low,close}:null;
- }).filter(Boolean).sort((a,b)=>a.time-b.time);
-}
-function interval(){return tf.value}
-async function load(){
- if(!chartReady)return;const thisId=++requestId;const symbol=sym.value,inter=interval();
- status('Loading candles…',false);
- try{
-  const url='https://biquote.io/api/'+encodeURIComponent(symbol)+'/ohlc?interval='+encodeURIComponent(inter)+'&limit=220';
-  const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('Feed HTTP '+r.status);
-  const raw=await r.json();if(thisId!==requestId)return;
-  const bars=parseCandles(raw);if(!bars.length)throw Error('Feed responded, but its candle format was not recognized.');
-  candleSeries.setData(bars);chart.timeScale().fitContent();
-  const last=bars[bars.length-1],first=bars[0],change=((last.close-first.open)/first.open)*100;
-  el('ltLast').textContent=last.close.toLocaleString(undefined,{maximumFractionDigits:5});
-  el('ltChange').textContent=(change>=0?'+':'')+change.toFixed(2)+'%';el('ltCount').textContent=String(bars.length);
-  status('Chart loaded · refresh 30s',true);setMsg('Candles loaded from public market-feed endpoint. Last bar time: '+new Date(last.time*1000).toLocaleString()+' · Auto-refresh every 30 seconds.');
- }catch(e){if(thisId!==requestId)return;status('Feed unavailable',false);setMsg('Could not load real candles: '+e.message+'. No synthetic candles are shown. If this persists, the data provider may block this browser or the symbol/timeframe may be unsupported.',true);el('ltLast').textContent='—';el('ltChange').textContent='—';el('ltCount').textContent='—'}
-}
-function init(){
- if(!window.LightweightCharts){status('Chart library unavailable',false);setMsg('Chart library could not load. Check internet connection or CDN availability.',true);return}
- chart=LightweightCharts.createChart(el('ltChart'),{layout:{background:{color:'#091321'},textColor:'#b4c6dc'},grid:{vertLines:{color:'#142439'},horzLines:{color:'#142439'}},rightPriceScale:{borderColor:'#23374f'},timeScale:{borderColor:'#23374f',timeVisible:true,secondsVisible:false},crosshair:{mode:1},width:el('ltChart').clientWidth,height:el('ltChart').clientHeight});
- candleSeries=chart.addSeries(LightweightCharts.CandlestickSeries,{upColor:'#37c991',downColor:'#f06d79',borderUpColor:'#37c991',borderDownColor:'#f06d79',wickUpColor:'#37c991',wickDownColor:'#f06d79});
- chartReady=true;resizeObserver=new ResizeObserver(entries=>{const w=entries[0].contentRect.width;if(w>0)chart.applyOptions({width:w,height:el('ltChart').clientHeight})});resizeObserver.observe(el('ltChart'));load();refreshTimer=setInterval(load,30000)
-}
-document.querySelectorAll('.nav-tab').forEach(b=>b.addEventListener('click',()=>{document.body.dataset.view=b.dataset.view;document.querySelectorAll('.nav-tab').forEach(x=>x.classList.toggle('active',x===b));if(b.dataset.view==='live'&&chart)setTimeout(()=>chart.applyOptions({width:el('ltChart').clientWidth,height:el('ltChart').clientHeight}),80)}));
-document.querySelectorAll('.market-tab').forEach(b=>b.addEventListener('click',()=>{sym.value=b.dataset.symbol;document.querySelectorAll('.market-tab').forEach(x=>x.classList.toggle('active',x===b));load()}));document.querySelectorAll('.tf-tab').forEach(b=>b.addEventListener('click',()=>{tf.value=b.dataset.tf;document.querySelectorAll('.tf-tab').forEach(x=>x.classList.toggle('active',x===b));load()}));sym.addEventListener('change',()=>{document.querySelectorAll('.market-tab').forEach(x=>x.classList.toggle('active',x.dataset.symbol===sym.value));load()});tf.addEventListener('change',()=>{document.querySelectorAll('.tf-tab').forEach(x=>x.classList.toggle('active',x.dataset.tf===tf.value));load()});
-window.addEventListener('pagehide',()=>{if(refreshTimer)clearInterval(refreshTimer);if(resizeObserver)resizeObserver.disconnect()});
-if(window.LightweightCharts)init();else setTimeout(init,3000);
-})();
+const symbols=[{id:'XAUUSD',title:'Gold · XAU/USD',short:'XAU/USD',icon:'Au'},{id:'NAS100',title:'Nasdaq · NAS100',short:'NAS100',icon:'NQ'},{id:'GBPUSD',title:'GBP/USD',short:'GBP/USD',icon:'£'},{id:'USDJPY',title:'USD/JPY',short:'USD/JPY',icon:'¥'},{id:'BTCUSD',title:'Bitcoin · BTC/USD',short:'BTC/USD',icon:'₿'}];
+const timeframes=['1m','5m','15m','30m','1h','4h','1d'];let selectedSymbol='XAUUSD',selectedTf='5m',uploadTf='1m',chart=null,series=null,refreshTimer=null,resizeObserver=null,chartStarted=false,requestCounter=0,uploads={},tokenKey='analyzerAccessToken';
+const $=id=>document.getElementById(id);
+function navIcon(view){return {home:'⌂',trade:'▥',charts:'⌁',ai:'✧',settings:'⚙'}[view]||'•'}
+function navigate(view){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));$(view+'View').classList.add('active');document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));if(view==='trade'&&chart){setTimeout(()=>{chart.applyOptions({width:$('chartContainer').clientWidth,height:$('chartContainer').clientHeight});chart.timeScale().fitContent()},70)}}
+document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.view)));
+function marketButton(s,selected=false){return '<button class="market '+(selected?'selected':'')+'" data-symbol="'+s.id+'"><span class="coin">'+s.icon+'</span><span><span class="marketname">'+s.title+'</span><span class="ticker">'+s.short+'</span></span><span class="arrow">›</span></button>'}
+function renderMarkets(){ $('homeMarkets').innerHTML=symbols.map(s=>marketButton(s,s.id===selectedSymbol)).join('');$('tradeMarkets').innerHTML=symbols.map(s=>marketButton(s,s.id===selectedSymbol)).join('');document.querySelectorAll('.market[data-symbol]').forEach(b=>b.addEventListener('click',()=>selectSymbol(b.dataset.symbol)))}
+function selectSymbol(symbol){selectedSymbol=symbol;renderMarkets();$('chartSymbolTitle').textContent=symbols.find(s=>s.id===symbol).title;loadCandles()}
+function buildTfButtons(target,active,handler){$(target).innerHTML=timeframes.map(t=>'<button class="'+(t===active?'active':'')+'" data-tf="'+t+'">'+t.toUpperCase()+'</button>').join('');$(target).querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>handler(b.dataset.tf)))}
+buildTfButtons('tfButtons',selectedTf,t=>{selectedTf=t;buildTfButtons('tfButtons',selectedTf,x=>{selectedTf=x;loadCandles()});loadCandles()});
+buildTfButtons('uploadTfButtons',uploadTf,t=>{uploadTf=t;buildTfButtons('uploadTfButtons',uploadTf,x=>{uploadTf=x;renderUpload()});renderUpload()});
+function renderUpload(){$('uploadGrid').innerHTML=timeframes.map(t=>'<div class="upload"><label>'+t.toUpperCase()+' chart screenshot</label><input type="file" accept="image/*" capture="environment" data-tf="'+t+'"><img class="preview" id="preview_'+t+'" alt="preview"><div class="muted" id="filename_'+t+'"></div></div>').join('');$('uploadGrid').querySelectorAll('input').forEach(inp=>inp.addEventListener('change',()=>{const file=inp.files[0];if(!file)return;uploads[inp.dataset.tf]=file;const preview=$('preview_'+inp.dataset.tf);preview.src=URL.createObjectURL(file);preview.classList.add('show');$('filename_'+inp.dataset.tf).textContent=file.name+' · selected'}))}
+renderUpload();renderMarkets();
+function loadSavedToken(){return localStorage.getItem(tokenKey)||''}
+$('accessToken').value=loadSavedToken();
+$('saveTokenBtn').addEventListener('click',()=>{const t=$('accessToken').value.trim();localStorage.setItem(tokenKey,t);$('settingsMessage').textContent=t?'Access token saved on this device.':'Token cleared.'});
+function parseCandleData(raw){let arr=Array.isArray(raw)?raw:(raw?.candles||raw?.data||raw?.result||raw?.ohlc||raw?.bars||[]);return arr.map(x=>{let t=x.time??x.timestamp??x.date??x.t,o=Number(x.open??x.o),h=Number(x.high??x.h),l=Number(x.low??x.l),c=Number(x.close??x.c);if(!t||![o,h,l,c].every(Number.isFinite))return null;let time=typeof t==='number'?t:Math.floor(Date.parse(t)/1000);if(time>1e12)time=Math.floor(time/1000);return Number.isFinite(time)?{time,open:o,high:h,low:l,close:c}:null}).filter(Boolean).sort((a,b)=>a.time-b.time)}
+function tfInterval(t){return t}
+async function loadCandles(){if(!chartStarted)return;const rid=++requestCounter,symbol=selectedSymbol,tf=selectedTf;$('chartFeedStatus').textContent='Loading feed…';$('chartMessage').textContent='Requesting live candle data…';try{const url='https://biquote.io/api/'+encodeURIComponent(symbol)+'/ohlc?interval='+tfInterval(tf)+'&limit=250';const res=await fetch(url,{cache:'no-store'});if(!res.ok)throw Error('Feed status '+res.status);const raw=await res.json();if(rid!==requestCounter)return;const bars=parseCandleData(raw);if(!bars.length)throw Error('No candles returned or candle format unsupported');series.setData(bars);chart.timeScale().fitContent();const last=bars[bars.length-1],change=(last.close-bars[0].open)/bars[0].open*100;$('chartPrice').textContent=last.close.toLocaleString(undefined,{maximumFractionDigits:5});$('lastClose').textContent=last.close.toLocaleString(undefined,{maximumFractionDigits:5});$('change').textContent=(change>=0?'+':'')+change.toFixed(2)+'%';$('barsCount').textContent=bars.length;$('chartFeedStatus').textContent='Candle feed · refresh 30s';$('chartMessage').textContent='Chart loaded from candle feed. Price data is not fabricated.';$chartFeedStatusColor(change)}catch(e){if(rid!==requestCounter)return;$('chartFeedStatus').textContent='Feed unavailable';$('chartMessage').textContent=e.message+' · No simulated prices are shown.';$('chartMessage').className='message error';$('chartPrice').textContent='—'}}
+function $chartFeedStatusColor(change){$('change').style.color=change>=0?'var(--green)':'var(--red)'}
+function initChart(){if(!window.LightweightCharts||chartStarted)return;chart=LightweightCharts.createChart($('chartContainer'),{width:$('chartContainer').clientWidth,height:$('chartContainer').clientHeight,layout:{background:{color:'#091321'},textColor:'#94a9c0'},grid:{vertLines:{color:'#152336'},horzLines:{color:'#152336'}},rightPriceScale:{borderColor:'#203248'},timeScale:{borderColor:'#203248,timeVisible:true},crosshair:{mode:1}});series=chart.addSeries(LightweightCharts.CandlestickSeries,{upColor:'#35c992',downColor:'#fa727b',borderUpColor:'#35c992',borderDownColor:'#fa727b',wickUpColor:'#35c992',wickDownColor:'#fa727b'});chartStarted=true;loadCandles();refreshTimer=setInterval(loadCandles,30000);resizeObserver=new ResizeObserver(()=>chart.applyOptions({width:$('chartContainer').clientWidth,height:$('chartContainer').clientHeight}));resizeObserver.observe($('chartContainer'))}
+const chartNavObserver=new MutationObserver(()=>{if($('tradeView').classList.contains('active')&&!chartStarted)initChart()});chartNavObserver.observe($('tradeView'),{attributes:true,attributeFilter:['class']});if($('tradeView').classList.contains('active'))initChart();
+async function imageData(file){return new Promise((resolve,reject)=>{const rd=new FileReader();rd.onerror=()=>reject(Error('Cannot read screenshot'));rd.onload=()=>{const im=new Image();im.onerror=()=>reject(Error('Screenshot could not be decoded'));im.onload=()=>{const max=1450,sc=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.width*sc));c.height=Math.max(1,Math.round(im.height*sc));c.getContext('2d').drawImage(im,0,0,c.width,c.height);resolve(c.toDataURL('image/jpeg',.82).split(',')[1])};im.src=rd.result};rd.readAsDataURL(file)})}
+$('clearBtn').addEventListener('click',()=>{uploads={};renderUpload();$('aiResult').textContent='';$('aiResult').classList.remove('show');$('aiMessage').textContent='Cleared. Upload screenshots for a fresh analysis.'});
+$('analyzeBtn').addEventListener('click',async()=>{const btn=$('analyzeBtn');if(btn.disabled)return;btn.disabled=true;btn.textContent='Sending screenshots to Gemini…';$('aiMessage').textContent='Preparing chart images…';$('aiResult').textContent='';$('aiResult').classList.remove('show');try{const token=loadSavedToken();if(!token)throw Error('Open Settings and enter your private Analyzer access token.');if(!Object.keys(uploads).length)throw Error('Upload at least one screenshot from the timeframe buttons.');const charts={};for(const [tf,file] of Object.entries(uploads))charts[tf]=await imageData(file);const payload={version:'multi-timeframe-v2',stage:'multi',pair:selectedSymbol,charts,context:{analysisTimeUTC:new Date().toISOString(),userTimeZone:'Africa/Nairobi',uploadedTimeframes:Object.keys(charts)}};const body=JSON.stringify(payload);if(body.length>9*1024*1024)throw Error('Images are too large. Please use smaller screenshots.');const res=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json','X-Analyzer-Token':token},body,signal:AbortSignal.timeout(90000)});const out=await res.json().catch(()=>({}));if(!res.ok)throw Error(out.error||'AI request failed ('+res.status+')');if(!out.text)throw Error('Gemini returned an empty response.');$('aiResult').textContent=out.text;$('aiResult').classList.add('show');$('aiMessage').textContent='Gemini analysis completed. Review evidence and risk before trading.';$('aiMessage').className='message good';}catch(e){$('aiMessage').textContent=e.message;$('aiMessage').className='message error'}finally{btn.disabled=false;btn.textContent='Analyze screenshots with Gemini'}});
 </script></body></html>
