@@ -369,6 +369,8 @@ function sigBuild(sym,d){
  let direction="WAIT",orderType="WAIT",entry=null,entryLabel="No nearby tradeable point of interest",stop=null,tp1=null,poiText="No clean nearby point of interest",targetText="No confirmed target beyond entry";
  if(atSupport&&last.close>last.open&&lowerWick>=body*.7){direction="BUY";orderType="BUY LIMIT";entry=nearLow+pad;entryLabel="Buy Limit at nearby demand / swing support";poiText="Support / demand swing "+sigFmt(nearLow)}
  else if(atResistance&&last.close<last.open&&upperWick>=body*.7){direction="SELL";orderType="SELL LIMIT";entry=nearHigh-pad;entryLabel="Sell Limit at nearby supply / swing resistance";poiText="Resistance / supply swing "+sigFmt(nearHigh)}
+ else if(bullBreak){direction="BUY";orderType="MARKET BUY";entry=last.close;entryLabel="Market buy after confirmed 5m breakout";poiText="Breakout continuation above "+sigFmt(rangeHigh)}
+ else if(bearBreak){direction="SELL";orderType="MARKET SELL";entry=last.close;entryLabel="Market sell after confirmed 5m breakdown";poiText="Breakdown continuation below "+sigFmt(rangeLow)}
  else if((bullBias&&!bearBias)||(bullBias===bearBias&&distUp<=distDown)){direction="BUY";orderType="BUY STOP";entry=nearHigh+pad;entryLabel="Buy Stop above nearest swing resistance";poiText="Breakout trigger above swing high "+sigFmt(nearHigh)}
  else{direction="SELL";orderType="SELL STOP";entry=nearLow-pad;entryLabel="Sell Stop below nearest swing support";poiText="Breakdown trigger below swing low "+sigFmt(nearLow)}
  if(direction==="BUY"){tp1=[...new Set(pivotHighs.filter(x=>x>entry+pad))].sort((x,y)=>x-y)[0]??null;stop=Math.min(...bars.slice(-24).map(x=>x.low),nearLow)-pad;targetText=tp1?"Next resistance / liquidity pool "+sigFmt(tp1):"No confirmed resistance above entry"}
