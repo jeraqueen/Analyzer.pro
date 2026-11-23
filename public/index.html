@@ -23,7 +23,7 @@ function navigate(view){document.querySelectorAll('.view').forEach(v=>v.classLis
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.view)));
 function marketButton(s,selected=false){return '<button class="market '+(selected?'selected':'')+'" data-symbol="'+s.id+'"><span class="coin">'+s.icon+'</span><span><span class="marketname">'+s.title+'</span><span class="ticker">'+s.short+'</span></span><span class="arrow">›</span></button>'}
 function renderMarkets(){ $('homeMarkets').innerHTML=symbols.map(s=>marketButton(s,s.id===selectedSymbol)).join('');$('tradeMarkets').innerHTML=symbols.map(s=>marketButton(s,s.id===selectedSymbol)).join('');document.querySelectorAll('.market[data-symbol]').forEach(b=>b.addEventListener('click',()=>selectSymbol(b.dataset.symbol)))}
-function selectSymbol(symbol){selectedSymbol=symbol;renderMarkets();$('chartSymbolTitle').textContent=symbols.find(s=>s.id===symbol).title;loadCandles()}
+function selectSymbol(symbol){selectedSymbol=symbol;renderMarkets();$('chartSymbolTitle').textContent=symbols.find(s=>s.id===symbol).title;navigate('trade');loadCandles()}
 function buildTfButtons(target,active,handler){$(target).innerHTML=timeframes.map(t=>'<button class="'+(t===active?'active':'')+'" data-tf="'+t+'">'+t.toUpperCase()+'</button>').join('');$(target).querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>handler(b.dataset.tf)))}
 buildTfButtons('tfButtons',selectedTf,t=>{selectedTf=t;buildTfButtons('tfButtons',selectedTf,x=>{selectedTf=x;loadCandles()});loadCandles()});
 
