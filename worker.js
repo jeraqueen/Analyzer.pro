@@ -116,10 +116,10 @@ async function handleAnalyze(request, env) {
   } catch {
     return json({ error: "Request body must be valid JSON." }, 400, cors);
   }
-  const stage = payload.stage === "combined" ? "combined" : (payload.stage === "range" ? "range" : "confirm");
-  const timeframes = stage === "range" ? ["M5"] : ["M5", "M1"];
+  const stage = payload.stage === "multi" ? "multi" : (payload.stage === "combined" ? "combined" : (payload.stage === "range" ? "range" : "confirm"));
   // Accept the new multi-pair format and the previous single-pair format.
   const submitted = Array.isArray(payload.pairs) ? payload.pairs : [{ pair: payload.pair || "EURUSD", charts: payload.charts || {} }];
+  const timeframes = stage === "multi" ? Object.keys(submitted[0]?.charts || {}) : (stage === "range" ? ["M5"] : ["M5", "M1"]);
   if (!submitted.length || submitted.length > 1) return json({ error: "Select one market per scan. Upload its M5 and M1 screenshots." }, 400, cors);
   const seen = new Set();
   for (const item of submitted) {
@@ -129,6 +129,7 @@ async function handleAnalyze(request, env) {
     seen.add(item.pair);
     item.charts = item.charts && typeof item.charts === "object" ? item.charts : {};
     const missing = timeframes.filter(tf => typeof item.charts[tf] !== "string");
+    if (stage === "multi" && !timeframes.length) return json({ error: "Upload at least one timeframe screenshot for Gemini analysis." }, 400, cors);
     if (missing.length) return json({ error: item.pair + " is missing screenshots: " + missing.join(", ") }, 400, cors);
   }
 
@@ -199,7 +200,15 @@ async function handleAnalyze(request, env) {
     "The saved M5 range is the last fully completed candle captured at New York 9:30 AM. Never change its stored high/low. M1 is a later screenshot; validate breakout, directional FVG and third-candle close against those saved boundaries.",
     "EXECUTION_DATA CONTRACT: Append one single-line EXECUTION_DATA JSON record only when Strategy 1 is fully confirmed and exact numeric Entry, SL, TP1, TP2 and TP3 are all visible and correctly ordered. Format: EXECUTION_DATA: {\"confirmed\":true,\"symbol\":\"" + submitted[0].pair + "\",\"direction\":\"LONG\",\"entry\":1.1,\"sl\":1.09,\"tp1\":1.11,\"tp2\":1.12,\"tp3\":1.13}. Use LONG for BUY and SHORT for SELL. Never append it if any required level is missing or unconfirmed."
   ].join("\n");
-  const prompt = stage === "range" ? rangePrompt : (stage === "combined" ? combinedPrompt : confirmPrompt);
+  const multiPrompt = [
+    "You are Analyzer Pro, an expert technical market analyst working for the user. The user uploaded one or more timeframe screenshots of " + submitted[0].pair + ". Analyze ONLY the uploaded chart evidence and clearly identify which timeframe each image shows. Current Kenya time: " + eatNow + ".",
+    "TIMEFRAME CONTEXT: Available chart timeframes are D1 (daily), H4 (4-hour), H1 (1-hour), M30 (30-minute), M15 (15-minute), M5 (5-minute), and M1 (1-minute). Not every timeframe is necessarily uploaded. Do not invent or claim to see any timeframe that was not supplied.",
+    "ANALYSIS: Start with the higher timeframe trend and structure (D1/H4/H1 if provided), then intraday context (M30/M15/M5), then execution detail (M1) only if provided. Describe market structure HH/HL or LH/LL, BOS/CHoCH/MSS only when visibly supported; identify supply/demand, support/resistance, equal highs/lows, liquidity sweeps, gaps/FVG, breakout/retest, and visible volume/profile information only when the screenshot actually shows it.",
+    "TRADE PLAN: Give BUY/SELL/WAIT bias. Never claim an entry is confirmed unless visible evidence supports it. If lower timeframe execution screenshots are missing, say the bias is directional/context only and entry is not confirmed. Avoid chasing a breakout; prefer a retest when visible. Clearly identify invalidation, structural stop location, and targets at visible levels. If exact prices are unreadable, do not guess.",
+    "EVIDENCE AND HONESTY: Do not invent prices, candles, indicators, volume, news, confidence percentages, or unseen timeframe observations. Preserve displayed precision. State image limitations. If conditions conflict or no valid setup is visible, give WAIT — NO TRADE.",
+    "REPORT: 1) MARKET + UPLOADED TIMEFRAMES; 2) CURRENT TREND/STRUCTURE BY EACH PROVIDED TF; 3) KEY SUPPORT/RESISTANCE AND LIQUIDITY; 4) SUPPLY/DEMAND OR FVG (if visible); 5) SESSION/CONTEXT (only if readable or inferable from chart time); 6) BULLISH/BEARISH SCENARIOS; 7) ENTRY CONDITIONS AND RETEST; 8) INVALIDATION/STOP; 9) TARGETS; 10) RISK/REWARD only if exact levels are readable; 11) WHAT IS MISSING; 12) FINAL VERDICT: BUY / SELL / WAIT. No trade execution or profit guarantee."
+  ].join("\\n");
+  const prompt = stage === "multi" ? multiPrompt : (stage === "range" ? rangePrompt : (stage === "combined" ? combinedPrompt : confirmPrompt));
 
   const parts = [{ text: prompt }];
   for (const item of submitted) {
