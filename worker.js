@@ -113,106 +113,66 @@ const multiPrompt = [
 
 
 function sigCandles(raw){const a=Array.isArray(raw)?raw:(raw?.candles||raw?.data||raw?.result||raw?.ohlc||raw?.bars||[]);return a.map(x=>{const o=Number(x.open??x.o),h=Number(x.high??x.h),l=Number(x.low??x.l),c=Number(x.close??x.c);const rv=Number(x.volume??x.vol),tv=Number(x.tickVolume??x.tick_volume);const v=Number.isFinite(rv)&&rv>0?rv:(Number.isFinite(tv)&&tv>0?tv:null);const rawTime=x.timestamp??x.time??x.openTime??x.open_time;const numericTime=typeof rawTime==="number"||(typeof rawTime==="string"&&rawTime.trim()!==""&&Number.isFinite(Number(rawTime)));let t=numericTime?Number(rawTime):Date.parse(rawTime)/1000;if(Number.isFinite(t)&&t>1e12)t=Math.floor(t/1000);return [o,h,l,c].every(Number.isFinite)?{open:o,high:h,low:l,close:c,volume:v,volumeKind:Number.isFinite(rv)&&rv>0?"real":"tick",time:Number.isFinite(t)?Math.floor(t):null}:null}).filter(Boolean).sort((x,y)=>(x.time??0)-(y.time??0))}
-function sigEma(a,p){if(a.length<p)return null;const k=2/(p+1);let e=a.slice(0,p).reduce((x,y)=>x+y,0)/p;for(let i=p;i<a.length;i++)e=a[i]*k+e*(1-k);return e}
-function sigRsi(a){if(a.length<15)return null;let g=0,l=0;for(let i=a.length-14;i<a.length;i++){const d=a[i]-a[i-1];if(d>0)g+=d;else l-=d}return l===0?100:100-100/(1+g/l)}
-function sigAtr(a){if(a.length<15)return null;let t=0;for(let i=a.length-14;i<a.length;i++){const p=a[i-1].close;t+=Math.max(a[i].high-a[i].low,Math.abs(a[i].high-p),Math.abs(a[i].low-p))}return t/14}
-function sigFmt(n){return Number.isFinite(n)?Number(n).toPrecision(7):"Unavailable"}
-function sigVP(a){
- const v=a.filter(x=>x.volume!==null);
- if(v.length<20)return {available:false,text:"Unavailable — provider has no reliable volume",poc:null,vah:null,val:null,kind:"none"};
- const lo=Math.min(...v.map(x=>x.low)),hi=Math.max(...v.map(x=>x.high));if(hi<=lo)return {available:false,text:"Unavailable",poc:null,vah:null,val:null,kind:"none"};
- const bins=Array(48).fill(0),step=(hi-lo)/bins.length;
- for(const x of v){const typical=(x.high+x.low+x.close)/3,i=Math.min(47,Math.max(0,Math.floor((typical-lo)/step)));bins[i]+=x.volume}
- const total=bins.reduce((s,x)=>s+x,0),pocIdx=bins.indexOf(Math.max(...bins));let left=pocIdx,right=pocIdx,covered=bins[pocIdx];
- while(total>0&&covered<total*.70){const lv=left>0?bins[left-1]:-1,rv=right<47?bins[right+1]:-1;if(lv<0&&rv<0)break;if(rv>lv){right++;covered+=bins[right]}else{left--;covered+=bins[left]}}
- const poc=lo+(pocIdx+.5)*step,val=lo+left*step,vah=lo+(right+1)*step;
- return {available:true,text:"POC "+sigFmt(poc)+" · VAH "+sigFmt(vah)+" · VAL "+sigFmt(val)+" · 70% value area · tick-volume proxy (not centralized exchange volume)",poc,vah,val,kind:"tick-volume-proxy"};
-}
-function sigBuild(sym,d){
- const a=d["30m"],m1=d["1d"],b=d["1h"],m30=null,c=d["4h"],h4=null,d1=d["1d"];
- if(!a||!b||!c||a.length<55||b.length<55||c.length<55)return {symbol:sym,direction:"WAIT",orderType:"WAIT",status:"FEED UNAVAILABLE",score:0,reason:"Insufficient candle history for 30m, 1h and 4h.",strategies:[],volumeProfile:"Unavailable"};
- const closes=a.map(x=>x.close),last=a.at(-1),prev=a.at(-2),e20=sigEma(closes,20),e50=sigEma(closes,50),rsi=sigRsi(closes),atr=sigAtr(a);
- const emaTrend=(arr)=>{const z=arr.map(x=>x.close),e=sigEma(z,20),f=sigEma(z,50);return e===null||f===null?"UNKNOWN":z.at(-1)>e&&e>f?"BULLISH":z.at(-1)<e&&e<f?"BEARISH":"MIXED"};
- const trends={"30m":emaTrend(a),"1h":emaTrend(b),"4h":emaTrend(c),"1d":d1?.length>=55?emaTrend(d1):"UNKNOWN"};
- const higher=[trends["1h"],trends["1h"],trends["4h"],trends["1d"]].filter(x=>x!=="UNKNOWN"),bullHigher=higher.filter(x=>x==="BULLISH").length,bearHigher=higher.filter(x=>x==="BEARISH").length;
- let buy=0,sell=0;const strategies=[],details=[];
- if(trends["30m"]==="BULLISH"&&trends["1h"]==="BULLISH"){buy+=16;strategies.push("30m/1h EMA 20/50 trend")}
- if(trends["30m"]==="BEARISH"&&trends["1h"]==="BEARISH"){sell+=16;strategies.push("5m/15m EMA 20/50 trend")}
- if(bullHigher>=Math.ceil(higher.length*.66)){buy+=14;strategies.push("Higher-timeframe trend alignment")}
- if(bearHigher>=Math.ceil(higher.length*.66)){sell+=14;strategies.push("Higher-timeframe trend alignment")}
- if(rsi>=52&&rsi<=68){buy+=7;strategies.push("RSI bullish momentum")}if(rsi<=48&&rsi>=32){sell+=7;strategies.push("RSI bearish momentum")}
- const macd=sigEma(closes,12)-sigEma(closes,26),prior=sigEma(closes.slice(0,-1),12)-sigEma(closes.slice(0,-1),26);
- if(macd>0&&macd>prior){buy+=7;strategies.push("MACD bullish momentum")}if(macd<0&&macd<prior){sell+=7;strategies.push("MACD bearish momentum")}
- const recent=a.slice(-21,-1),rangeHigh=Math.max(...recent.map(x=>x.high)),rangeLow=Math.min(...recent.map(x=>x.low));
- const bullBreak=last.close>rangeHigh&&last.close>last.open,bearBreak=last.close<rangeLow&&last.close<last.open;
- if(bullBreak){buy+=12;strategies.push("20-candle breakout")}if(bearBreak){sell+=12;strategies.push("20-candle breakdown")}
- const near=Math.abs(last.close-e20)<Math.max(atr||0,Math.abs(last.close)*.0005);
- if(near&&trends["30m"]==="BULLISH"&&last.close>last.open){buy+=9;strategies.push("EMA20 trend pullback")}
- if(near&&trends["30m"]==="BEARISH"&&last.close<last.open){sell+=9;strategies.push("EMA20 trend pullback")}
- if(a.at(-1).low>a.at(-3).high&&trends["30m"]==="BULLISH"){buy+=6;strategies.push("Bullish fair value gap")}
- if(a.at(-1).high<a.at(-3).low&&trends["30m"]==="BEARISH"){sell+=6;strategies.push("Bearish fair value gap")}
- const priorLow=Math.min(...a.slice(-21,-1).map(x=>x.low)),priorHigh=Math.max(...a.slice(-21,-1).map(x=>x.high));
- const sweepLow=last.low<priorLow&&last.close>priorLow&&last.close>last.open,sweepHigh=last.high>priorHigh&&last.close<priorHigh&&last.close<last.open;
- if(sweepLow){buy+=8;strategies.push("Sell-side liquidity sweep")}
- if(sweepHigh){sell+=8;strategies.push("Buy-side liquidity sweep")}
- const vp=sigVP(a);if(vp.available){if(last.close>vp.poc&&last.close<vp.vah&&trends["30m"]==="BULLISH"){buy+=4;strategies.push("Volume profile POC/value-area support")}if(last.close<vp.poc&&last.close>vp.val&&trends["30m"]==="BEARISH"){sell+=4;strategies.push("Volume profile POC/value-area resistance")}}
- // Asian range is computed only when candle timestamps are present; use UTC session boundaries and label as proxy.
- let asian={available:false,text:"Unavailable — candle timestamps missing"};
- if(a.some(x=>x.time)){const day=new Date(last.time*1000).toISOString().slice(0,10),today=a.filter(x=>x.time&&new Date(x.time*1000).toISOString().slice(0,10)===day),asia=today.filter(x=>{const dt=new Date(x.time*1000);const hr=dt.getUTCHours();return hr>=0&&hr<6});if(asia.length>=3){asian={available:true,high:Math.max(...asia.map(x=>x.high)),low:Math.min(...asia.map(x=>x.low)),text:"UTC 00:00–06:00 range (session proxy)"};if(last.close>asian.high&&trends["30m"]==="BULLISH"){buy+=6;strategies.push("Asian range breakout proxy")}if(last.close<asian.low&&trends["30m"]==="BEARISH"){sell+=6;strategies.push("Asian range breakdown proxy")}}}
- // M5 opening range and M1 FVG are included only when minute candles are available.
- let openingRange={available:false,text:"Unavailable — no M1 history"};
- if(m1?.length>=30){const latest=m1.at(-1),sameDay=m1.filter(x=>x.time&&latest.time&&new Date(x.time*1000).toISOString().slice(0,10)===new Date(latest.time*1000).toISOString().slice(0,10));const opening=sameDay.slice(0,5);if(opening.length>=3){openingRange={available:true,high:Math.max(...opening.map(x=>x.high)),low:Math.min(...opening.map(x=>x.low)),text:"First five M1 candles of UTC day (opening-range proxy)"}}}
- // Find nearby swing points of interest and stage a pending order beyond the level.
- const bars=a.slice(-120),pivotHighs=[],pivotLows=[];
- for(let i=2;i<bars.length-2;i++){const x=bars[i];if(x.high>bars[i-1].high&&x.high>bars[i-2].high&&x.high>=bars[i+1].high&&x.high>=bars[i+2].high)pivotHighs.push(x.high);if(x.low<bars[i-1].low&&x.low<bars[i-2].low&&x.low<=bars[i+1].low&&x.low<=bars[i+2].low)pivotLows.push(x.low)}
- const pad=Math.max((atr||0)*.10,Math.abs(last.close)*.00005);
- const above=[...new Set(pivotHighs.filter(x=>x>last.close+pad).sort((x,y)=>x-y))],below=[...new Set(pivotLows.filter(x=>x<last.close-pad).sort((x,y)=>y-x))];
- const nearHigh=above[0]??rangeHigh,nearLow=below[0]??rangeLow;
- const bullBias=bullHigher>bearHigher||(bullHigher===bearHigher&&trends["30m"]==="BULLISH"),bearBias=bearHigher>bullHigher||(bullHigher===bearHigher&&trends["30m"]==="BEARISH");
- const distUp=Math.max(0,nearHigh-last.close),distDown=Math.max(0,last.close-nearLow),body=Math.abs(last.close-last.open),lowerWick=Math.min(last.open,last.close)-last.low,upperWick=last.high-Math.max(last.open,last.close);
- const atSupport=distDown<=Math.max((atr||0)*.45,pad*2),atResistance=distUp<=Math.max((atr||0)*.45,pad*2);
- let direction="WAIT",orderType="WAIT",entry=null,entryLabel="No nearby tradeable point of interest",stop=null,tp1=null,targetLevel=null,poiText="No clean nearby point of interest",targetText="No confirmed target beyond entry";
- if(atSupport&&last.close>last.open&&lowerWick>=body*.7){direction="BUY";orderType="BUY LIMIT";entry=nearLow+pad;entryLabel="Buy Limit at nearby demand / swing support";poiText="Support / demand swing "+sigFmt(nearLow)}
- else if(atResistance&&last.close<last.open&&upperWick>=body*.7){direction="SELL";orderType="SELL LIMIT";entry=nearHigh-pad;entryLabel="Sell Limit at nearby supply / swing resistance";poiText="Resistance / supply swing "+sigFmt(nearHigh)}
- else if(bullBreak){direction="BUY";orderType="MARKET BUY";entry=last.close;entryLabel="Market buy after confirmed 5m breakout";poiText="Breakout continuation above "+sigFmt(rangeHigh)}
- else if(bearBreak){direction="SELL";orderType="MARKET SELL";entry=last.close;entryLabel="Market sell after confirmed 5m breakdown";poiText="Breakdown continuation below "+sigFmt(rangeLow)}
- else if((bullBias&&!bearBias)||(bullBias===bearBias&&distUp<=distDown)){direction="BUY";orderType="BUY STOP";entry=nearHigh+pad;entryLabel="Buy Stop above nearest swing resistance";poiText="Breakout trigger above swing high "+sigFmt(nearHigh)}
- else{direction="SELL";orderType="SELL STOP";entry=nearLow-pad;entryLabel="Sell Stop below nearest swing support";poiText="Breakdown trigger below swing low "+sigFmt(nearLow)}
- // Tighten stops to recent structure and enforce a minimum 1:2 reward-to-risk.
- let tp2=null,tp3=null;
- if(direction==="BUY"){
-   const stopBase=Math.min(...bars.slice(-12).map(x=>x.low));
-   stop=stopBase-pad;
-   const risk=entry-stop;
-   const targets=[...new Set(pivotHighs.filter(x=>x>entry+pad))].sort((x,y)=>x-y);
-   const qualifying=targets.filter(x=>((x-pad-entry)/risk)>=2);
-   targetLevel=qualifying[0]??null;tp1=targetLevel===null?null:targetLevel-pad;
-   const farther=targets.filter(x=>targetLevel!==null&&x>targetLevel);
-   const t3=farther.find(x=>((x-pad-entry)/risk)>=3),t4=farther.find(x=>((x-pad-entry)/risk)>=4);
-   tp2=t3?sigFmt(t3-pad):null;tp3=t4?sigFmt(t4-pad):null;
-   targetText=targetLevel?"Nearest resistance that qualifies for at least 1:2 R:R":"No target offers minimum 1:2 R:R";
+function sigFmt(x){return Number.isFinite(x)?x.toFixed(5):"—"}
+function sigSMC(sym,d){
+ const bars=d["30m"]||[], H=d["1h"]||[], D=d["1d"]||[], W=d["4h"]||[];
+ const stages=Array.from({length:7},(_,i)=>({name:["Liquidity mapped","Liquidity swept","MSS confirmed","Displacement","FVG formed","Retracement","Entry confirmation"][i],confirmed:false,status:"WAIT",detail:"Waiting for candle evidence",time:null,price:null,timeframe:"30m"}));
+ const levelCandidates=[];
+ if(bars.length<40)return {symbol:sym,direction:"WAIT",status:"FEED UNAVAILABLE",stages,entry:null,stopLoss:null,tp1:null,tp2:null,tp3:null,reason:"Insufficient 30m candles to reconstruct structure."};
+ const last=bars.at(-1), timeTxt=x=>x?.time?new Date(x.time*1000).toISOString().replace("T"," ").slice(0,16)+" UTC":"Time unavailable";
+ const swingHi=[],swingLo=[];
+ for(let i=2;i<bars.length-2;i++){let x=bars[i];if(x.high>bars[i-1].high&&x.high>bars[i-2].high&&x.high>=bars[i+1].high&&x.high>=bars[i+2].high)swingHi.push({i,price:x.high,time:x.time});if(x.low<bars[i-1].low&&x.low<bars[i-2].low&&x.low<=bars[i+1].low&&x.low<=bars[i+2].low)swingLo.push({i,price:x.low,time:x.time});}
+ const highs=swingHi.slice(-8).map(x=>x.price),lows=swingLo.slice(-8).map(x=>x.price);
+ const weeklyHigh=W.length?Math.max(...W.slice(-35).map(x=>x.high)):null,weeklyLow=W.length?Math.min(...W.slice(-35).map(x=>x.low)):null;
+ const dailyHigh=D.length?Math.max(...D.slice(-7).map(x=>x.high)):null,dailyLow=D.length?Math.min(...D.slice(-7).map(x=>x.low)):null;
+ stages[0]={name:stages[0].name,confirmed:true,status:"CONFIRMED",detail:"Mapped swing highs/lows"+(weeklyHigh?" · 4h range high "+sigFmt(weeklyHigh)+" / low "+sigFmt(weeklyLow):"")+(dailyHigh?" · recent daily high "+sigFmt(dailyHigh)+" / low "+sigFmt(dailyLow):""),time:timeTxt(last),price:last.close,timeframe:"30m"};
+ const candidates=[];
+ // Historical sweep search; candidates are evaluated from oldest to newest so completed structures can be reconstructed.
+ for(let i=Math.max(25,bars.length-125);i<bars.length-6;i++){
+  const prev=bars.slice(Math.max(0,i-20),i),b=bars[i];if(prev.length<12)continue;
+  const pLow=Math.min(...prev.map(x=>x.low)),pHigh=Math.max(...prev.map(x=>x.high));
+  if(b.low<pLow&&b.close>pLow)candidates.push({dir:"BUY",i,level:pLow,sweepPrice:b.low});
+  if(b.high>pHigh&&b.close<pHigh)candidates.push({dir:"SELL",i,level:pHigh,sweepPrice:b.high});
  }
- if(direction==="SELL"){
-   const stopBase=Math.max(...bars.slice(-12).map(x=>x.high));
-   stop=stopBase+pad;
-   const risk=stop-entry;
-   const targets=[...new Set(pivotLows.filter(x=>x<entry-pad))].sort((x,y)=>y-x);
-   const qualifying=targets.filter(x=>((entry-(x+pad))/risk)>=2);
-   targetLevel=qualifying[0]??null;tp1=targetLevel===null?null:targetLevel+pad;
-   const farther=targets.filter(x=>targetLevel!==null&&x<targetLevel);
-   const t3=farther.find(x=>((entry-(x+pad))/risk)>=3),t4=farther.find(x=>((entry-(x+pad))/risk)>=4);
-   tp2=t3?sigFmt(t3+pad):null;tp3=t4?sigFmt(t4+pad):null;
-   targetText=targetLevel?"Nearest support that qualifies for at least 1:2 R:R":"No target offers minimum 1:2 R:R";
+ let setup=null;
+ for(const c of candidates.reverse()){
+  const after=bars.slice(c.i+1);if(after.length<3)continue;
+  const structural=bars.slice(Math.max(0,c.i-15),c.i);
+  const mssIndex=after.findIndex(x=>c.dir==="BUY"?x.close>Math.max(...structural.slice(-8).map(z=>z.high)):x.close<Math.min(...structural.slice(-8).map(z=>z.low)));
+  if(mssIndex<0)continue;const mi=c.i+1+mssIndex,m=bars[mi];
+  const atrWindow=bars.slice(Math.max(0,mi-14),mi+1),avgRange=atrWindow.reduce((s,x)=>s+(x.high-x.low),0)/Math.max(1,atrWindow.length);
+  const displacementIndex=bars.slice(mi+1,Math.min(bars.length,mi+7)).findIndex(x=>(x.high-x.low)>avgRange*1.35&&(c.dir==="BUY"?x.close>x.open:x.close<x.open));
+  if(displacementIndex<0)continue;const di=mi+1+displacementIndex,disp=bars[di];
+  let fvgIndex=-1,zone=null;
+  for(let k=Math.max(2,di-2);k<=Math.min(bars.length-1,di+3);k++){if(c.dir==="BUY"&&bars[k].low>bars[k-2].high){fvgIndex=k;zone={low:bars[k-2].high,high:bars[k].low};break}if(c.dir==="SELL"&&bars[k].high<bars[k-2].low){fvgIndex=k;zone={low:bars[k].high,high:bars[k-2].low};break}}
+  if(!zone)continue;
+  let ret=-1,entry=-1;for(let k=fvgIndex+1;k<bars.length;k++){const x=bars[k],touch=c.dir==="BUY"?x.low<=zone.high&&x.high>=zone.low:x.high>=zone.low&&x.low<=zone.high;if(touch){ret=k;if(k+1<bars.length){const n=bars[k+1];if(c.dir==="BUY"?n.close>n.open&&n.close>zone.low:n.close<n.open&&n.close<zone.high)entry=k+1;}break}}
+  setup={...c,mi,di,fvgIndex,zone,ret,entry,disp,mss:m};break;
  }
- const validTarget=direction==="BUY"?Number.isFinite(tp1)&&tp1>entry&&((tp1-entry)/(entry-stop))>=2:direction==="SELL"?Number.isFinite(tp1)&&tp1<entry&&((entry-tp1)/(stop-entry))>=2:false;
- if(!validTarget||!Number.isFinite(stop)||(direction==="BUY"&&stop>=entry)||(direction==="SELL"&&stop<=entry)){direction="WAIT";orderType="WAIT";entry=null;stop=null;tp1=null;tp2=null;tp3=null;entryLabel="Rejected: no target with minimum 1:2 R:R";poiText="No nearby setup meets the risk/reward rule";targetText="Trade rejected — minimum 1:2 R:R not achieved"}
- const entryRisk=stop===null?null:Math.abs(entry-stop),rr=entryRisk>0&&tp1!==null?Math.abs(tp1-entry)/entryRisk:null;
- const score=Math.min(100,Math.max(direction==="BUY"?buy:direction==="SELL"?sell:0,direction==="WAIT"?0:35));
-
- const status=direction==="WAIT"?"NO VALID NEARBY POI":orderType.includes("STOP")?"PENDING BREAKOUT / BREAKDOWN":"PENDING LEVEL REACTION";
- const setupReason=strategies.length?strategies.join(" + "):"Swing POI and directional bias"; const reason="Trade rationale: "+setupReason+". Structure: 5m "+trends["30m"]+", 15m "+trends["1h"]+", 1h "+trends["1h"]+". Next POI: "+poiText+". Target: "+targetText+". Minimum R:R is 1:2; score is not a win probability.";
- return {symbol:sym,name:({XAUUSD:"Gold · XAU/USD",BTCUSD:"Bitcoin · BTC/USD",USDJPY:"USD/JPY",GBPUSD:"GBP/USD",EURUSD:"EUR/USD",US30:"Dow Jones · US30"})[sym],direction,orderType,entryType:entryLabel,entry:entry===null?"No valid POI":sigFmt(entry),entryPrice:entry,stopLoss:stop===null?"Not confirmed":sigFmt(stop),stopPrice:stop,tp1:tp1!==null?sigFmt(tp1):null,tp2:tp2??null,tp3:tp3??null,riskReward:rr?("1:"+rr.toFixed(2)):"Unavailable",poi:poiText,targetPoi:targetText,targetBuffer:pad,trend:trends["30m"]+" / "+trends["1h"]+" / "+trends["1h"],timeframes:trends,atr:atr?sigFmt(atr):"Unavailable",volumeProfile:vp.text,volumeProfileAvailable:vp.available,asianRange:asian,openingRange,score,status,reason,strategies,liquiditySweep:sweepLow?"Sell-side swept":sweepHigh?"Buy-side swept":"No confirmed sweep",invalidation:direction==="BUY"?"30m close below "+sigFmt(stop):direction==="SELL"?"5m close above "+sigFmt(stop):"No valid POI — remain flat."};
+ if(setup){
+  const {dir,i,level,sweepPrice,mi,di,fvgIndex,zone,ret,entry,disp,mss}=setup;
+  const t=bars[i],ms=bars[mi],ds=bars[di],fg=bars[fvgIndex],rt=ret>=0?bars[ret]:null,et=entry>=0?bars[entry]:null;
+  stages[1]={name:stages[1].name,confirmed:true,status:"CONFIRMED",detail:(dir==="BUY"?"Sell-side":"Buy-side")+" liquidity swept at "+sigFmt(level)+" · wick "+sigFmt(sweepPrice),time:timeTxt(t),price:sweepPrice,timeframe:"30m"};
+  stages[2]={name:stages[2].name,confirmed:true,status:"CONFIRMED",detail:dir+" MSS candle close "+sigFmt(ms.close)+" broke post-sweep structure",time:timeTxt(ms),price:ms.close,timeframe:"30m"};
+  stages[3]={name:stages[3].name,confirmed:true,status:"CONFIRMED",detail:"Directional displacement candle range "+sigFmt(ds.high-ds.low),time:timeTxt(ds),price:ds.close,timeframe:"30m"};
+  stages[4]={name:stages[4].name,confirmed:true,status:"CONFIRMED",detail:"FVG zone "+sigFmt(zone.low)+" – "+sigFmt(zone.high),time:timeTxt(fg),price:fg.close,timeframe:"30m"};
+  if(rt)stages[5]={name:stages[5].name,confirmed:true,status:"CONFIRMED",detail:"Price retraced into FVG "+sigFmt(zone.low)+" – "+sigFmt(zone.high),time:timeTxt(rt),price:rt.close,timeframe:"30m"};
+  if(et)stages[6]={name:stages[6].name,confirmed:true,status:"CONFIRMED",detail:"Entry confirmation candle close "+sigFmt(et.close),time:timeTxt(et),price:et.close,timeframe:"30m"};
+ }
+ const completed=stages.every(x=>x.confirmed),direction=completed?(setup.dir):"WAIT";
+ let entryPrice=null,stop=null,tp1=null,tp2=null,tp3=null,rr=[];
+ if(completed){
+  entryPrice=bars[setup.entry].close;const stopAnchor=setup.dir==="BUY"?Math.min(setup.sweepPrice,setup.zone.low):Math.max(setup.sweepPrice,setup.zone.high),risk=Math.abs(entryPrice-stopAnchor);
+  const pools=setup.dir==="BUY"?[...highs,weeklyHigh,dailyHigh].filter(x=>x&&x>entryPrice).sort((a,b)=>a-b):[...lows,weeklyLow,dailyLow].filter(x=>x&&x<entryPrice).sort((a,b)=>b-a);
+  const reward=(target)=>setup.dir==="BUY"?target-entryPrice:entryPrice-target;
+  const valid=pools.filter(x=>reward(x)>=risk*2);
+  if(risk>0&&valid.length){stop=stopAnchor;tp1=valid[0];tp2=valid[1]||null;tp3=valid[2]||null;rr=[tp1,tp2,tp3].filter(x=>x!==null).map(x=>"1:"+ (reward(x)/risk).toFixed(2));}
+  else {stages[6].confirmed=false;stages[6].status="REJECTED";stages[6].detail="No liquidity target supports minimum 1:2 RR; setup rejected.";direction="WAIT";entryPrice=null}
+ }
+ const confirmed=stages.filter(x=>x.confirmed).length;
+ return {symbol:sym,direction,status:direction==="WAIT"?"MONITORING · WAIT":"ENTRY READY",stages,entry:entryPrice?sigFmt(entryPrice):null,stopLoss:stop?sigFmt(stop):null,tp1:tp1?sigFmt(tp1):null,tp2:tp2?sigFmt(tp2):null,tp3:tp3?sigFmt(tp3):null,riskReward:rr,reason:confirmed+" / 7 candle-evidenced SMC/ICT stages",timeframes:{scan:"30m",context:["4h","1h","1d"]},lastPrice:sigFmt(last.close),lastCandleTime:timeTxt(last),setupAge:setup?timeTxt(bars[setup.i]):null};
 }
+async function handleSignals(){const syms=[...ALLOWED_PAIRS],tfs=["1m","5m","15m","30m","1h","4h","1d"];const results=await Promise.all(syms.map(async sym=>{const pairs=await Promise.all(tfs.map(async tf=>{try{const r=await fetch("https://biquote.io/api/"+sym+"/ohlc?interval="+tf+"&limit=160",{headers:{Accept:"application/json"},signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error("provider");return [tf,sigCandles(await r.json())]}catch{return [tf,[]]}}));return sigSMC(sym,Object.fromEntries(pairs))}));return Response.json({timestamp:new Date().toISOString(),total:syms.length,available:results.filter(x=>x.status!=="FEED UNAVAILABLE").length,results},{headers:{"Cache-Control":"no-store"}})}
 async function handleSignals(){const syms=[...ALLOWED_PAIRS],tfs=["1m","5m","15m","30m","1h","4h","1d"];const results=await Promise.all(syms.map(async sym=>{const pairs=await Promise.all(tfs.map(async tf=>{try{const r=await fetch("https://biquote.io/api/"+sym+"/ohlc?interval="+tf+"&limit=160",{headers:{Accept:"application/json"},signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error("provider");return [tf,sigCandles(await r.json())]}catch{return [tf,[]]}}));return sigBuild(sym,Object.fromEntries(pairs))}));return Response.json({timestamp:new Date().toISOString(),total:syms.length,available:results.filter(x=>x.status!=="FEED UNAVAILABLE").length,results},{headers:{"Cache-Control":"no-store"}})}
 
 async function handleCandles(request) { const u=new URL(request.url); const symbol=u.searchParams.get('symbol')||''; const interval=u.searchParams.get('interval')||'5m'; const limit=Math.min(500,Math.max(10,Number(u.searchParams.get('limit')||250))); if(!ALLOWED_PAIRS.has(symbol)) return new Response(JSON.stringify({error:'Symbol not supported'}),{status:400,headers:{'Content-Type':'application/json'}}); const allowedIntervals=new Set(['1m','5m','15m','30m','1h','4h','1d']); if(!allowedIntervals.has(interval)) return new Response(JSON.stringify({error:'Timeframe not supported'}),{status:400,headers:{'Content-Type':'application/json'}}); try { const upstream=await fetch('https://biquote.io/api/'+encodeURIComponent(symbol)+'/ohlc?interval='+encodeURIComponent(interval)+'&limit='+limit,{headers:{'Accept':'application/json'},signal:AbortSignal.timeout(12000)}); const body=await upstream.text(); return new Response(body,{status:upstream.status,headers:{'Content-Type':upstream.headers.get('content-type')||'application/json','Cache-Control':'no-store'}}); } catch(e) {return new Response(JSON.stringify({error:'Candle data provider could not be reached',detail:String(e.message||e)}),{status:502,headers:{'Content-Type':'application/json'}})} }
