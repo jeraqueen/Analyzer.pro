@@ -55,6 +55,7 @@ function toggleChartFullPage(){const panel=$('chartPanel');const on=panel.classL
 function liveBarSeconds(){return ({'1m':60,'5m':300,'15m':900,'30m':1800,'1h':3600,'4h':14400,'1d':86400})[selectedTf]||300}
 function handleLiveTick(tick){
   if(!tick||String(tick.symbol||'').toUpperCase()!==selectedSymbol)return;
+  lastTickAt=Date.now();
   const price=Number(tick.mid??tick.price??tick.bid);
   if(!Number.isFinite(price)||price<=0)return;
   const stamp=tick.timestamp?Math.floor(new Date(tick.timestamp).getTime()/1000):Math.floor(Date.now()/1000);
@@ -88,7 +89,7 @@ async function connectLiveFeed(){
     $('chartFeedStatus').textContent='Live stream unavailable · historical candles remain visible';
   }
 }
-function initChart(){if(!window.LightweightCharts||chartStarted)return;chart=LightweightCharts.createChart($('chartContainer'),{width:$('chartContainer').clientWidth,height:$('chartContainer').clientHeight,layout:{background:{color:'#091321'},textColor:'#94a9c0'},grid:{vertLines:{color:'#152336'},horzLines:{color:'#152336'}},rightPriceScale:{borderColor:'#203248'},timeScale:{borderColor:'#203248',timeVisible:true},crosshair:{mode:1}});series=chart.addSeries(LightweightCharts.CandlestickSeries,{upColor:'#35c992',downColor:'#fa727b',borderUpColor:'#35c992',borderDownColor:'#fa727b',wickUpColor:'#35c992',wickDownColor:'#fa727b'});chartStarted=true;loadCandles();connectLiveFeed();if(chartPollTimer)clearInterval(chartPollTimer);chartPollTimer=setInterval(()=>{if($('tradeView').classList.contains('active')&&!liveConnected)loadCandles()},5000);resizeObserver=new ResizeObserver(()=>chart.applyOptions({width:$('chartContainer').clientWidth,height:$('chartContainer').clientHeight}));resizeObserver.observe($('chartContainer'))}
+function initChart(){if(!window.LightweightCharts||chartStarted)return;chart=LightweightCharts.createChart($('chartContainer'),{width:$('chartContainer').clientWidth,height:$('chartContainer').clientHeight,layout:{background:{color:'#091321'},textColor:'#94a9c0'},grid:{vertLines:{color:'#152336'},horzLines:{color:'#152336'}},rightPriceScale:{borderColor:'#203248'},timeScale:{borderColor:'#203248',timeVisible:true},crosshair:{mode:1}});series=chart.addSeries(LightweightCharts.CandlestickSeries,{upColor:'#35c992',downColor:'#fa727b',borderUpColor:'#35c992',borderDownColor:'#fa727b',wickUpColor:'#35c992',wickDownColor:'#fa727b'});chartStarted=true;loadCandles();connectLiveFeed();if(chartPollTimer)clearInterval(chartPollTimer);chartPollTimer=setInterval(()=>{if($('tradeView').classList.contains('active')&&(!liveConnected||Date.now()-lastTickAt>8000))loadCandles()},5000);resizeObserver=new ResizeObserver(()=>chart.applyOptions({width:$('chartContainer').clientWidth,height:$('chartContainer').clientHeight}));resizeObserver.observe($('chartContainer'))}
 const chartNavObserver=new MutationObserver(()=>{if($('tradeView').classList.contains('active')&&!chartStarted)initChart()});chartNavObserver.observe($('tradeView'),{attributes:true,attributeFilter:['class']});if($('tradeView').classList.contains('active'))initChart();
 
 let signalScanBusy=false,signalScanTimer=null;
