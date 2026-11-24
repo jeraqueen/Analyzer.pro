@@ -223,6 +223,58 @@ function sigSMC(sym,d){
    stages[1]={name:stages[1].name,confirmed:false,status:"SCANNING",progress:0,detail:"Liquidity is mapped; waiting for a nearby valid high or low to become the next sweep target.",time:timeTxt(live),price:price,timeframe:"5m / 15m"};
   }
  }
+ // Live stage meters: estimate progress from current candles without falsely confirming a stage.
+ if(!setup){
+  const live5=M5.at(-1),live15=bars.at(-1),price=live5?.close;
+  const avg15=bars.slice(-14).reduce((s,x)=>s+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
+  const clampPct=x=>Math.max(0,Math.min(99,Math.round(Number.isFinite(x)?x:0)));
+  const nearest=liquidityLevels.filter(x=>Number.isFinite(x.rawPrice)&&x.rawPrice!==price).map(x=>({...x,distance:Math.abs(x.rawPrice-price)})).sort((a,b)=>a.distance-b.distance)[0];
+  const expectedDir=nearest?(nearest.side==="LOW"?"BUY":"SELL"):"WAIT";
+  // Stage 2 is a live approach meter; 100 is reserved for the sweep detector above.
+  if(nearest&&Number.isFinite(price)){
+   const horizon=Math.max(avg15*3,0.0003),p=clampPct((1-nearest.distance/horizon)*100);
+   if(stages[1].status!=="CONFIRMED")stages[1]={...stages[1],status:"APPROACHING",progress:p,detail:"Tracking "+nearest.label+" at "+sigFmt(nearest.rawPrice)+" · "+sigFmt(nearest.distance)+" away · "+p+"% approach; confirmed sweep required for 100%.",time:timeTxt(live5),price,timeframe:"5m / 15m"};
+  }
+  // Stage 3: progress toward the structural break in the direction expected after the nearby liquidity is taken.
+  if(expectedDir!=="WAIT"&&Number.isFinite(price)){
+   const refs=expectedDir==="BUY"?swingHi.slice(-5):swingLo.slice(-5);
+   const target=refs.length?(expectedDir==="BUY"?Math.min(...refs.filter(x=>x.price>price).map(x=>x.price).filter(Number.isFinite)):Math.max(...refs.filter(x=>x.price<price).map(x=>x.price).filter(Number.isFinite))):null;
+   if(Number.isFinite(target)){
+    const dist=Math.abs(target-price),p=clampPct((1-dist/Math.max(avg15*3,0.0003))*100);
+    stages[2]={...stages[2],status:"BUILDING",progress:p,detail:"Watching for "+expectedDir+" market-structure break near "+sigFmt(target)+" · "+sigFmt(dist)+" away. MSS is confirmed only by a 15m close through structure.",time:timeTxt(live15),price,timeframe:"15m"};
+   }
+  }
+  // Stage 4: measure the live directional candle's development against the recent average range.
+  if(live15&&expectedDir!=="WAIT"){
+   const directional=expectedDir==="BUY"?live15.close>live15.open:live15.close<live15.open;
+   const range=Math.max(0,live15.high-live15.low),body=Math.abs(live15.close-live15.open);
+   const strength=avg15>0?Math.min(range/avg15,body/avg15*1.5):0;
+   const p=directional?clampPct(strength/1.35*100):0;
+   stages[3]={...stages[3],status:p?"BUILDING":"WAIT",progress:p,detail:"Developing "+expectedDir.toLowerCase()+" 15m candle · range "+sigFmt(range)+" vs average "+sigFmt(avg15)+" · displacement requires a strong closed candle.",time:timeTxt(live15),price:live15.close,timeframe:"15m"};
+  }
+  // Stage 5: track a developing three-candle imbalance, but do not call it an FVG until the candle closes and gap is valid.
+  if(bars.length>=3&&expectedDir!=="WAIT"){
+   const a=bars.at(-3),b=bars.at(-2),z=bars.at(-1);
+   const gap=expectedDir==="BUY"?z.low-a.high:a.low-z.high;
+   const directional=expectedDir==="BUY"?z.close>z.open:z.close<z.open;
+   const p=gap>0&&directional?clampPct(gap/Math.max(avg15*0.25,0.00005)*100):0;
+   stages[4]={...stages[4],status:p?"BUILDING":"WAIT",progress:p,detail:p?"Potential "+expectedDir+" three-candle imbalance developing · gap "+sigFmt(gap)+"; awaiting candle close and validation.":"Waiting for a valid three-candle imbalance in the expected "+expectedDir.toLowerCase()+" direction.",time:timeTxt(z),price:z.close,timeframe:"15m"};
+  }
+  // Stage 6: if a recent directional FVG is visible, meter live price progress toward its far edge.
+  const a=bars.at(-3),z=bars.at(-1);
+  const formingZone=expectedDir==="BUY"&&z&&a&&z.low>a.high?{low:a.high,high:z.low}:expectedDir==="SELL"&&z&&a&&z.high<a.low?{low:z.high,high:a.low}:null;
+  if(formingZone&&Number.isFinite(price)){
+   const dist=price<formingZone.low?formingZone.low-price:price>formingZone.high?price-formingZone.high:0;
+   const p=clampPct((1-dist/Math.max(avg15*1.5,0.0002))*100);
+   stages[5]={...stages[5],status:"BUILDING",progress:p,detail:"Monitoring developing FVG "+sigFmt(formingZone.low)+"–"+sigFmt(formingZone.high)+" · current price "+sigFmt(price)+" · "+p+"% proximity; retracement is confirmed only on a valid retest.",time:timeTxt(live5),price,timeframe:"5m / 15m"};
+  }
+  // Stage 7 follows the retracement preparation; it cannot reach 100% without a fully validated entry plan.
+  const prep=Number(stages[5].progress)||0;
+  if(prep>0){
+   stages[6]={...stages[6],status:"PREPARING",progress:clampPct(prep*0.8),detail:"Entry conditions are being monitored alongside the developing retracement. Market/limit/stop order is only valid after structure, FVG, stop and minimum 1:2 RR are confirmed.",time:timeTxt(live5),price,timeframe:"5m"};
+  }
+ }
+
  let planReady=false,entryPrice=null,stop=null,tp1=null,tp2=null,tp3=null,rr=[],orderType=null,entryZone=null;
  if(setup){
   const {dir,i,level,sweepPrice,mi,di,fvgIndex,zone,ret,entry,disp,mss}=setup;
