@@ -435,3 +435,5 @@ export default {
     return assetResponse;
   }
 };
+
+// Deployment trigger: publish the already-committed SMC progress correction.
