@@ -210,6 +210,19 @@ function sigSMC(sym,d){
   if(!candidateStillRelevant)continue;
   setup={...c,mi,di,fvgIndex,zone,ret,entry,disp,mss:m,fvgTime,postFvg};break;
  }
+ if(!setup){
+  const live=M5.at(-1),price=live?.close;
+  const atr15=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
+  const horizon=Math.max(atr15*3,0.0003);
+  const upcoming=liquidityLevels.filter(x=>Number.isFinite(x.rawPrice)&&x.rawPrice!==price).map(x=>({...x,distance:Math.abs(x.rawPrice-price)})).sort((a,b)=>a.distance-b.distance)[0];
+  if(upcoming&&Number.isFinite(price)){
+   const proximity=Math.max(0,Math.min(99,Math.round((1-upcoming.distance/horizon)*100)));
+   const sideName=upcoming.side==="HIGH"?"buy-side liquidity above":"sell-side liquidity below";
+   stages[1]={name:stages[1].name,confirmed:false,status:"APPROACHING",progress:proximity,detail:"Next liquidity target: "+upcoming.label+" "+sigFmt(upcoming.rawPrice)+" · "+sideName+" · "+sigFmt(upcoming.distance)+" away · proximity "+proximity+"% (100% only after a confirmed sweep)",time:timeTxt(live),price:price,timeframe:"5m / 15m"};
+  }else{
+   stages[1]={name:stages[1].name,confirmed:false,status:"SCANNING",progress:0,detail:"Liquidity is mapped; waiting for a nearby valid high or low to become the next sweep target.",time:timeTxt(live),price:price,timeframe:"5m / 15m"};
+  }
+ }
  let planReady=false,entryPrice=null,stop=null,tp1=null,tp2=null,tp3=null,rr=[],orderType=null,entryZone=null;
  if(setup){
   const {dir,i,level,sweepPrice,mi,di,fvgIndex,zone,ret,entry,disp,mss}=setup;
