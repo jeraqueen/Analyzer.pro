@@ -218,8 +218,15 @@ function sigSMC(sym,d){
   const currentPrice=live.close;
   const remaining=Math.max(0,dir==="BUY"?currentPrice-farEdge:farEdge-currentPrice);
   const retrPct=total>0?Math.max(0,Math.min(100,Math.round((1-remaining/total)*100))):0;
-  const fullyRetraced=dir==="BUY"?currentPrice<=farEdge:currentPrice>=farEdge;
-  stages[5]={name:stages[5].name,confirmed:fullyRetraced,status:fullyRetraced?"CONFIRMED":"IN PROGRESS",progress:fullyRetraced?100:retrPct,detail:"Live 5m retracement toward 15m FVG "+sigFmt(zone.low)+" – "+sigFmt(zone.high)+" · "+(fullyRetraced?100:retrPct)+"%"+(fullyRetraced?" · full-depth fill reached":" · tracking current price"),time:timeTxt(live),price:currentPrice,timeframe:"5m"};
+  const lastThree=M5.slice(-3);
+  const fullFillRecent=lastThree.some(x=>dir==="BUY"?x.low<=zone.low:x.high>=zone.high);
+  const zoneDistance=currentPrice<zone.low?zone.low-currentPrice:currentPrice>zone.high?currentPrice-zone.high:0;
+  const atr=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
+  const nearZone=zoneDistance<=Math.max(atr*0.25,0.00015);
+  const fvgAgeBars=Number.isFinite(live.time)&&Number.isFinite(fg.time)?Math.max(0,(live.time-fg.time)/900):999;
+  const setupFresh=fvgAgeBars<=8&&nearZone;
+  const fullyRetraced=fullFillRecent&&setupFresh;
+  stages[5]={name:stages[5].name,confirmed:fullyRetraced,status:fullyRetraced?"CONFIRMED":setupFresh?"IN PROGRESS":"EXPIRED",progress:fullyRetraced?100:setupFresh?retrPct:0,detail:fullyRetraced?"Fresh full-depth FVG fill detected on recent 5m candles · current price remains near the zone":setupFresh?"Live 5m price is approaching the 15m FVG · tracking current retracement":"FVG setup expired: price moved away from the zone or the setup is older than 2 hours",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
   const atr=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
   const buffer=Math.max(atr*0.1,0.00005),anchor=dir==="BUY"?Math.min(sweepPrice,zone.low):Math.max(sweepPrice,zone.high);
   const candidateStop=dir==="BUY"?anchor-buffer:anchor+buffer;
@@ -236,11 +243,11 @@ function sigSMC(sym,d){
    entryPrice=marketEntry;stop=candidateStop;[tp1,tp2,tp3]=targets;
    rr=targets.map(x=>"1:"+(reward(x)/risk).toFixed(2));
    entryZone=sigFmt(zone.low)+" – "+sigFmt(zone.high);
-   planReady=retrPct>=90;
+   planReady=setupFresh&&(fullyRetraced||retrPct>=90);
    orderType=fullyRetraced?"MARKET EXECUTION":"WAIT FOR FVG FILL";
    stages[6]={name:stages[6].name,confirmed:fullyRetraced,status:fullyRetraced?"READY":"WAIT",progress:fullyRetraced?100:Math.max(0,Math.min(99,Math.round((retrPct-90)*10))),detail:fullyRetraced?"Full FVG retracement reached · market entry levels calculated at live 5m price · minimum 1:2 RR available":"Entry plan prepared · waiting for full FVG fill before market execution",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
   }else{
-   planReady=false;stages[6]={name:stages[6].name,confirmed:false,status:"REJECTED",progress:0,detail:"No valid structural target currently offers at least 1:2 RR from the live entry price; no trade entry.",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
+   planReady=false;stages[6]={name:stages[6].name,confirmed:false,status:"REJECTED",progress:0,detail:!setupFresh?"FVG setup expired or price is too far from the zone; wait for a new sweep, MSS and fresh retracement.":"No valid structural target currently offers at least 1:2 RR from the live entry price; no trade entry.",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
   }
  }
  let direction=planReady?setup.dir:"WAIT";
