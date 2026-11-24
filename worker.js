@@ -238,6 +238,7 @@ async function handleCandles(request) { const u=new URL(request.url); const symb
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === "/api/home" && request.method === "GET") return new Response(APP_HTML, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
     if (url.pathname === "/api/candles" && request.method === "GET") return handleCandles(request);
     if (url.pathname === "/api/signals" && request.method === "GET") return handleSignals();
     if (url.pathname === "/api/analyze") return handleAnalyze(request, env);
