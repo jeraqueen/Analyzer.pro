@@ -221,8 +221,8 @@ function sigSMC(sym,d){
   const lastThree=M5.slice(-3);
   const fullFillRecent=lastThree.some(x=>dir==="BUY"?x.low<=zone.low:x.high>=zone.high);
   const zoneDistance=currentPrice<zone.low?zone.low-currentPrice:currentPrice>zone.high?currentPrice-zone.high:0;
-  const atr=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
-  const nearZone=zoneDistance<=Math.max(atr*0.25,0.00015);
+  const atrForFresh=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
+  const nearZone=zoneDistance<=Math.max(atrForFresh*0.25,0.00015);
   const fvgAgeBars=Number.isFinite(live.time)&&Number.isFinite(fg.time)?Math.max(0,(live.time-fg.time)/900):999;
   const setupFresh=fvgAgeBars<=8&&nearZone;
   const fullyRetraced=fullFillRecent&&setupFresh;
