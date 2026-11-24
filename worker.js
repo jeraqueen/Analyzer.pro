@@ -229,7 +229,7 @@ function sigSMC(sym,d){
    stages[1]={name:stages[1].name,confirmed:false,status:"SCANNING",progress:0,detail:"Liquidity is mapped; waiting for a nearby valid high or low to become the next sweep target.",time:timeTxt(live),price:price,timeframe:"5m / 15m"};
   }
  }
- // Live stage meters: estimate progress from current candles without falsely confirming a stage.
+ // Live stage meters: only the first unfinished stage may display progress.
  if(!setup){
   const live5=M5.at(-1),live15=bars.at(-1),price=live5?.close;
   const avg15=bars.slice(-14).reduce((s,x)=>s+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
@@ -279,6 +279,12 @@ function sigSMC(sym,d){
   if(prep>0){
    stages[6]={...stages[6],status:"PREPARING",progress:clampPct(prep*0.8),detail:"Entry conditions are being monitored alongside the developing retracement. Market/limit/stop order is only valid after structure, FVG, stop and minimum 1:2 RR are confirmed.",time:timeTxt(live5),price,timeframe:"5m"};
   }
+  // Enforce strict stage order: later stages cannot develop while a prerequisite is unconfirmed.
+  for(let i=2;i<7;i++){
+   if(!stages[i-1].confirmed){
+    stages[i]={...stages[i],confirmed:false,status:"LOCKED",progress:0,detail:"LOCKED · waiting for Stage "+i+" ("+stages[i-1].name+") to be confirmed.",time:timeTxt(live5),price,timeframe:i>=6?"5m":"15m"};
+   }
+  }
  }
 
  let planReady=false,entryPrice=null,stop=null,tp1=null,tp2=null,tp3=null,rr=[],orderType=null,entryZone=null;
@@ -303,7 +309,9 @@ function sigSMC(sym,d){
   const fvgAgeBars=Number.isFinite(live.time)&&Number.isFinite(fg.time)?Math.max(0,(live.time-fg.time)/900):999;
   const setupFresh=fvgAgeBars<=8&&zoneDistance<=Math.max(atrForFresh*1.5,0.0003);
   const fullyRetraced=fullFillRecent&&nearZone&&setupFresh;
-  stages[5]={name:stages[5].name,confirmed:fullyRetraced,status:fullyRetraced?"CONFIRMED":setupFresh?"IN PROGRESS":"EXPIRED",progress:fullyRetraced?100:setupFresh?retrPct:0,detail:fullyRetraced?"Fresh full-depth FVG fill detected on recent 5m candles · current price remains near the zone":setupFresh?"Live 5m price is approaching the 15m FVG · tracking current retracement":"No fresh FVG retest yet · tracking the newest setup within 2 hours and 1.5 ATR",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
+  const entryCandleFresh=entry>=0&&(postFvg.length-1-entry)<=3;
+  const entryConfirmed=fullyRetraced&&entryCandleFresh;
+  stages[5]={name:stages[5].name,confirmed:fullyRetraced,status:fullyRetraced?"CONFIRMED":setupFresh?"IN PROGRESS":"EXPIRED",progress:fullyRetraced?100:setupFresh?retrPct:0,detail:fullyRetraced?"Stage 6 confirmed: recent 5m price fully retraced into the exact valid FVG.":"Waiting for a fresh retracement into the exact 15m FVG; no entry is permitted before this stage.",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
   const atr=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
   const buffer=Math.max(atr*0.1,0.00005),anchor=dir==="BUY"?Math.min(sweepPrice,zone.low):Math.max(sweepPrice,zone.high);
   const candidateStop=dir==="BUY"?anchor-buffer:anchor+buffer;
@@ -320,17 +328,25 @@ function sigSMC(sym,d){
    entryPrice=marketEntry;stop=candidateStop;[tp1,tp2,tp3]=targets;
    rr=targets.map(x=>"1:"+(reward(x)/risk).toFixed(2));
    entryZone=sigFmt(zone.low)+" – "+sigFmt(zone.high);
-   planReady=setupFresh&&nearZone&&(fullyRetraced||retrPct>=90);
-   orderType=fullyRetraced?"MARKET EXECUTION":"WAIT FOR FVG FILL";
-   stages[6]={name:stages[6].name,confirmed:fullyRetraced,status:fullyRetraced?"READY":"WAIT",progress:fullyRetraced?100:Math.max(0,Math.min(99,Math.round((retrPct-90)*10))),detail:fullyRetraced?"Full FVG retracement reached · market entry levels calculated at live 5m price · minimum 1:2 RR available":"Entry plan prepared · waiting for full FVG fill before market execution",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
+   planReady=setupFresh&&nearZone&&fullyRetraced&&entryConfirmed;
+   orderType=entryConfirmed?"MARKET EXECUTION":"WAIT FOR ENTRY CONFIRMATION";
+   stages[6]={name:stages[6].name,confirmed:entryConfirmed,status:entryConfirmed?"CONFIRMED":"WAIT",progress:entryConfirmed?100:fullyRetraced?35:0,detail:entryConfirmed?"Stage 7 confirmed: a fresh 5m candle closed in the setup direction after the FVG retest. Entry levels are valid only while the setup remains fresh.":fullyRetraced?"FVG retracement is complete; waiting for a separate 5m directional entry-confirmation candle.":"LOCKED until Stage 6 retracement is confirmed.",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
   }else{
-   planReady=false;stages[6]={name:stages[6].name,confirmed:false,status:"REJECTED",progress:0,detail:!setupFresh?"No current entry: waiting for price to reach the newest valid FVG zone and meet the minimum 1:2 RR.":"No valid structural target currently offers at least 1:2 RR from the live entry price; no trade entry.",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
+   planReady=false;stages[6]={name:stages[6].name,confirmed:false,status:"REJECTED",progress:0,detail:!setupFresh?"No current entry: setup expired or price moved too far from the newest valid FVG.": "No valid structural target currently offers at least 1:2 RR from the live entry price; no trade entry.",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
   }
  }
  let direction=planReady?setup.dir:"WAIT";
  const completed=stages.every(x=>x.confirmed);
  const confirmed=stages.filter(x=>x.confirmed).length;
- return {symbol:sym,direction,status:planReady?(orderType==="MARKET EXECUTION"?"MARKET ENTRY READY":"PREPARE ENTRY · WAIT FOR FULL FVG FILL"):"MONITORING · WAIT",planReady,entryZone,stages:stages.map((s,i)=>({...s,phase:s.confirmed?(i===0?"MAPPED":setup?"CONFIRMED_ACTIVE":"CONFIRMED_HISTORICAL"):(Number(s.progress)>0?"DEVELOPING":"WAITING"),belongsToActiveSetup:i===0||!!setup,eventTime:s.confirmed&&i>0?s.time:null})),liquidityLevels:liquidityLevels.map(({rawPrice,timeValue,...x})=>x),orderType,entry:entryPrice?sigFmt(entryPrice):null,stopLoss:stop?sigFmt(stop):null,tp1:tp1?sigFmt(tp1):null,tp2:tp2?sigFmt(tp2):null,tp3:tp3?sigFmt(tp3):null,riskReward:rr,reason:confirmed+" / 7 candle-evidenced SMC/ICT stages · buffered levels",timeframes:{scan:"15m",entry:"5m",liquidity:"5m",context:["4h","1h","1d"]},lastPrice:sigFmt(M5.at(-1).close),lastCandleTime:timeTxt(M5.at(-1)),setupAge:setup?timeTxt(bars[setup.i]):null};
+ // A breakout that closes beyond liquidity is deliberately not counted as a sweep.
+ const latestBreakout=bars.slice(-8).some((b,i,arr)=>{
+  const before=bars.slice(Math.max(0,bars.length-8+i-20),bars.length-8+i);
+  if(before.length<10)return false;
+  const hi=Math.max(...before.map(x=>x.high)),lo=Math.min(...before.map(x=>x.low));
+  return b.close>hi||b.close<lo;
+ });
+ const marketBehavior=latestSweep?"SWEEP DETECTED · awaiting ordered confirmation":latestBreakout?"BREAKOUT / CONTINUATION · not a reversal sweep":"NO CONFIRMED SWEEP";
+ return {symbol:sym,direction,status:planReady?(orderType==="MARKET EXECUTION"?"MARKET ENTRY READY":"PREPARE ENTRY · WAIT FOR FULL FVG FILL"):"MONITORING · WAIT",planReady,entryZone,stages:stages.map((s,i)=>({...s,phase:s.confirmed?(i===0?"MAPPED":setup?"CONFIRMED_ACTIVE":"CONFIRMED_HISTORICAL"):(Number(s.progress)>0?"DEVELOPING":"WAITING"),belongsToActiveSetup:i===0||!!setup,eventTime:s.confirmed&&i>0?s.time:null})),liquidityLevels:liquidityLevels.map(({rawPrice,timeValue,...x})=>x),orderType,entry:entryPrice?sigFmt(entryPrice):null,stopLoss:stop?sigFmt(stop):null,tp1:tp1?sigFmt(tp1):null,tp2:tp2?sigFmt(tp2):null,tp3:tp3?sigFmt(tp3):null,riskReward:rr,reason:confirmed+" / 7 candle-evidenced SMC/ICT stages · "+marketBehavior+" · later stages locked until prerequisites confirm",marketBehavior,timeframes:{scan:"15m",entry:"5m",liquidity:"5m",context:["4h","1h","1d"]},lastPrice:sigFmt(M5.at(-1).close),lastCandleTime:timeTxt(M5.at(-1)),setupAge:setup?timeTxt(bars[setup.i]):null};
 }
 let calendarCache=null,calendarCacheAt=0,calendarInFlight=null;
 async function handleCalendar(){
