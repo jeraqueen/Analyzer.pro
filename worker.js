@@ -373,16 +373,40 @@ function sigBuild(sym,d){
  else if(bearBreak){direction="SELL";orderType="MARKET SELL";entry=last.close;entryLabel="Market sell after confirmed 5m breakdown";poiText="Breakdown continuation below "+sigFmt(rangeLow)}
  else if((bullBias&&!bearBias)||(bullBias===bearBias&&distUp<=distDown)){direction="BUY";orderType="BUY STOP";entry=nearHigh+pad;entryLabel="Buy Stop above nearest swing resistance";poiText="Breakout trigger above swing high "+sigFmt(nearHigh)}
  else{direction="SELL";orderType="SELL STOP";entry=nearLow-pad;entryLabel="Sell Stop below nearest swing support";poiText="Breakdown trigger below swing low "+sigFmt(nearLow)}
- if(direction==="BUY"){targetLevel=[...new Set(pivotHighs.filter(x=>x>entry+pad))].sort((x,y)=>x-y)[0]??null;tp1=targetLevel===null?null:targetLevel-pad;stop=Math.min(...bars.slice(-24).map(x=>x.low),nearLow)-pad;targetText=targetLevel?"Next resistance "+sigFmt(targetLevel)+" · TP placed "+sigFmt(pad)+" before it":"No confirmed resistance above entry"}
- if(direction==="SELL"){targetLevel=[...new Set(pivotLows.filter(x=>x<entry-pad))].sort((x,y)=>y-x)[0]??null;tp1=targetLevel===null?null:targetLevel+pad;stop=Math.max(...bars.slice(-24).map(x=>x.high),nearHigh)+pad;targetText=targetLevel?"Next support "+sigFmt(targetLevel)+" · TP placed "+sigFmt(pad)+" before it":"No confirmed support below entry"}
- const validTarget=direction==="BUY"?Number.isFinite(tp1)&&tp1>entry+pad:direction==="SELL"?Number.isFinite(tp1)&&tp1<entry-pad:false;
- if(!validTarget||!Number.isFinite(stop)||(direction==="BUY"&&stop>=entry)||(direction==="SELL"&&stop<=entry)){direction="WAIT";orderType="WAIT";entry=null;stop=null;tp1=null;entryLabel="No valid nearby POI with enough room";poiText="Nearest swing levels are too close or no next target exists";targetText="No valid next point of interest"}
+ // Tighten stops to recent structure and enforce a minimum 1:2 reward-to-risk.
+ let tp2=null,tp3=null;
+ if(direction==="BUY"){
+   const stopBase=Math.min(...bars.slice(-12).map(x=>x.low));
+   stop=stopBase-pad;
+   const risk=entry-stop;
+   const targets=[...new Set(pivotHighs.filter(x=>x>entry+pad))].sort((x,y)=>x-y);
+   const qualifying=targets.filter(x=>((x-pad-entry)/risk)>=2);
+   targetLevel=qualifying[0]??null;tp1=targetLevel===null?null:targetLevel-pad;
+   const farther=targets.filter(x=>targetLevel!==null&&x>targetLevel);
+   const t3=farther.find(x=>((x-pad-entry)/risk)>=3),t4=farther.find(x=>((x-pad-entry)/risk)>=4);
+   tp2=t3?sigFmt(t3-pad):null;tp3=t4?sigFmt(t4-pad):null;
+   targetText=targetLevel?"Nearest resistance that qualifies for at least 1:2 R:R":"No target offers minimum 1:2 R:R";
+ }
+ if(direction==="SELL"){
+   const stopBase=Math.max(...bars.slice(-12).map(x=>x.high));
+   stop=stopBase+pad;
+   const risk=stop-entry;
+   const targets=[...new Set(pivotLows.filter(x=>x<entry-pad))].sort((x,y)=>y-x);
+   const qualifying=targets.filter(x=>((entry-(x+pad))/risk)>=2);
+   targetLevel=qualifying[0]??null;tp1=targetLevel===null?null:targetLevel+pad;
+   const farther=targets.filter(x=>targetLevel!==null&&x<targetLevel);
+   const t3=farther.find(x=>((entry-(x+pad))/risk)>=3),t4=farther.find(x=>((entry-(x+pad))/risk)>=4);
+   tp2=t3?sigFmt(t3+pad):null;tp3=t4?sigFmt(t4+pad):null;
+   targetText=targetLevel?"Nearest support that qualifies for at least 1:2 R:R":"No target offers minimum 1:2 R:R";
+ }
+ const validTarget=direction==="BUY"?Number.isFinite(tp1)&&tp1>entry&&((tp1-entry)/(entry-stop))>=2:direction==="SELL"?Number.isFinite(tp1)&&tp1<entry&&((entry-tp1)/(stop-entry))>=2:false;
+ if(!validTarget||!Number.isFinite(stop)||(direction==="BUY"&&stop>=entry)||(direction==="SELL"&&stop<=entry)){direction="WAIT";orderType="WAIT";entry=null;stop=null;tp1=null;tp2=null;tp3=null;entryLabel="Rejected: no target with minimum 1:2 R:R";poiText="No nearby setup meets the risk/reward rule";targetText="Trade rejected — minimum 1:2 R:R not achieved"}
  const entryRisk=stop===null?null:Math.abs(entry-stop),rr=entryRisk>0&&tp1!==null?Math.abs(tp1-entry)/entryRisk:null;
  const score=Math.min(100,Math.max(direction==="BUY"?buy:direction==="SELL"?sell:0,direction==="WAIT"?0:35));
- const tp2=null,tp3=null;
+
  const status=direction==="WAIT"?"NO VALID NEARBY POI":orderType.includes("STOP")?"PENDING BREAKOUT / BREAKDOWN":"PENDING LEVEL REACTION";
- const reason="Current 5m price "+sigFmt(last.close)+". Next POI: "+poiText+". Target: "+targetText+". Confluence score is not a tested win rate.";
- return {symbol:sym,name:({XAUUSD:"Gold · XAU/USD",BTCUSD:"Bitcoin · BTC/USD",USDJPY:"USD/JPY",GBPUSD:"GBP/USD",EURUSD:"EUR/USD",US30:"Dow Jones · US30"})[sym],direction,orderType,entryType:entryLabel,entry:entry===null?"No valid POI":sigFmt(entry),entryPrice:entry,stopLoss:stop===null?"Not confirmed":sigFmt(stop),stopPrice:stop,tp1:tp1!==null?sigFmt(tp1):null,tp2:null,tp3:null,riskReward:rr?("1:"+rr.toFixed(2)):"Unavailable",poi:poiText,targetPoi:targetText,targetBuffer:pad,trend:trends["5m"]+" / "+trends["15m"]+" / "+trends["1h"],timeframes:trends,atr:atr?sigFmt(atr):"Unavailable",volumeProfile:vp.text,volumeProfileAvailable:vp.available,asianRange:asian,openingRange,score,status,reason,strategies,liquiditySweep:sweepLow?"Sell-side swept":sweepHigh?"Buy-side swept":"No confirmed sweep",invalidation:direction==="BUY"?"5m close below "+sigFmt(stop):direction==="SELL"?"5m close above "+sigFmt(stop):"No valid POI — remain flat."};
+ const setupReason=strategies.length?strategies.join(" + "):"Swing POI and directional bias"; const reason="Trade rationale: "+setupReason+". Structure: 5m "+trends["5m"]+", 15m "+trends["15m"]+", 1h "+trends["1h"]+". Next POI: "+poiText+". Target: "+targetText+". Minimum R:R is 1:2; score is not a win probability.";
+ return {symbol:sym,name:({XAUUSD:"Gold · XAU/USD",BTCUSD:"Bitcoin · BTC/USD",USDJPY:"USD/JPY",GBPUSD:"GBP/USD",EURUSD:"EUR/USD",US30:"Dow Jones · US30"})[sym],direction,orderType,entryType:entryLabel,entry:entry===null?"No valid POI":sigFmt(entry),entryPrice:entry,stopLoss:stop===null?"Not confirmed":sigFmt(stop),stopPrice:stop,tp1:tp1!==null?sigFmt(tp1):null,tp2:tp2??null,tp3:tp3??null,riskReward:rr?("1:"+rr.toFixed(2)):"Unavailable",poi:poiText,targetPoi:targetText,targetBuffer:pad,trend:trends["5m"]+" / "+trends["15m"]+" / "+trends["1h"],timeframes:trends,atr:atr?sigFmt(atr):"Unavailable",volumeProfile:vp.text,volumeProfileAvailable:vp.available,asianRange:asian,openingRange,score,status,reason,strategies,liquiditySweep:sweepLow?"Sell-side swept":sweepHigh?"Buy-side swept":"No confirmed sweep",invalidation:direction==="BUY"?"5m close below "+sigFmt(stop):direction==="SELL"?"5m close above "+sigFmt(stop):"No valid POI — remain flat."};
 }
 async function handleSignals(){const syms=[...ALLOWED_PAIRS],tfs=["1m","5m","15m","30m","1h","4h","1d"];const results=await Promise.all(syms.map(async sym=>{const pairs=await Promise.all(tfs.map(async tf=>{try{const r=await fetch("https://biquote.io/api/"+sym+"/ohlc?interval="+tf+"&limit=160",{headers:{Accept:"application/json"},signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error("provider");return [tf,sigCandles(await r.json())]}catch{return [tf,[]]}}));return sigBuild(sym,Object.fromEntries(pairs))}));return Response.json({timestamp:new Date().toISOString(),total:syms.length,available:results.filter(x=>x.status!=="FEED UNAVAILABLE").length,results},{headers:{"Cache-Control":"no-store"}})}
 
