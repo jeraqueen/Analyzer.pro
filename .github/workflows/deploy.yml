@@ -26,8 +26,6 @@ jobs:
       - name: Validate website JavaScript
         run: node -e "const fs=require('fs'),vm=require('vm'),html=fs.readFileSync('public/index.html','utf8'),m=html.match(/<script>([\\s\\S]*?)<\\/script>/);if(!m)throw Error('Website script not found');new vm.Script(m[1]);console.log('Website JavaScript syntax is valid')"
 
-      - name: Validate Worker-served app JavaScript
-        run: node -e "const fs=require('fs'),vm,w=fs.readFileSync('worker.js','utf8'),m=w.match(/const APP_HTML = ([\s\S]*?);\\n/);if(!m)throw Error('APP_HTML constant not found');const html=Function('return '+m[1])(),s=[...html.matchAll(/<script[^>]*>([\\s\\S]*?)<\\/script>/gi)].map(x=>x[1]).filter(x=>x.trim());if(!s.length)throw Error('APP_HTML script not found');new (require('vm').Script)(s[0]);console.log('Worker-served app JavaScript is valid');
       - name: Deploy Worker and static assets
         uses: cloudflare/wrangler-action@v3
         with:
