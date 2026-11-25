@@ -1,4 +1,5 @@
 {
+  // cTrader OAuth tokens are stored in the bound private KV namespace.
   "name": "analyzer-pro",
   "main": "worker.js",
   "compatibility_date": "2026-10-23",
