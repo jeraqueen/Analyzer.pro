@@ -391,6 +391,44 @@ async function handleMarketCandles(request){const u=new URL(request.url),sym=u.s
 try{const data=await proxyFetchYahoo(sym,tf);data.symbol=sym;data.interval=tf;CANDLE_CACHE.set(key,{at:Date.now(),data});return Response.json(data,{headers:{"Cache-Control":"public, max-age=15"}})}catch(e){errors.push(String(e?.message||e))}
 return Response.json({symbol:sym,interval:tf,error:"All free candle providers failed",errors},{status:502,headers:{"Cache-Control":"no-store"}});}
 
+// Read-only MT5 signal feed. Uses the same 16-symbol scanner universe and SMC/ICT engine.
+let mt5SignalCache=null,mt5SignalCacheAt=0,mt5SignalInFlight=null;
+async function handleMT5Signals(){
+ if(mt5SignalCache&&Date.now()-mt5SignalCacheAt<20000)
+  return Response.json(mt5SignalCache,{headers:{"Cache-Control":"no-store"}});
+ if(mt5SignalInFlight)
+  return Response.json(await mt5SignalInFlight,{headers:{"Cache-Control":"no-store"}});
+ mt5SignalInFlight=(async()=>{
+  const symbols=[...SCAN_SYMBOLS],timeframes=["5m","15m","1h","4h","1d"],results=[];
+  for(let offset=0;offset<symbols.length;offset+=4){
+   const batch=await Promise.all(symbols.slice(offset,offset+4).map(async symbol=>{
+    const loaded=await Promise.all(timeframes.map(async interval=>{
+     try{
+      const request=new Request("https://internal/api/market-candles?symbol="+encodeURIComponent(symbol)+"&interval="+interval);
+      const response=await handleMarketCandles(request),payload=await response.json();
+      if(!response.ok||payload.error||!Array.isArray(payload.bars))return [interval,[]];
+      return [interval,sigCandles(payload.bars)];
+     }catch{return [interval,[]]}
+    }));
+    const candles=Object.fromEntries(loaded);
+    let signal;
+    try{signal=sigSMC(symbol,candles)}
+    catch(error){signal={symbol,direction:"WAIT",status:"FEED UNAVAILABLE",planReady:false,entry:null,stopLoss:null,tp1:null,tp2:null,tp3:null,reason:"Signal engine error: "+String(error?.message||error)}}
+    const last5=candles["5m"]?.at(-1);
+    const generatedAt=Math.floor(Date.now()/1000);
+    const lastCandleEpoch=Number(last5?.time||0);
+    const signalId=[symbol,signal.direction||"WAIT",signal.entry||"",signal.stopLoss||"",signal.tp1||"",lastCandleEpoch].join("|");
+    return {...signal,signalId,generatedAt,lastCandleEpoch,feedAvailable:signal.status!=="FEED UNAVAILABLE"};
+   }));
+   results.push(...batch);
+  }
+  return {ok:true,provider:"Analyzer Pro SMC/ICT engine",symbols:results.length,generatedAt:Math.floor(Date.now()/1000),timeframes:["5m","15m","1h","4h","1d"],results};
+ })();
+ try{const data=await mt5SignalInFlight;mt5SignalCache=data;mt5SignalCacheAt=Date.now();return Response.json(data,{headers:{"Cache-Control":"no-store"}})}
+ finally{mt5SignalInFlight=null}
+}
+
+
 async function handleCandles(request) { const u=new URL(request.url); const symbol=u.searchParams.get('symbol')||''; const interval=u.searchParams.get('interval')||'5m'; const limit=Math.min(500,Math.max(10,Number(u.searchParams.get('limit')||250))); if(!ALLOWED_PAIRS.has(symbol)) return new Response(JSON.stringify({error:'Symbol not supported'}),{status:400,headers:{'Content-Type':'application/json'}}); const allowedIntervals=new Set(['1m','5m','15m','30m','1h','4h','1d']); if(!allowedIntervals.has(interval)) return new Response(JSON.stringify({error:'Timeframe not supported'}),{status:400,headers:{'Content-Type':'application/json'}}); try { const upstream=await fetch('https://biquote.io/api/'+encodeURIComponent(symbol)+'/ohlc?interval='+encodeURIComponent(interval)+'&limit='+limit,{headers:{'Accept':'application/json'},signal:AbortSignal.timeout(12000)}); const body=await upstream.text(); return new Response(body,{status:upstream.status,headers:{'Content-Type':upstream.headers.get('content-type')||'application/json','Cache-Control':'no-store'}}); } catch(e) {return new Response(JSON.stringify({error:'Candle data provider could not be reached',detail:String(e.message||e)}),{status:502,headers:{'Content-Type':'application/json'}})} }
 
 const CTRADER_REDIRECT_URI = "https://analyzer-pro.fx77.workers.dev/api/ctrader/callback";
@@ -437,6 +475,7 @@ export default {
     if (url.pathname === "/api/home" && request.method === "GET") return new Response(APP_HTML, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
     if (url.pathname === "/api/calendar" && request.method === "GET") return handleCalendar();
     if (url.pathname === "/api/market-candles" && request.method === "GET") return handleMarketCandles(request);
+    if (url.pathname === "/api/mt5/signals" && request.method === "GET") return handleMT5Signals();
     if (url.pathname === "/api/candles" && request.method === "GET") return handleCandles(request);
     if (url.pathname === "/api/signals" && request.method === "GET") return handleSignals();
     if (url.pathname === "/api/analyze") return handleAnalyze(request, env);
