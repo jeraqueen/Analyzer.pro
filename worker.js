@@ -383,7 +383,7 @@ export default {
     if (url.pathname === "/api/analyze") return handleAnalyze(request, env);
     if (url.pathname === "/api/chat") return handleChat(request, env);
     if (url.pathname === "/api/execute-trade") return handleExecuteTrade(request, env);
-    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) return new Response(APP_HTML, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, max-age=0, must-revalidate" } });
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) return Response.redirect(new URL("/api/home?appVersion=827", url.origin).toString(), 302);
     const assetResponse = await env.ASSETS.fetch(request);
     if (request.method === "GET" && (url.pathname === "/" || url.pathname.endsWith(".html"))) {
       const headers = new Headers(assetResponse.headers);
