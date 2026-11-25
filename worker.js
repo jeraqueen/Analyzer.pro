@@ -317,7 +317,8 @@ function sigSMC(sym,d){
   const atr=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
   const buffer=Math.max(atr*0.1,sigFloor(sym,currentPrice)),anchor=dir==="BUY"?Math.min(sweepPrice,zone.low):Math.max(sweepPrice,zone.high);
   const candidateStop=dir==="BUY"?anchor-buffer:anchor+buffer;
-  const marketEntry=(entryZone5.low+entryZone5.high)/2;\n  const limitPriceValid=dir==="BUY"?currentPrice>marketEntry:currentPrice<marketEntry;
+  const marketEntry=(entryZone5.low+entryZone5.high)/2;
+  const limitPriceValid=dir==="BUY"?currentPrice>marketEntry:currentPrice<marketEntry;
   const risk=Math.abs(marketEntry-candidateStop);
   const pools=dir==="BUY"?[...highs,...liquidityLevels.filter(x=>x.side==="HIGH").map(x=>x.rawPrice)].filter(x=>Number.isFinite(x)&&x>marketEntry).sort((x,y)=>x-y):[...lows,...liquidityLevels.filter(x=>x.side==="LOW").map(x=>x.rawPrice)].filter(x=>Number.isFinite(x)&&x<marketEntry).sort((x,y)=>y-x);
   const uniquePools=[...new Set(pools.map(x=>Number(x.toFixed(6))))];
