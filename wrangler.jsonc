@@ -12,6 +12,9 @@
       "/api/*"
     ]
   },
+  "kv_namespaces": [
+    { "binding": "CTRADER_KV", "id": "689d14af017b4f4fbf10a72b00af49bd" }
+  ],
   "vars": {
     "GEMINI_MODEL": "gemini-3.1-flash-lite"
   }
