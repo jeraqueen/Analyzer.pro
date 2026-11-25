@@ -381,32 +381,6 @@ async function handleSignals(){
  try{const data=await signalInFlight;signalCache=data;signalCacheAt=Date.now();return Response.json(data,{headers:{"Cache-Control":"no-store"}})}finally{signalInFlight=null}
 }
 
-let mt5SignalCache=null,mt5SignalCacheAt=0,mt5SignalInFlight=null;
-async function handleMT5Signals(){
- if(mt5SignalCache&&Date.now()-mt5SignalCacheAt<20000)return Response.json(mt5SignalCache,{headers:{"Cache-Control":"no-store"}});
- if(mt5SignalInFlight)return Response.json(await mt5SignalInFlight,{headers:{"Cache-Control":"no-store"}});
- mt5SignalInFlight=(async()=>{
-  const symbols=[...SCAN_SYMBOLS],timeframes=["5m","15m","1h","4h","1d"],results=[];
-  for(let offset=0;offset<symbols.length;offset+=4){
-   const batch=await Promise.all(symbols.slice(offset,offset+4).map(async symbol=>{
-    const loaded=await Promise.all(timeframes.map(async interval=>{
-     try{const req=new Request("https://internal/api/market-candles?symbol="+encodeURIComponent(symbol)+"&interval="+interval),response=await handleMarketCandles(req),payload=await response.json();if(!response.ok||payload.error||!Array.isArray(payload.bars))return [interval,[]];return [interval,sigCandles(payload.bars)];}
-     catch{return [interval,[]]}
-    }));
-    const candles=Object.fromEntries(loaded);let signal;
-    try{signal=sigSMC(symbol,candles)}
-    catch(error){signal={symbol,direction:"WAIT",status:"FEED UNAVAILABLE",planReady:false,entry:null,stopLoss:null,tp1:null,tp2:null,tp3:null,reason:"Signal engine error: "+String(error?.message||error)}}
-    const last5=candles["5m"]?.at(-1),generatedAt=Math.floor(Date.now()/1000),lastCandleEpoch=Number(last5?.time||0);
-    const signalId=[symbol,signal.direction||"WAIT",signal.entry||"",signal.stopLoss||"",signal.tp1||"",lastCandleEpoch].join("|");
-    return {...signal,signalId,generatedAt,lastCandleEpoch,feedAvailable:signal.status!=="FEED UNAVAILABLE"};
-   }));
-   results.push(...batch);
-  }
-  return {ok:true,provider:"Analyzer Pro SMC/ICT engine",symbols:results.length,generatedAt:Math.floor(Date.now()/1000),timeframes,results};
- })();
- try{const data=await mt5SignalInFlight;mt5SignalCache=data;mt5SignalCacheAt=Date.now();return Response.json(data,{headers:{"Cache-Control":"no-store"}})}
- finally{mt5SignalInFlight=null}
-}
 const SCAN_SYMBOLS=new Set(["EURUSD","GBPUSD","USDJPY","AUDUSD","USDCAD","USDCHF","NZDUSD","US30","US500","DXY","XAUUSD","XAGUSD","USOIL","BTCUSD","ETHUSD","XRPUSD"]);
 const YAHOO_SYMBOLS={EURUSD:"EURUSD=X",GBPUSD:"GBPUSD=X",USDJPY:"JPY=X",AUDUSD:"AUDUSD=X",USDCAD:"CAD=X",USDCHF:"CHF=X",NZDUSD:"NZDUSD=X",US30:"^DJI",US500:"^GSPC",DXY:"DX-Y.NYB",XAUUSD:"GC=F",XAGUSD:"SI=F",USOIL:"CL=F",BTCUSD:"BTC-USD",ETHUSD:"ETH-USD",XRPUSD:"XRP-USD"};
 const CANDLE_CACHE=new Map();
