@@ -317,12 +317,12 @@ function sigSMC(sym,d){
   if(risk>0&&nearestPoi!==null&&nearestRR>=2){
    entryPrice=marketEntry;stop=candidateStop;[tp1,tp2,tp3]=targets;
    rr=targets.map((x,i)=>"TP"+(i+1)+" · 1:"+(reward(x)/risk).toFixed(2)+(i===0&&reward(x)/risk>=5?" · 1:5+ tier":i===0&&reward(x)/risk>=4?" · 1:4 tier":i===0&&reward(x)/risk>=3?" · 1:3 tier":i===0?" · 1:2 tier":""));
-   entryZone=sigFmt(zone.low)+" – "+sigFmt(zone.high);
-   planReady=setupFresh&&nearZone&&retracementConfirmed&&alignment.ok;
+   entryZone=sigFmt(entryZone5.low)+" – "+sigFmt(entryZone5.high);
+   planReady=setupFresh&&retracementConfirmed&&entryConfirmed&&alignment.ok;
    orderType=entryConfirmed?"MARKET EXECUTION":dir==="BUY"?"BUY STOP":"SELL STOP";
    stages[7]={name:stages[7].name,confirmed:entryConfirmed,status:entryConfirmed?"CONFIRMED":retracementConfirmed?"READY":"WAIT",progress:entryConfirmed?100:retracementConfirmed?99.99:0,detail:entryConfirmed?"Stage 8 confirmed: the 5m retracement was followed by a fresh directional close. MARKET EXECUTION levels are now issued.":retracementConfirmed&&!alignment.ok?"5m retracement confirmed; entry blocked by higher-timeframe conflicts: "+alignment.conflicts.join(", "):retracementConfirmed?"5m retracement confirmed; waiting for the next 5m directional confirmation candle.":"Waiting for a valid 5m internal-FVG retracement or a 15m parent-FVG retest.",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
   }else{
-   planReady=false;stages[7]={name:stages[7].name,confirmed:false,status:"REJECTED",progress:0,detail:!setupFresh?"No current entry: setup expired or price moved too far from the newest valid FVG.":"No genuine mapped liquidity target offers the required minimum 1:2 risk/reward; no trade entry is issued.",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
+   planReady=false;stages[7]={name:stages[7].name,confirmed:false,status:"BLOCKED",progress:0,detail:!setupFresh?"Entry blocked: the parent 15m setup has expired.":!retracementConfirmed?"Entry blocked: no valid recent 5m retest yet.":"Stage 7 retracement is confirmed, but mapped liquidity does not currently offer minimum 1:2 RR. Stage 7 remains confirmed; no trade is issued.",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
   }
  }
  let direction=planReady?setup.dir:"WAIT";
