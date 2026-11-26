@@ -331,7 +331,7 @@ function sigSMC(sym,d){
   stages[2]={name:stages[2].name,confirmed:true,status:"CONFIRMED",detail:(dir==="BUY"?"Sell-side":"Buy-side")+" liquidity swept at "+(setup.levelLabel||"mapped liquidity")+" "+sigFmt(level)+" · wick "+sigFmt(sweepPrice),time:timeTxt(t),price:sweepPrice,timeframe:"15m"};
   stages[3]={name:stages[3].name,confirmed:true,status:"CONFIRMED",detail:dir+" rejection and MSS candle close "+sigFmt(ms.close)+" broke post-sweep structure",time:timeTxt(ms),price:ms.close,timeframe:"15m"};
   stages[4]={name:stages[4].name,confirmed:true,status:"CONFIRMED",detail:"Directional displacement candle range "+sigFmt(ds.high-ds.low),time:timeTxt(ds),price:ds.close,timeframe:"15m"};
-  stages[5]={name:stages[5].name,confirmed:true,status:"CONFIRMED",detail:"Latest unmitigated 15m FVG zone "+sigFmt(zone.low)+" – "+sigFmt(zone.high),time:timeTxt(fg),price:fg.close,timeframe:"15m"};
+  stages[5]={name:stages[5].name,confirmed:true,status:"CONFIRMED",belongsToActiveSetup:true,detail:"Latest unmitigated 15m FVG zone "+sigFmt(zone.low)+" – "+sigFmt(zone.high),time:timeTxt(fg),price:fg.close,timeframe:"15m"};
   const farEdge=dir==="BUY"?zone.low:zone.high,nearEdge=dir==="BUY"?zone.high:zone.low;
   const postFvg=setup.postFvg,hasPostFvg=postFvg.length>0,favorable=hasPostFvg?(dir==="BUY"?Math.max(...postFvg.map(x=>x.high)):Math.min(...postFvg.map(x=>x.low))):null;
   const currentPrice=live.close;
@@ -371,6 +371,12 @@ function sigSMC(sym,d){
   }else{
    planReady=false;stages[7]={name:stages[7].name,confirmed:false,status:"REJECTED",progress:0,detail:!setupFresh?"No current entry: setup expired or price moved too far from the newest valid FVG.":"No genuine mapped liquidity target offers greater than 1:1 risk/reward; no trade entry is issued.",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
   }
+ }
+ // Hard sequence invariant: Stage 7 may only calculate against a confirmed FVG belonging to this active setup.
+ if(!stages[5].confirmed||(setup&&!stages[5].belongsToActiveSetup)){
+  stages[6]={name:stages[6].name,confirmed:false,status:"LOCKED",progress:0,detail:"LOCKED · waiting for Stage 6: a valid FVG formed by this same setup. Retracement is not calculated before FVG confirmation.",time:timeTxt(M5.at(-1)),price:M5.at(-1)?.close,timeframe:"5m"};
+  stages[7]={name:stages[7].name,confirmed:false,status:"LOCKED",progress:0,detail:"LOCKED · waiting for the valid FVG and its retracement.",time:timeTxt(M5.at(-1)),price:M5.at(-1)?.close,timeframe:"5m"};
+  planReady=false;entryPrice=null;stop=null;tp1=null;tp2=null;tp3=null;rr=[];orderType=null;entryZone=null;
  }
  let direction=planReady?setup.dir:"WAIT";
  const completed=stages.every(x=>x.confirmed);
