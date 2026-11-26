@@ -283,8 +283,15 @@ function sigSMC(sym,d){
   for(const lv of liquidityLevels){if(!lv.timeValue||!b.time||b.time<=lv.timeValue)continue;if(lv.side==="LOW"&&b.low<lv.zoneLow&&b.close>lv.zoneLow)candidates.push({dir:"BUY",i,level:lv.rawPrice,zoneLow:lv.zoneLow,zoneHigh:lv.zoneHigh,sweepPrice:b.low,levelLabel:lv.label});if(lv.side==="HIGH"&&b.high>lv.zoneHigh&&b.close<lv.zoneHigh)candidates.push({dir:"SELL",i,level:lv.rawPrice,zoneLow:lv.zoneLow,zoneHigh:lv.zoneHigh,sweepPrice:b.high,levelLabel:lv.label})}
  }
  let setup=null,historical=null;
- const latestSweep=candidates.length?candidates[candidates.length-1]:null;
- for(const c of candidates.slice().reverse()){
+ // Only the newest sweep event may drive the active setup. Never fall back to an older
+ // BUY/SELL sweep when the newest event has not completed its own confirmation sequence.
+ const latestSweepIndex=candidates.reduce((n,c)=>Math.max(n,c.i),-1);
+ const latestSweepCandidates=latestSweepIndex>=0?candidates.filter(c=>c.i===latestSweepIndex):[];
+ const latestSweepDirections=new Set(latestSweepCandidates.map(c=>c.dir));
+ const latestSweepConflict=latestSweepDirections.size>1;
+ const latestSweep=latestSweepCandidates.length?latestSweepCandidates[latestSweepCandidates.length-1]:null;
+ const eligibleLatestSweeps=latestSweepConflict?[]:latestSweepCandidates;
+ for(const c of eligibleLatestSweeps.slice().reverse()){
   const after=bars.slice(c.i+1);if(after.length<3)continue;
   const structural=bars.slice(Math.max(0,c.i-15),c.i);
   const mssIndex=after.findIndex(x=>c.dir==="BUY"?x.close>Math.max(...structural.slice(-8).map(z=>z.high)):x.close<Math.min(...structural.slice(-8).map(z=>z.low)));
