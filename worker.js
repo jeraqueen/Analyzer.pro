@@ -274,208 +274,39 @@ function sigCandles(raw){const a=Array.isArray(raw)?raw:(raw?.candles||raw?.data
 
 function sigFmt(x){return Number.isFinite(x)?x.toFixed(5):"—"}
 function sigSMC(sym,d){
- const bars=d["15m"]||[], M5=d["5m"]||[], H=d["1h"]||[], D=d["1d"]||[], W=d["4h"]||[];
- const stages=Array.from({length:8},(_,i)=>({name:["Liquidity mapped","Liquidity approach","Liquidity swept","Rejection / MSS","Displacement","FVG formed","Retracement","Entry / execution"][i],confirmed:false,status:"WAIT",progress:0,detail:"Waiting for candle evidence",time:null,price:null,timeframe:"15m"}));
- const required={"5m":30,"15m":40,"1h":30,"4h":30,"1d":30},stale={"5m":1800,"15m":5400,"1h":14400,"4h":57600,"1d":259200},now=Date.now()/1000;
- for(const tf of Object.keys(required)){const list=d[tf]||[];if(list.length<required[tf])return {symbol:sym,direction:"WAIT",status:"FEED UNAVAILABLE",stages,entry:null,stopLoss:null,tp1:null,tp2:null,tp3:null,reason:tf+" feed has only "+list.length+" valid candles; at least "+required[tf]+" are required."};const newest=list.at(-1)?.time;if(!Number.isFinite(newest)||now-newest>stale[tf]||newest>now+300)return {symbol:sym,direction:"WAIT",status:"FEED UNAVAILABLE",stages,entry:null,stopLoss:null,tp1:null,tp2:null,tp3:null,reason:tf+" candles are stale or have invalid timestamps."};for(let i=Math.max(1,list.length-20);i<list.length;i++){const gap=list[i].time-list[i-1].time,step={"5m":300,"15m":900,"1h":3600,"4h":14400,"1d":86400}[tf];if(gap<=0||(gap>step*12&&gap<86400))return {symbol:sym,direction:"WAIT",status:"FEED UNAVAILABLE",stages,entry:null,stopLoss:null,tp1:null,tp2:null,tp3:null,reason:tf+" feed contains duplicate, out-of-order, or missing recent candles."};}}
- const structureBias=list=>{const a=list.slice(-60),sh=[],sl=[];for(let i=2;i<a.length-2;i++){if(a[i].high>a[i-1].high&&a[i].high>a[i-2].high&&a[i].high>=a[i+1].high&&a[i].high>=a[i+2].high)sh.push(a[i].high);if(a[i].low<a[i-1].low&&a[i].low<a[i-2].low&&a[i].low<=a[i+1].low&&a[i].low<=a[i+2].low)sl.push(a[i].low);}if(sh.length<2||sl.length<2)return "NEUTRAL";const hh=sh.at(-1)>sh.at(-2),hl=sl.at(-1)>sl.at(-2),lh=sh.at(-1)<sh.at(-2),ll=sl.at(-1)<sl.at(-2);return hh&&hl?"BULLISH":lh&&ll?"BEARISH":"MIXED"};
- const timeframeBias={"1H":structureBias(H),"4H":structureBias(W),"1D":structureBias(D)};
- const biasSides=new Set(Object.values(timeframeBias).filter(x=>x==="BULLISH"||x==="BEARISH")),timeframeConflicts=biasSides.size>1?Object.entries(timeframeBias).filter(([,x])=>x==="BULLISH"||x==="BEARISH").map(([tf])=>tf):[];
- const alignmentFor=dir=>{const desired=dir==="BUY"?"BULLISH":"BEARISH",opposite=dir==="BUY"?"BEARISH":"BULLISH",values=Object.values(timeframeBias),aligned=values.filter(x=>x===desired).length,conflicts=Object.entries(timeframeBias).filter(([,x])=>x===opposite).map(([tf])=>tf);return {aligned,conflicts,ok:aligned>=2&&timeframeBias["1D"]!==opposite}};
- const last=bars.at(-1), timeTxt=x=>x?.time?new Date(x.time*1000).toISOString().replace("T"," ").slice(0,16)+" UTC":"Time unavailable";
- const swingHi=[],swingLo=[];
- for(let i=2;i<bars.length-2;i++){let x=bars[i];if(x.high>bars[i-1].high&&x.high>bars[i-2].high&&x.high>=bars[i+1].high&&x.high>=bars[i+2].high)swingHi.push({i,price:x.high,time:x.time});if(x.low<bars[i-1].low&&x.low<bars[i-2].low&&x.low<=bars[i+1].low&&x.low<=bars[i+2].low)swingLo.push({i,price:x.low,time:x.time});}
- const highs=swingHi.slice(-8).map(x=>x.price),lows=swingLo.slice(-8).map(x=>x.price);
- const fmt=(tz)=>new Intl.DateTimeFormat("en-CA",{timeZone:tz,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",hourCycle:"h23"});
- const parts=(ts,tz)=>{const o={};for(const p of fmt(tz).formatToParts(new Date(ts*1000)))if(p.type!=="literal")o[p.type]=p.value;return {date:o.year+"-"+o.month+"-"+o.day,hour:Number(o.hour)}};
- const weekKey=date=>{const x=new Date(date+"T00:00:00Z"),day=x.getUTCDay()||7;x.setUTCDate(x.getUTCDate()-day+1);return x.toISOString().slice(0,10)};
- const shiftDate=(date,days)=>{const x=new Date(date+"T00:00:00Z");x.setUTCDate(x.getUTCDate()+days);return x.toISOString().slice(0,10)};
- const today=parts(Date.now()/1000,"Africa/Nairobi").date,yesterday=shiftDate(today,-1),currentWeek=weekKey(today),previousWeekKey=shiftDate(currentWeek,-7),liquidityLevels=[];
- const addLevel=(label,side,price,time,tf,validAfter)=>{if(Number.isFinite(price)&&Number.isFinite(time))liquidityLevels.push({label,side,rawPrice:price,price:sigFmt(price),timeValue:Number.isFinite(validAfter)?validAfter:time,time:timeTxt({time}),timeframe:tf})};
- // Build exact prior-calendar-day levels in EAT; never fall back to an older daily candle.
- const priorDayBars=D.filter(x=>x.time&&parts(x.time,"Africa/Nairobi").date===yesterday);
- if(priorDayBars.length){const dh=priorDayBars.reduce((a,b)=>b.high>a.high?b:a,priorDayBars[0]),dl=priorDayBars.reduce((a,b)=>b.low<a.low?b:a,priorDayBars[0]),dayValidAfter=Math.max(...priorDayBars.map(x=>x.time))+86400;addLevel("Previous day high","HIGH",dh.high,dh.time,"1D",dayValidAfter);addLevel("Previous day low","LOW",dl.low,dl.time,"1D",dayValidAfter)}
- // Aggregate only the immediately preceding EAT week (Monday through Sunday).
- const priorWeek=W.filter(x=>x.time&&weekKey(parts(x.time,"Africa/Nairobi").date)===previousWeekKey);
- if(priorWeek.length){const wh=priorWeek.reduce((a,b)=>b.high>a.high?b:a,priorWeek[0]),wl=priorWeek.reduce((a,b)=>b.low<a.low?b:a,priorWeek[0]),weekValidAfter=Math.max(...priorWeek.map(x=>x.time))+4*3600;addLevel("Previous week high","HIGH",wh.high,wh.time,"4H",weekValidAfter);addLevel("Previous week low","LOW",wl.low,wl.time,"4H",weekValidAfter)}
- // Session candles are assigned to their EAT calendar date, while local timezone hours handle DST correctly.
- const sessionRange=(tz,start,end)=>{const list=M5.filter(x=>x.time&&parts(x.time,"Africa/Nairobi").date===yesterday&&(()=>{const p=parts(x.time,tz);return p.hour>=start&&p.hour<end})());if(list.length<3)return null;const hi=list.reduce((a,b)=>b.high>a.high?b:a,list[0]),lo=list.reduce((a,b)=>b.low<a.low?b:a,list[0]);return {hi,lo,validAfter:Math.max(...list.map(x=>x.time))+300}};
- for(const z of [{name:"Asian",tz:"Asia/Tokyo",start:9,end:18},{name:"London",tz:"Europe/London",start:8,end:17},{name:"New York",tz:"America/New_York",start:8,end:17}]){const r=sessionRange(z.tz,z.start,z.end);if(r){addLevel(z.name+" session high","HIGH",r.hi.high,r.hi.time,"5m",r.validAfter);addLevel(z.name+" session low","LOW",r.lo.low,r.lo.time,"5m",r.validAfter)}}
- for(const x of swingHi.slice(-8))addLevel("Swing high","HIGH",x.price,x.time,"15m",x.time+1800);for(const x of swingLo.slice(-8))addLevel("Swing low","LOW",x.price,x.time,"15m",x.time+1800);
- // Convert every mapped liquidity price into a volatility-adjusted zone, not a razor-thin line.
- const mapAtr=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));const equalTolerance=Math.max(mapAtr*0.12,sigFloor(sym,last.close));
- const addEqualPools=(points,side,label)=>{const used=new Set();for(let i=0;i<points.length;i++){if(used.has(i))continue;const group=[points[i]];for(let j=i+1;j<points.length;j++)if(Math.abs(points[j].price-points[i].price)<=equalTolerance){group.push(points[j]);used.add(j);}if(group.length>=2){const price=group.reduce((sum,x)=>sum+x.price,0)/group.length,time=Math.max(...group.map(x=>x.time));addLevel(label,side,price,time,"15m",time+1800);}}};
- addEqualPools(swingHi.slice(-8),"HIGH","Equal highs liquidity pool");addEqualPools(swingLo.slice(-8),"LOW","Equal lows liquidity pool");
-
- const zoneHalfWidth=Math.max(mapAtr*0.08,sigFloor(sym,last.close));
- for(const lv of liquidityLevels){lv.zoneLow=lv.rawPrice-zoneHalfWidth;lv.zoneHigh=lv.rawPrice+zoneHalfWidth;lv.zoneHalfWidth=zoneHalfWidth;}
-
- stages[0]={name:stages[0].name,confirmed:liquidityLevels.length>0,status:liquidityLevels.length?"CONFIRMED":"WAIT",progress:liquidityLevels.length?100:0,detail:"Mapped "+liquidityLevels.length+" liquidity levels: previous day high/low, previous week high/low, completed Asian/London/New York session ranges and confirmed 15m swing highs/lows.",time:timeTxt(last),price:last.close,timeframe:"5m / 15m / 4h / 1D"};
- const candidates=[];
- // Historical sweep search; candidates are evaluated from oldest to newest so completed structures can be reconstructed.
- for(let i=Math.max(25,bars.length-125);i<bars.length-6;i++){
-  const prev=bars.slice(Math.max(0,i-20),i),b=bars[i];if(prev.length<12)continue;
-  const pLow=Math.min(...prev.map(x=>x.low)),pHigh=Math.max(...prev.map(x=>x.high));
-  const localAtr=prev.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,prev.length)),half=Math.max(localAtr*0.08,sigFloor(sym,last.close));
-  const lowEdge=pLow-half,highEdge=pHigh+half;
-  if(b.low<lowEdge&&b.close>lowEdge)candidates.push({dir:"BUY",i,level:pLow,zoneLow:pLow-half,zoneHigh:pLow+half,sweepPrice:b.low,levelLabel:"recent 15m range-low zone"});
-  if(b.high>highEdge&&b.close<highEdge)candidates.push({dir:"SELL",i,level:pHigh,zoneLow:pHigh-half,zoneHigh:pHigh+half,sweepPrice:b.high,levelLabel:"recent 15m range-high zone"});
-  for(const lv of liquidityLevels){if(!lv.timeValue||!b.time||b.time<=lv.timeValue)continue;if(lv.side==="LOW"&&b.low<lv.zoneLow&&b.close>lv.zoneLow)candidates.push({dir:"BUY",i,level:lv.rawPrice,zoneLow:lv.zoneLow,zoneHigh:lv.zoneHigh,sweepPrice:b.low,levelLabel:lv.label});if(lv.side==="HIGH"&&b.high>lv.zoneHigh&&b.close<lv.zoneHigh)candidates.push({dir:"SELL",i,level:lv.rawPrice,zoneLow:lv.zoneLow,zoneHigh:lv.zoneHigh,sweepPrice:b.high,levelLabel:lv.label})}
- }
- let setup=null,historical=null;
- // Only the newest sweep event may drive the active setup. Never fall back to an older
- // BUY/SELL sweep when the newest event has not completed its own confirmation sequence.
- const latestSweepIndex=candidates.reduce((n,c)=>Math.max(n,c.i),-1);
- const latestSweepCandidates=latestSweepIndex>=0?candidates.filter(c=>c.i===latestSweepIndex):[];
- const latestSweepDirections=new Set(latestSweepCandidates.map(c=>c.dir));
- const latestSweepConflict=latestSweepDirections.size>1;
- const latestSweep=latestSweepCandidates.length?latestSweepCandidates[latestSweepCandidates.length-1]:null;
- const eligibleLatestSweeps=latestSweepConflict?[]:latestSweepCandidates;
- for(const c of eligibleLatestSweeps.slice().reverse()){
-  const after=bars.slice(c.i+1);if(after.length<3)continue;
-  const structural=bars.slice(Math.max(0,c.i-15),c.i);
-  const mssIndex=after.findIndex(x=>c.dir==="BUY"?x.close>Math.max(...structural.slice(-8).map(z=>z.high)):x.close<Math.min(...structural.slice(-8).map(z=>z.low)));
-  if(mssIndex<0)continue;const mi=c.i+1+mssIndex,m=bars[mi];const hist={depth:1,c,mi,m,di:null,disp:null,fvgIndex:null,zone:null,ret:-1,postFvg:[]};if(!historical||hist.depth>historical.depth)historical=hist;
-  const atrWindow=bars.slice(Math.max(0,mi-14),mi+1),avgRange=atrWindow.reduce((s,x)=>s+(x.high-x.low),0)/Math.max(1,atrWindow.length);
-  const displacementIndex=bars.slice(mi+1,Math.min(bars.length,mi+7)).findIndex(x=>(x.high-x.low)>avgRange*1.35&&(c.dir==="BUY"?x.close>x.open:x.close<x.open));
-  if(displacementIndex<0)continue;const di=mi+1+displacementIndex,disp=bars[di];hist.depth=2;hist.di=di;hist.disp=disp;if(!historical||hist.depth>historical.depth)historical={...hist};
-  let fvgIndex=-1,zone=null;
-  for(let k=Math.max(2,di);k<=Math.min(bars.length-1,di+3);k++){let candidate=null;if(c.dir==="BUY"&&bars[k].low>bars[k-2].high)candidate={low:bars[k-2].high,high:bars[k].low};if(c.dir==="SELL"&&bars[k].high<bars[k-2].low)candidate={low:bars[k].high,high:bars[k-2].low};if(!candidate)continue;const later=bars.slice(k+1);const invalid=later.some(x=>c.dir==="BUY"?x.close<candidate.low:x.close>candidate.high);if(!invalid){fvgIndex=k;zone=candidate;}}
-  if(!zone)continue;
-  hist.depth=3;hist.fvgIndex=fvgIndex;hist.zone=zone;if(!historical||hist.depth>historical.depth)historical={...hist};
-  const fvgTime=bars[fvgIndex].time,postFvg=M5.filter(x=>x.time>fvgTime);let ret=-1,entry=-1;for(let k=0;k<postFvg.length;k++){const x=postFvg[k],touch=c.dir==="BUY"?x.low<=zone.high&&x.high>=zone.low:x.high>=zone.low&&x.low<=zone.high;if(touch){ret=k;if(k+1<postFvg.length){const n=postFvg[k+1];if(c.dir==="BUY"?n.close>n.open&&n.close>zone.high:n.close<n.open&&n.close<zone.low)entry=k+1;}break}}
-  if(ret>=0){hist.depth=4;hist.ret=ret;hist.postFvg=postFvg;if(!historical||hist.depth>historical.depth)historical={...hist};}
-  const liveNow=M5.at(-1),currentNow=liveNow?.close;
-  const atrNow=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
-  const ageNow=Number.isFinite(liveNow?.time)&&Number.isFinite(fvgTime)?Math.max(0,(liveNow.time-fvgTime)/900):999;
-  const distanceNow=currentNow<zone.low?zone.low-currentNow:currentNow>zone.high?currentNow-zone.high:0;
-  const candidateStillRelevant=ageNow<=8&&distanceNow<=Math.max(atrNow*1.5,sigFloor(sym,currentNow)*3);
-  if(!candidateStillRelevant)continue;
-  setup={...c,mi,di,fvgIndex,zone,ret,entry,disp,mss:m,fvgTime,postFvg};break;
- }
- if(historical){const h=historical,c=h.c;stages[2]={...stages[2],confirmed:true,status:"CONFIRMED",progress:100,belongsToActiveSetup:false,detail:(c.dir==="BUY"?"Sell-side":"Buy-side")+" liquidity swept at "+(c.levelLabel||"mapped liquidity")+" "+sigFmt(c.level)+" · wick "+sigFmt(c.sweepPrice),time:timeTxt(bars[c.i]),price:c.sweepPrice,timeframe:"15m"};stages[3]={...stages[3],confirmed:true,status:"CONFIRMED",progress:100,belongsToActiveSetup:false,detail:c.dir+" MSS candle close "+sigFmt(h.m.close)+" broke post-sweep structure",time:timeTxt(h.m),price:h.m.close,timeframe:"15m"};if(h.depth>=2)stages[4]={...stages[4],confirmed:true,status:"CONFIRMED",progress:100,belongsToActiveSetup:false,detail:"Directional displacement candle range "+sigFmt(h.disp.high-h.disp.low),time:timeTxt(h.disp),price:h.disp.close,timeframe:"15m"};if(h.depth>=3)stages[5]={...stages[5],confirmed:true,status:"CONFIRMED",progress:100,belongsToActiveSetup:false,detail:"Valid "+c.dir+" fair value gap formed between "+sigFmt(h.zone.low)+" and "+sigFmt(h.zone.high),time:timeTxt(bars[h.fvgIndex]),price:h.zone.low,timeframe:"15m"};if(h.depth>=4){const rt=h.postFvg[h.ret];stages[6]={...stages[6],confirmed:true,status:"CONFIRMED",progress:100,belongsToActiveSetup:false,detail:"Price retraced into the validated FVG zone "+sigFmt(h.zone.low)+"–"+sigFmt(h.zone.high),time:timeTxt(rt),price:rt.close,timeframe:"5m"};}}
- if(!setup){
-  const live=M5.at(-1),price=live?.close;
-  // Preserve a recent, candle-confirmed sweep as a historical event even when MSS/displacement have not completed.
-  if(latestSweep&&bars.length-1-latestSweep.i<=8){
-   const sweptBar=bars[latestSweep.i];
-   stages[2]={...stages[2],confirmed:true,status:"CONFIRMED",progress:100,detail:(latestSweep.dir==="BUY"?"Sell-side":"Buy-side")+" liquidity sweep confirmed at "+(latestSweep.levelLabel||"mapped liquidity")+" "+sigFmt(latestSweep.level)+" · wick "+sigFmt(latestSweep.sweepPrice)+" · awaiting a complete MSS → displacement → FVG sequence; this sweep is historical until linked to an active setup.",time:timeTxt(sweptBar),price:latestSweep.sweepPrice,timeframe:"15m"};
-  }
-  const atr15=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
-  const horizon=Math.max(atr15*12,sigFloor(sym,price)*12);
-  const upcoming=liquidityLevels.filter(x=>Number.isFinite(x.rawPrice)&&x.rawPrice!==price).map(x=>({...x,distance:Math.abs(x.rawPrice-price)})).sort((a,b)=>a.distance-b.distance)[0];
-  if(upcoming&&Number.isFinite(price)){
-   const proximity=upcoming.distance===0?99.99:Math.max(1,Math.min(99.99,(1-upcoming.distance/horizon)*100));
-   const sideName=upcoming.side==="HIGH"?"buy-side liquidity above":"sell-side liquidity below";
-   if(!stages[1].confirmed)   stages[1]={name:stages[1].name,confirmed:proximity>=100,status:proximity>=100?"CONFIRMED":"APPROACHING",progress:proximity,detail:"Next liquidity target: "+upcoming.label+" zone "+sigFmt(upcoming.zoneLow)+"–"+sigFmt(upcoming.zoneHigh)+" · "+sideName+" · "+(upcoming.distance===0?"price is inside the zone":sigFmt(upcoming.distance)+" from zone edge")+" · proximity "+proximity.toFixed(2)+"% (100% only after a confirmed sweep beyond the zone edge and rejection)",time:timeTxt(live),price:price,timeframe:"5m / 15m"};
-  }else{
-   if(!stages[1].confirmed)   stages[1]={name:stages[1].name,confirmed:false,status:"SCANNING",progress:0,detail:"Liquidity is mapped; waiting for a nearby valid high or low to become the next sweep target.",time:timeTxt(live),price:price,timeframe:"5m / 15m"};
+ const m15=d["15m"]||[],m5=d["5m"]||[],m1=d["1m"]||[],now=Date.now()/1000;
+ const stages=["Liquidity approached","Liquidity swept","M5 structure confirmation","M1 retracement"].map(name=>({name,confirmed:false,status:"WAIT",progress:0,detail:"Waiting for verified candle evidence.",time:null,timeframe:""}));
+ const missing=[];
+ const valid=(a,n,age)=>Array.isArray(a)&&a.length>=n&&Number.isFinite(a.at(-1)?.time)&&now-a.at(-1).time<=age&&a.at(-1).time<=now+180;
+ const ok15=valid(m15,25,10800),ok5=valid(m5,25,3600),ok1=valid(m1,25,1200);
+ if(!ok15)missing.push("M15 unavailable or stale");if(!ok5)missing.push("M5 unavailable or stale");if(!ok1)missing.push("M1 unavailable or stale");
+ const fmt=x=>Number.isFinite(x)?(Math.abs(x)>=1000?x.toFixed(2):Math.abs(x)>=100?x.toFixed(3):Math.abs(x)>=1?x.toFixed(5):x.toFixed(6)):"—";
+ const when=t=>Number.isFinite(t)?new Intl.DateTimeFormat("en-KE",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(t*1000))+" EAT":"";
+ const eat=t=>new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(t*1000));
+ const hour=(t,z)=>Number(new Intl.DateTimeFormat("en-GB",{timeZone:z,hour:"2-digit",hourCycle:"h23"}).format(new Date(t*1000)));
+ const levels=[],add=(label,side,price,time,tf)=>{if(Number.isFinite(price)&&price>0&&Number.isFinite(time))levels.push({label,side,rawPrice:price,price:fmt(price),time:when(time),timeframe:tf})};
+ const current=ok1?m1.at(-1).close:ok5?m5.at(-1).close:ok15?m15.at(-1).close:null;
+ let chosen=null,half=0,sweep=null,structure=null,fvg=null;
+ if(ok15){
+  const today=eat(now),prior=m15.filter(x=>eat(x.time)<today),dates=[...new Set(prior.map(x=>eat(x.time)))].sort(),yesterday=dates.at(-1);
+  if(yesterday){const day=prior.filter(x=>eat(x.time)===yesterday);add("Previous day high · PDH","HIGH",Math.max(...day.map(x=>x.high)),day.at(-1).time,"M15");add("Previous day low · PDL","LOW",Math.min(...day.map(x=>x.low)),day.at(-1).time,"M15")}
+  if(ok5&&yesterday){const day=m5.filter(x=>eat(x.time)===yesterday);for(const z of [{name:"Asian",tz:"Asia/Tokyo",start:9,end:18},{name:"London",tz:"Europe/London",start:8,end:17},{name:"New York",tz:"America/New_York",start:8,end:17}]){const a=day.filter(x=>{const h=hour(x.time,z.tz);return h>=z.start&&h<z.end});if(a.length>=3){add(z.name+" session high","HIGH",Math.max(...a.map(x=>x.high)),a.at(-1).time,"M5");add(z.name+" session low","LOW",Math.min(...a.map(x=>x.low)),a.at(-1).time,"M5")}}}
+  const recent=m15.slice(-90),atr=recent.slice(-20).reduce((v,x)=>v+x.high-x.low,0)/Math.max(1,Math.min(20,recent.length)),tol=Math.max(atr*.12,Math.abs(current||1)*.00002),hi=[],lo=[];
+  for(let i=2;i<recent.length-2;i++){const x=recent[i];if(x.high>recent[i-1].high&&x.high>recent[i-2].high&&x.high>=recent[i+1].high&&x.high>=recent[i+2].high)hi.push(x.high);if(x.low<recent[i-1].low&&x.low<recent[i-2].low&&x.low<=recent[i+1].low&&x.low<=recent[i+2].low)lo.push(x.low)}
+  const pools=(arr,side,label)=>{const used=new Set();for(let i=0;i<arr.length;i++){if(used.has(i))continue;const g=[arr[i]];for(let j=i+1;j<arr.length;j++)if(Math.abs(arr[j]-arr[i])<=tol){g.push(arr[j]);used.add(j)}if(g.length>=2)add(label,side,g.reduce((v,x)=>v+x,0)/g.length,m15.at(-1).time,"M15")}};
+  pools(hi.slice(-12),"HIGH","Equal highs · EQH");pools(lo.slice(-12),"LOW","Equal lows · EQL");
+  if(current&&levels.length){half=Math.max(atr*.08,Math.abs(current)*.00001);for(const l of levels){l.zoneLow=l.rawPrice-half;l.zoneHigh=l.rawPrice+half;l.zone=fmt(l.zoneLow)+" – "+fmt(l.zoneHigh)}
+   const target=levels.map(l=>({...l,distance:Math.abs(current-l.rawPrice),side:l.rawPrice<current?"LOW":"HIGH"})).sort((a,b)=>a.distance-b.distance)[0];
+   if(target){chosen=target;const start=m15[Math.max(0,m15.length-21)].close,initial=Math.abs(start-target.rawPrice),remaining=Math.max(0,Math.abs(current-target.rawPrice)-half),p=remaining<=0?100:Math.max(0,Math.min(99.99,(1-remaining/Math.max(initial-half,half))*100)),reached=target.side==="LOW"?m15.at(-1).low<=target.zoneHigh:m15.at(-1).high>=target.zoneLow;stages[0]={...stages[0],confirmed:reached,status:reached?"CONFIRMED":"BUILDING",progress:Number((reached?100:p).toFixed(2)),detail:target.label+" "+target.zone+"; price "+fmt(current)+"; distance "+fmt(target.distance)+".",time:when(m15.at(-1).time),timeframe:"M15"}}
   }
  }
- // Stage 2 is the only continuous approach meter; it never counts as a confirmed stage.
- if(!setup){
-  const live5=M5.at(-1),price=live5?.close,avg15=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
-  const clampPct=x=>Math.max(0,Math.min(99.99,Number.isFinite(x)?x:0));
-  const nearest=liquidityLevels.filter(x=>Number.isFinite(x.rawPrice)&&x.rawPrice!==price).map(x=>({...x,distance:price<x.zoneLow?x.zoneLow-price:price>x.zoneHigh?price-x.zoneHigh:0})).sort((a,b)=>a.distance-b.distance)[0];
-  if(nearest&&Number.isFinite(price)&&!stages[1].confirmed){const horizon=Math.max(avg15*3,sigFloor(sym,price)*3),p=nearest.distance===0?100:clampPct((1-nearest.distance/horizon)*100);stages[1]={...stages[1],confirmed:p>=100,status:p>=100?"CONFIRMED":"APPROACHING",progress:p,detail:"Tracking "+nearest.label+" zone "+sigFmt(nearest.zoneLow)+"–"+sigFmt(nearest.zoneHigh)+" · "+(nearest.distance===0?"price is inside the zone":sigFmt(nearest.distance)+" from zone edge")+" · "+p.toFixed(2)+"% approach; a wick beyond the zone and close back through it is required to confirm the sweep.",time:timeTxt(live5),price,timeframe:"5m / 15m"};}
-  for(let i=3;i<8;i++)if(!stages[i-1].confirmed)stages[i]={...stages[i],confirmed:false,status:"LOCKED",progress:0,detail:"LOCKED · waiting for Stage "+i+" ("+stages[i-1].name+") to be confirmed.",time:timeTxt(live5),price,timeframe:i>=6?"5m":"15m"};
- }
- 
- let planReady=false,entryPrice=null,stop=null,tp1=null,tp2=null,tp3=null,rr=[],orderType=null,entryZone=null;
- if(setup){
-  const {dir,i,level,sweepPrice,mi,di,fvgIndex,zone,ret,entry,disp,mss}=setup;
-  const t=bars[i],ms=bars[mi],ds=bars[di],fg=bars[fvgIndex],rt=ret>=0?setup.postFvg[ret]:null,et=entry>=0?setup.postFvg[entry]:null,live=M5.at(-1);
-  stages[1]={...stages[1],confirmed:true,status:"CONFIRMED",progress:100,belongsToActiveSetup:true,detail:"Price approached and entered "+(setup.levelLabel||"the mapped liquidity")+" zone before the confirmed "+(dir==="BUY"?"sell-side":"buy-side")+" sweep at "+sigFmt(level)+".",time:timeTxt(t),price:level,timeframe:"15m"};
-  stages[2]={name:stages[2].name,confirmed:true,status:"CONFIRMED",detail:(dir==="BUY"?"Sell-side":"Buy-side")+" liquidity swept at "+(setup.levelLabel||"mapped liquidity")+" "+sigFmt(level)+" · wick "+sigFmt(sweepPrice),time:timeTxt(t),price:sweepPrice,timeframe:"15m"};
-  stages[3]={name:stages[3].name,confirmed:true,status:"CONFIRMED",detail:dir+" rejection and MSS candle close "+sigFmt(ms.close)+" broke post-sweep structure",time:timeTxt(ms),price:ms.close,timeframe:"15m"};
-  stages[4]={name:stages[4].name,confirmed:true,status:"CONFIRMED",detail:"Directional displacement candle range "+sigFmt(ds.high-ds.low),time:timeTxt(ds),price:ds.close,timeframe:"15m"};
-  stages[5]={name:stages[5].name,confirmed:true,status:"CONFIRMED",belongsToActiveSetup:true,detail:"Latest unmitigated 15m FVG zone "+sigFmt(zone.low)+" – "+sigFmt(zone.high),time:timeTxt(fg),price:fg.close,timeframe:"15m"};
-  const farEdge=dir==="BUY"?zone.low:zone.high,nearEdge=dir==="BUY"?zone.high:zone.low;
-  const postFvg=setup.postFvg,hasPostFvg=postFvg.length>0,favorable=hasPostFvg?(dir==="BUY"?Math.max(...postFvg.map(x=>x.high)):Math.min(...postFvg.map(x=>x.low))):null;
-  const currentPrice=live.close;
-  const entryMid=(zone.low+zone.high)/2;
-  const total=hasPostFvg?Math.abs(favorable-entryMid):0;
-  const remaining=dir==="BUY"?favorable-currentPrice:currentPrice-favorable;
-  const retrPct=total>0?Math.max(0,Math.min(99.99,remaining/total*100)):0;
-  const lastThree=M5.slice(-3);
-  const limitTouched=lastThree.some(x=>dir==="BUY"?x.low<=entryMid:x.high>=entryMid);
-  const zoneDistance=currentPrice<zone.low?zone.low-currentPrice:currentPrice>zone.high?currentPrice-zone.high:0;
-  const atrForFresh=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
-  const nearZone=zoneDistance<=Math.max(atrForFresh*0.25,sigFloor(sym,currentPrice)*2);
-  const fvgAgeBars=Number.isFinite(live.time)&&Number.isFinite(fg.time)?Math.max(0,(live.time-fg.time)/900):999;
-  const setupFresh=fvgAgeBars<=8&&zoneDistance<=Math.max(atrForFresh*1.5,sigFloor(sym,currentPrice)*3);
-  const fullyRetraced=limitTouched&&nearZone&&setupFresh;
-  const alignment=alignmentFor(dir),entryConfirmed=fullyRetraced;
-  stages[6]={name:stages[6].name,confirmed:fullyRetraced,status:fullyRetraced?"CONFIRMED":setupFresh?"IN PROGRESS":"WAIT",progress:fullyRetraced?100:setupFresh?retrPct:0,detail:fullyRetraced?"M5 retracement reached the 50% FVG limit-entry level. Stage 7 complete.":"M5 retracement progress toward the 50% FVG limit-entry level: "+retrPct.toFixed(2)+"%.",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
-  const atr=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
-  const buffer=Math.max(atr*0.1,sigFloor(sym,currentPrice)),anchor=dir==="BUY"?Math.min(sweepPrice,zone.low):Math.max(sweepPrice,zone.high);
-  const candidateStop=dir==="BUY"?anchor-buffer:anchor+buffer;
-  const marketEntry=currentPrice;
-  const risk=Math.abs(marketEntry-candidateStop);
-  const pools=dir==="BUY"?[...highs,...liquidityLevels.filter(x=>x.side==="HIGH").map(x=>x.rawPrice)].filter(x=>Number.isFinite(x)&&x>marketEntry).sort((x,y)=>x-y):[...lows,...liquidityLevels.filter(x=>x.side==="LOW").map(x=>x.rawPrice)].filter(x=>Number.isFinite(x)&&x<marketEntry).sort((x,y)=>y-x);
-  const uniquePools=[...new Set(pools.map(x=>Number(x.toFixed(6))))];
-  const reward=target=>dir==="BUY"?target-marketEntry:marketEntry-target;
-  const buffered=uniquePools.map(x=>dir==="BUY"?x-buffer:x+buffer).filter(x=>dir==="BUY"?x>marketEntry:x<marketEntry);
-  const targets=buffered.filter(x=>risk>0&&reward(x)/risk>1).slice(0,3);
-  const nearestPoi=targets[0]??null;
-  const nearestRR=nearestPoi!==null&&risk>0?reward(nearestPoi)/risk:0;
-  if(risk>0&&nearestPoi!==null&&nearestRR>1){
-   entryPrice=marketEntry;stop=candidateStop;[tp1,tp2,tp3]=targets;
-   rr=targets.map((x,i)=>"TP"+(i+1)+" · 1:"+(reward(x)/risk).toFixed(2)+(i===0&&reward(x)/risk>=5?" · 1:5+ tier":i===0&&reward(x)/risk>=4?" · 1:4 tier":i===0&&reward(x)/risk>=3?" · 1:3 tier":i===0&&reward(x)/risk>=2?" · 1:2 tier":i===0&&reward(x)/risk>1?" · >1:1 tier":""));
-   entryZone=sigFmt(zone.low)+" – "+sigFmt(zone.high);
-   planReady=setupFresh&&fullyRetraced;
-   orderType=dir==="BUY"?"BUY LIMIT":"SELL LIMIT";
-   stages[7]={name:stages[7].name,confirmed:false,status:planReady?"LIMIT ORDER READY":"WAITING FOR PRICE",progress:0,detail:planReady?"Seven stages complete. "+orderType+" at "+sigFmt(entryPrice)+"; pending execution at the current valid M5 retracement price inside the FVG.":"Waiting for M5 price to enter the FVG at any retracement depth and a valid structural target above 1:1 RR.",time:timeTxt(live),price:currentPrice,timeframe:"5m"}
-  }else{
-   planReady=false;stages[7]={name:stages[7].name,confirmed:false,status:"REJECTED",progress:0,detail:!setupFresh?"No current entry: setup expired or price moved too far from the newest valid FVG.":"No genuine mapped liquidity target offers greater than 1:1 risk/reward; no trade entry is issued.",time:timeTxt(live),price:currentPrice,timeframe:"5m"};
-  }
- }
- // Hard sequence invariant: Stage 7 may only calculate against a confirmed FVG belonging to this active setup.
- if(!stages[5].confirmed||(setup&&!stages[5].belongsToActiveSetup)){
-  stages[6]={name:stages[6].name,confirmed:false,status:"LOCKED",progress:0,detail:"LOCKED · waiting for Stage 6: a valid FVG formed by this same setup. Retracement is not calculated before FVG confirmation.",time:timeTxt(M5.at(-1)),price:M5.at(-1)?.close,timeframe:"5m"};
-  stages[7]={name:stages[7].name,confirmed:false,status:"LOCKED",progress:0,detail:"LOCKED · waiting for the valid FVG and its retracement.",time:timeTxt(M5.at(-1)),price:M5.at(-1)?.close,timeframe:"5m"};
-  planReady=false;entryPrice=null;stop=null;tp1=null;tp2=null;tp3=null;rr=[];orderType=null;entryZone=null;
- }
- let direction=planReady?setup.dir:"WAIT";
- const completed=stages.every(x=>x.confirmed);
- const confirmed=stages.slice(0,7).filter(x=>x.confirmed).length;
- // A breakout that closes beyond liquidity is deliberately not counted as a sweep.
- const latestBreakout=bars.slice(-8).some((b,i,arr)=>{
-  const before=bars.slice(Math.max(0,bars.length-8+i-20),bars.length-8+i);
-  if(before.length<10)return false;
-  const hi=Math.max(...before.map(x=>x.high)),lo=Math.min(...before.map(x=>x.low));
-  return b.close>hi||b.close<lo;
- });
- const marketBehavior=latestSweep?"SWEEP DETECTED · awaiting ordered confirmation":latestBreakout?"BREAKOUT / CONTINUATION · not a reversal sweep":"NO CONFIRMED SWEEP";
- return {symbol:sym,direction,status:planReady?"LIMIT ORDER READY · WAITING FOR PRICE":"MONITORING · WAIT",planReady,entryZone,stages:stages.map((s,i)=>({...s,phase:s.confirmed?(i===0?"MAPPED":setup?"CONFIRMED_ACTIVE":"CONFIRMED_HISTORICAL"):(Number(s.progress)>0?"DEVELOPING":"WAITING"),belongsToActiveSetup:i===0||!!setup,eventTime:s.confirmed&&i>0?s.time:null})),liquidityLevels:liquidityLevels.map(({rawPrice,timeValue,...x})=>({...x,range:sigFmt(x.zoneLow)+" – "+sigFmt(x.zoneHigh)})),orderType,entry:entryPrice?sigFmt(entryPrice):null,stopLoss:stop?sigFmt(stop):null,tp1:tp1?sigFmt(tp1):null,tp2:tp2?sigFmt(tp2):null,tp3:tp3?sigFmt(tp3):null,riskReward:rr,reason:confirmed+" / 8 candle-evidenced SMC/ICT stages · "+marketBehavior+" · later stages locked until prerequisites confirm",marketBehavior,timeframeBias,timeframeConflicts,timeframes:{scan:"15m",entry:"5m",liquidity:"5m",context:["4h","1h","1d"]},lastPrice:sigFmt(M5.at(-1).close),lastCandleTime:timeTxt(M5.at(-1)),setupAge:setup?timeTxt(bars[setup.i]):null};
-}
-let calendarCache=null,calendarCacheAt=0,calendarInFlight=null;
-async function handleCalendar(){
- if(calendarCache&&Date.now()-calendarCacheAt<900000)return Response.json(calendarCache,{headers:{"Cache-Control":"public, max-age=300"}});
- if(calendarInFlight)return Response.json(await calendarInFlight,{headers:{"Cache-Control":"no-store"}});
- calendarInFlight=(async()=>{
-  let primaryError=null;
-  try{
-   const r=await fetch("https://nfs.faireconomy.media/ff_calendar_thisweek.json",{headers:{Accept:"application/json"},signal:AbortSignal.timeout(5000)});
-   if(!r.ok)throw Error("Forex Factory HTTP "+r.status);
-   const raw=await r.json();if(!Array.isArray(raw)||!raw.length)throw Error("Forex Factory returned no events");
-   const events=raw.filter(x=>["USD","EUR","GBP"].includes(String(x.country||"").toUpperCase())&&x.date&&x.title).map(x=>({title:String(x.title),currency:String(x.country).toUpperCase(),date:String(x.date),impact:String(x.impact||"Low"),actual:x.actual==null?"":String(x.actual),forecast:x.forecast==null?"":String(x.forecast),previous:x.previous==null?"":String(x.previous)})).filter(x=>Number.isFinite(Date.parse(x.date))).sort((a,b)=>Date.parse(a.date)-Date.parse(b.date));
-   if(!events.length)throw Error("Forex Factory returned no USD/EUR/GBP events");
-   return {source:"Forex Factory",fetchedAt:new Date().toISOString(),events};
-  }catch(e){primaryError=String(e&&e.message||e)}
-  try{
-   const url="https://showmytrades.com/api/public/calendar/v1?currency=USD,EUR,GBP&impact=high,medium,low&days=30&format=json";
-   const r=await fetch(url,{headers:{Accept:"application/json"},signal:AbortSignal.timeout(6500)});
-   if(!r.ok)throw Error("Free backup calendar HTTP "+r.status);
-   const payload=await r.json();if(!payload||!Array.isArray(payload.events))throw Error("Free backup calendar response was invalid");
-   const events=payload.events.filter(x=>["USD","EUR","GBP"].includes(String(x.currency||"").toUpperCase())&&x.time&&x.title).map(x=>({title:String(x.title),currency:String(x.currency).toUpperCase(),date:String(x.time),impact:String(x.impact||"low").toLowerCase().replace(/^./,c=>c.toUpperCase()),actual:x.actual==null?"":String(x.actual),forecast:x.forecast==null?"":String(x.forecast),previous:x.previous==null?"":String(x.previous)})).filter(x=>Number.isFinite(Date.parse(x.date))).sort((a,b)=>Date.parse(a.date)-Date.parse(b.date));
-   if(!events.length)throw Error("Free backup calendar returned no matching events");
-   return {source:"ShowMyTrades free backup",fetchedAt:new Date().toISOString(),events,providerUpdatedAt:payload.generated_at||null};
-  }catch(e){throw Error("Both free calendar feeds failed. Primary: "+primaryError+". Backup: "+String(e&&e.message||e))}
- })();
- try{const data=await calendarInFlight;calendarCache=data;calendarCacheAt=Date.now();return Response.json(data,{headers:{"Cache-Control":"public, max-age=300"}})}
- catch(e){if(calendarCache)return Response.json({...calendarCache,stale:true,error:"Both free calendar feeds are temporarily delayed; showing the last successful update."},{headers:{"Cache-Control":"no-store"}});return Response.json({error:"Free economic calendar feeds are temporarily unavailable.",events:[],source:"Free calendar feeds"},{status:502,headers:{"Cache-Control":"no-store"}})}
- finally{calendarInFlight=null}
+ if(stages[0].confirmed&&ok5&&chosen){for(let i=Math.max(0,m5.length-48);i<m5.length;i++){const c=m5[i];if(c.time<m15.at(-1).time)continue;if(chosen.side==="LOW"&&c.low<=chosen.zoneHigh&&c.close>chosen.rawPrice)sweep={dir:"BUY",level:chosen.rawPrice,extreme:c.low,time:c.time,index:i};if(chosen.side==="HIGH"&&c.high>=chosen.zoneLow&&c.close<chosen.rawPrice)sweep={dir:"SELL",level:chosen.rawPrice,extreme:c.high,time:c.time,index:i}}if(sweep)stages[1]={...stages[1],confirmed:true,status:"CONFIRMED",progress:100,detail:(sweep.dir==="BUY"?"Sell-side sweep and bullish reclaim":"Buy-side sweep and bearish reclaim")+" at "+fmt(sweep.level)+"; wick "+fmt(sweep.extreme)+".",time:when(sweep.time),timeframe:"M5"}}
+ if(sweep&&ok5){const prior=m5.slice(Math.max(0,sweep.index-20),sweep.index),after=m5.slice(sweep.index+1),level=sweep.dir==="BUY"?Math.max(...prior.slice(-12).map(x=>x.high)):Math.min(...prior.slice(-12).map(x=>x.low)),atr5=prior.slice(-14).reduce((v,x)=>v+x.high-x.low,0)/Math.max(1,Math.min(14,prior.length));for(const c of after){const body=Math.abs(c.close-c.open),good=sweep.dir==="BUY"?c.close>c.open&&c.close>level:c.close<c.open&&c.close<level;if(good&&body>=atr5*.75&&body>=(c.high-c.low)*.5){structure={dir:sweep.dir,level,time:c.time,index:m5.indexOf(c),displacement:body};break}}if(structure)stages[2]={...stages[2],confirmed:true,status:"CONFIRMED",progress:100,detail:structure.dir+" displacement broke M5 structure "+fmt(level)+"; body "+fmt(structure.displacement)+".",time:when(structure.time),timeframe:"M5"}}
+ if(structure&&ok1){const after=m1.filter(x=>x.time>structure.time);for(let i=2;i<after.length;i++){const a=after[i-2],c=after[i];if(structure.dir==="BUY"&&c.low>a.high)fvg={dir:"BUY",low:a.high,high:c.low,time:c.time,index:i};if(structure.dir==="SELL"&&c.high<a.low)fvg={dir:"SELL",low:c.high,high:a.low,time:c.time}}if(fvg){const last=m1.at(-1),previousTouch=after.slice(fvg.index+1,-1).some(x=>x.low<=fvg.high&&x.high>=fvg.low);if(previousTouch)fvg=null;else{const touch=last.low<=fvg.high&&last.high>=fvg.low,invalid=fvg.dir==="BUY"?last.close<fvg.low:last.close>fvg.high;if(!invalid){const distance=fvg.dir==="BUY"?Math.max(0,last.close-fvg.high):Math.max(0,fvg.low-last.close),span=Math.max(fvg.high-fvg.low,Math.abs(last.close)*.000001),p=touch?100:Math.max(0,Math.min(99.99,(1-distance/(span*8))*100));stages[3]={...stages[3],confirmed:touch,status:touch?"CONFIRMED":"BUILDING",progress:Number(p.toFixed(2)),detail:"Fresh post-confirmation "+fvg.dir+" M1 FVG "+fmt(fvg.low)+" – "+fmt(fvg.high)+"; "+(touch?"first retracement entered":"waiting for first retracement")+".",time:when(fvg.time),timeframe:"M1"}}}}}
+ const progress=Number((stages.reduce((v,x)=>v+(Number(x.progress)||0),0)/4).toFixed(2)),all=stages.every(x=>x.confirmed);let plan=null,entry=null,sl=null,tp1=null,tp2=null,tp3=null,rr=[];
+ if(all&&fvg&&sweep&&structure&&current){const e=(fvg.low+fvg.high)/2,sign=fvg.dir==="BUY"?1:-1,buffer=Math.max(Math.abs(e)*.00001,(fvg.high-fvg.low)*.15),stop=sign>0?sweep.extreme-buffer:sweep.extreme+buffer,risk=Math.abs(e-stop),targets=levels.filter(x=>sign>0?x.rawPrice>e:x.rawPrice<e).sort((a,b)=>sign>0?a.rawPrice-b.rawPrice:b.rawPrice-a.rawPrice),target=targets[0],reward=target?Math.abs(target.rawPrice-e):0,ratio=risk>0?reward/risk:0,breached=sign>0?current<=stop:current>=stop,inside=current>=fvg.low&&current<=fvg.high;if(target&&risk>0&&ratio>=1&&!breached){entry=e;sl=stop;tp1=e+sign*risk;tp2=ratio>=1.5?e+sign*risk*1.5:null;tp3=ratio>=2?e+sign*risk*2:null;rr=["TP1 1:1.00",...(tp2?["TP2 1:1.50"]:[]),...(tp3?["TP3 1:2.00"]:[])];plan={direction:fvg.dir,orderType:inside?"MARKET ENTRY":"LIMIT",entry,stopLoss:sl,tp1,tp2,tp3,target:target.rawPrice}}}
+ const ready=!!plan,reason=missing.length?"Partial feed: "+missing.join("; "):ready?"Four stages confirmed; nearby structural target supports at least 1:1 RR.":stages.find(x=>!x.confirmed)?.detail||"No qualifying nearby target or stop was breached.";
+ return {symbol:sym,direction:ready?plan.direction:"WAIT",setupDirection:sweep?.dir||structure?.dir||"WAIT",status:missing.length===3?"FEED UNAVAILABLE":missing.length?"PARTIAL DATA":ready?"ENTRY READY":"MONITORING",planReady:ready,progress,lastPrice:current?fmt(current):null,lastCandleTime:when((ok1?m1.at(-1):ok5?m5.at(-1):m15.at(-1))?.time),stages,liquidityLevels:levels.slice(0,8).map(x=>({label:x.label,side:x.side,price:fmt(x.rawPrice),zoneLow:x.zoneLow,zoneHigh:x.zoneHigh,range:x.zone,time:x.time,timeframe:x.timeframe})),sweep:sweep?{direction:sweep.dir,level:fmt(sweep.level),wick:fmt(sweep.extreme),time:when(sweep.time)}:null,structure:structure?{direction:structure.dir,breakLevel:fmt(structure.level),displacement:fmt(structure.displacement),time:when(structure.time)}:null,fvg:fvg?{low:fmt(fvg.low),high:fmt(fvg.high),time:when(fvg.time)}:null,entry:ready?fmt(entry):null,entryZone:fvg?fmt(fvg.low)+" – "+fmt(fvg.high):null,orderType:ready?plan.orderType:null,stopLoss:ready?fmt(sl):null,tp1:ready?fmt(tp1):null,tp2:tp2?fmt(tp2):null,tp3:tp3?fmt(tp3):null,riskReward:rr,reason,timeframes:{liquidity:"15m",sweep:"5m",structure:"5m",entry:"1m"}};
 }
 function sigFloor(sym,price){if(["EURUSD","GBPUSD","AUDUSD","USDCAD","NZDUSD"].includes(sym))return 0.00004;if(sym==="USDJPY")return 0.004;if(sym==="USDCHF")return 0.00004;if(sym==="XAUUSD")return 0.02;if(sym==="XAGUSD")return 0.005;if(sym==="BTCUSD")return 1;if(sym==="ETHUSD")return 0.1;if(sym==="XRPUSD")return 0.0001;if(["US30","US500","DXY"].includes(sym))return 0.1;if(sym==="USOIL")return 0.01;return Math.max(0.00001,Math.abs(price||1)*0.000001)}
 
