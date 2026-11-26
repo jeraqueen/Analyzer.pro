@@ -312,8 +312,10 @@ function sigFloor(sym,price){if(["EURUSD","GBPUSD","AUDUSD","USDCAD","NZDUSD"].i
 
 let signalCache=null,signalCacheAt=0,signalInFlight=null;
 async function handleSignals(){
- const response=await handleMT5Signals(),data=await response.json();
- return Response.json({timestamp:new Date((data.generatedAt||Math.floor(Date.now()/1000))*1000).toISOString(),total:data.symbols||0,available:(data.results||[]).filter(x=>x.status!=="FEED UNAVAILABLE").length,results:data.results||[],timeframes:["15m","5m","1m"]},{headers:{"Cache-Control":"no-store"}});
+ if(signalCache&&Date.now()-signalCacheAt<60000)return Response.json(signalCache,{headers:{"Cache-Control":"no-store"}});
+ if(signalInFlight)return Response.json(await signalInFlight,{headers:{"Cache-Control":"no-store"}});
+ signalInFlight=(async()=>{const syms=[...ALLOWED_PAIRS],tfs=["1m","5m","15m"],results=await Promise.all(syms.map(async sym=>{const pairs=await Promise.all(tfs.map(async tf=>{try{const r=await handleMarketCandles(new Request("https://internal/api/market-candles?symbol="+sym+"&interval="+tf)),p=await r.json();return [tf,r.ok&&!p.error?sigCandles(p.bars):[]]}catch{return [tf,[]]}}));return sigSMC(sym,Object.fromEntries(pairs))}));return {timestamp:new Date().toISOString(),total:syms.length,available:results.filter(x=>x.status!=="FEED UNAVAILABLE").length,results,timeframes:tfs}})();
+ try{const data=await signalInFlight;signalCache=data;signalCacheAt=Date.now();return Response.json(data,{headers:{"Cache-Control":"no-store"}})}finally{signalInFlight=null}
 }
 
 const SCAN_SYMBOLS=new Set(["EURUSD","GBPUSD","USDJPY","AUDUSD","USDCAD","USDCHF","NZDUSD","US30","US500","DXY","XAUUSD","XAGUSD","USOIL","BTCUSD","ETHUSD","XRPUSD"]);
