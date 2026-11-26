@@ -262,10 +262,10 @@ function sigSMC(sym,d){
    stages[2]={...stages[2],confirmed:true,status:"CONFIRMED",progress:100,detail:(latestSweep.dir==="BUY"?"Sell-side":"Buy-side")+" liquidity sweep confirmed at "+(latestSweep.levelLabel||"mapped liquidity")+" "+sigFmt(latestSweep.level)+" · wick "+sigFmt(latestSweep.sweepPrice)+" · awaiting a complete MSS → displacement → FVG sequence; this sweep is historical until linked to an active setup.",time:timeTxt(sweptBar),price:latestSweep.sweepPrice,timeframe:"15m"};
   }
   const atr15=bars.slice(-14).reduce((sum,x)=>sum+(x.high-x.low),0)/Math.max(1,Math.min(14,bars.length));
-  const horizon=Math.max(atr15*3,sigFloor(sym,price)*3);
+  const horizon=Math.max(atr15*12,sigFloor(sym,price)*12);
   const upcoming=liquidityLevels.filter(x=>Number.isFinite(x.rawPrice)&&x.rawPrice!==price).map(x=>({...x,distance:Math.abs(x.rawPrice-price)})).sort((a,b)=>a.distance-b.distance)[0];
   if(upcoming&&Number.isFinite(price)){
-   const proximity=upcoming.distance===0?100:Math.max(0,Math.min(99.99,(1-upcoming.distance/horizon)*100));
+   const proximity=upcoming.distance===0?99.99:Math.max(1,Math.min(99.99,(1-upcoming.distance/horizon)*100));
    const sideName=upcoming.side==="HIGH"?"buy-side liquidity above":"sell-side liquidity below";
    if(!stages[1].confirmed)   stages[1]={name:stages[1].name,confirmed:proximity>=100,status:proximity>=100?"CONFIRMED":"APPROACHING",progress:proximity,detail:"Next liquidity target: "+upcoming.label+" zone "+sigFmt(upcoming.zoneLow)+"–"+sigFmt(upcoming.zoneHigh)+" · "+sideName+" · "+(upcoming.distance===0?"price is inside the zone":sigFmt(upcoming.distance)+" from zone edge")+" · proximity "+proximity.toFixed(2)+"% (100% only after a confirmed sweep beyond the zone edge and rejection)",time:timeTxt(live),price:price,timeframe:"5m / 15m"};
   }else{
